@@ -53,3 +53,4 @@ function aplicarTransaccionEnCuentas(accounts, tx) {
   - **Test RF-5:** Gasto descuenta correctamente el saldo de la cuenta indicada.
   - **Test RF-6:** Ingreso suma correctamente el saldo de la cuenta indicada.
   - **Test RF-7:** Transferencia debita de cuenta origen y acredita en cuenta destino.
+

@@ -9,7 +9,7 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ### A. Persistencia en `localStorage` (Modo Offline / Local por defecto)
 - **Clave:** `finance_accounts_data`
-  - Array de objetos `Account`: `id`, `name`, `type` (`"cash"` | `"bank"` | `"credit_card"` | `"wallet"` | `"savings"`), `initialBalance`, `currentBalance`, `currency`, `color`, `icon`, `isExcludedFromTotal`.
+  - Array de objetos `Account`: `id`, `name`, `type` (`"bank"` | `"cash"` | `"wallet"` | `"savings"` | `"credit_card"`), `initialBalance`, `currentBalance`, `currency`, `color`, `icon`, `isExcludedFromTotal`.
 - **Clave:** `finance_transactions_data`
   - Array de objetos `Transaction`: `id`, `date`, `type` (`"income"` | `"expense"` | `"transfer"`), `accountId`, `toAccountId`, `category`, `amount`, `description`, `paymentMethod`, `isRecurring`.
 - **Clave:** `finance_budgets_data`
@@ -29,21 +29,25 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 2. Decisiones vigentes
 
-- **Planilla Interactiva de Nuevos Movimientos:** Implementada dentro del `<dialog id="app-modal">` nativo. Permite conmutar reactivamente entre Gasto, Ingreso y Transferencia, adaptando dinámicamente los selectores de cuenta receptora y categorías.
-- **Validación e Impacto Atómico Puro (`financeCalculations.js`):** Funciones puras `validarTransaccion()` y `aplicarTransaccionEnCuentas()` que garantizan la integridad contable sin mutaciones destructivas, verificadas al 100% mediante `node --test`.
-- **Arranque Universal sin CORS:** Scripts universales con namespace `window.ContaPersonal` y orden de carga secuencial en `index.html` (compatible con `file:///` y HTTP).
+- **Planilla Interactiva de Nuevas Cuentas Financieras:** Implementada dentro del `<dialog id="app-modal">` nativo. Permite dar de alta cuentas de tipo Banco, Efectivo, Billetera Digital, Ahorro/Inversión y Tarjeta de Crédito, asignando color, icono y moneda. Si es tarjeta de crédito con saldo positivo ingresado, se registra automáticamente como deuda contable negativa.
+- **Planilla Interactiva de Nuevos Movimientos:** Implementada en `<dialog id="app-modal">` nativo. Conmutación reactiva entre Gasto, Ingreso y Transferencia. Integra de inmediato cualquier cuenta nueva creada.
+- **Validación e Inmutabilidad (`financeCalculations.js`):** Funciones puras `validarNuevaCuenta()`, `crearCuentaObjeto()`, `validarTransaccion()` y `aplicarTransaccionEnCuentas()` probadas con `node --test` (16/16 pruebas en verde).
+- **Arranque Universal sin CORS:** Scripts universales bajo `window.ContaPersonal` y orden de carga secuencial en `index.html` (compatible con `file:///` y HTTP).
 - **Enfoque Exclusivo:** Contabilidad y Finanzas Personales/Familiares (sin inventario comercial ni pedidos).
 
 ---
 
 ## 3. Historial de cambios
 
+- **2026-11-09 — Spec 003: Planilla y Creación de Nuevas Cuentas Financieras (SDD):**
+  - Creada especificación formal `specs/003-crear-cuenta-financiera/` (`spec.md` en EARS, `plan.md`, `tasks.md`).
+  - Implementadas en `assets/js/financeCalculations.js` las funciones puras `validarNuevaCuenta()` y `crearCuentaObjeto()`.
+  - Creada suite `tests/accounts.test.js` con 5 pruebas unitarias (16 pruebas totales en verde en el proyecto).
+  - Diseñada e implementada la planilla interactiva completa en `assets/js/app.js` con selectores de tipo, saldo inicial, color identificador, moneda y exclusión de patrimonio.
+  - Conectada al botón "+ Nueva Cuenta", actualizando de forma reactiva la cuadrícula de cuentas, el Dashboard y haciéndola disponible de inmediato en la planilla de Nuevos Movimientos.
+  - Verificada en vivo con Chrome DevTools con 0 errores de consola.
 - **2026-11-09 — Spec 002: Planilla de Registro de Nuevos Movimientos (SDD):**
-  - Creada especificación formal `specs/002-formulario-nuevo-movimiento/` (`spec.md` en EARS, `plan.md`, `tasks.md`).
-  - Implementadas en `assets/js/financeCalculations.js` las funciones puras `validarTransaccion()` y `aplicarTransaccionEnCuentas()`.
-  - Creada suite `tests/transactions.test.js` con 7 pruebas unitarias (11 pruebas totales en el proyecto pasando al 100% en verde).
-  - Diseñada e implementada la planilla interactiva completa en `assets/js/app.js` con selector de tipo (Gasto / Ingreso / Transferencia), cuentas dinámicas, categorías y persistencia atómica en `Storage`.
-  - Verificada en vivo con Chrome DevTools: apertura de modal, conmutación de pestañas, registro exitoso de gasto de \$25.000 con impacto inmediato en el Dashboard y tabla de transacciones.
+  - Implementada planilla interactiva de ingresos, gastos y transferencias con suite `tests/transactions.test.js`.
 - **2026-11-09 — Spec 001: Corrección de Arranque Universal y Resiliencia (SDD):**
   - Creado `docs/constitution.md` y resuelto problema de CORS en `file:///`.
 - **2026-11-09:** Refactor integral a Contabilidad Personal pura sin inventario.

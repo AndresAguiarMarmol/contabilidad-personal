@@ -109,3 +109,4 @@ test("RF-7: aplicarTransaccionEnCuentas debita origen y acredita destino en tran
   assert.strictEqual(origen.currentBalance, 320000);
   assert.strictEqual(destino.currentBalance, 230000);
 });
+

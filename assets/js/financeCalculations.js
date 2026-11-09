@@ -14,9 +14,18 @@
   }
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   
+  const TIPOS_CUENTA_VALIDOS = ["bank", "cash", "wallet", "savings", "credit_card"];
+
+  const CONFIG_CUENTA_DEFECTO = {
+    bank: { icon: "building-2", color: "#2563eb", label: "Cuenta Bancaria" },
+    cash: { icon: "wallet", color: "#16a34a", label: "Efectivo" },
+    wallet: { icon: "smartphone", color: "#0284c7", label: "Billetera Digital" },
+    savings: { icon: "piggy-bank", color: "#7c3aed", label: "Ahorro / Inversión" },
+    credit_card: { icon: "credit-card", color: "#e11d48", label: "Tarjeta de Crédito" }
+  };
+
   /**
    * Calcula el patrimonio neto consolidado
-   * Patrimonio Neto = Activos (cuentas no deudas) - Pasivos (tarjetas de crédito o saldos negativos)
    * @param {Array} accounts 
    * @returns {{ assets: number, liabilities: number, netWorth: number }}
    */
@@ -152,7 +161,6 @@
     const amount = Number(tx.amount) || 0;
 
     return accounts.map((acc) => {
-      // Clonar cuenta para garantizar inmutabilidad
       const updated = { ...acc };
 
       if (tx.type === "expense") {
@@ -176,11 +184,69 @@
     });
   }
 
+  /**
+   * Valida los datos requeridos para crear una nueva cuenta financiera (Spec 003 / RF-2)
+   * @param {Object} datos 
+   * @param {Array} cuentasExistentes 
+   * @returns {{ valida: boolean, error?: string }}
+   */
+  function validarNuevaCuenta(datos, cuentasExistentes = []) {
+    if (!datos || typeof datos !== "object") {
+      return { valida: false, error: "Datos de cuenta inválidos." };
+    }
+
+    if (!datos.name || typeof datos.name !== "string" || datos.name.trim() === "") {
+      return { valida: false, error: "El nombre de la cuenta no puede estar vacío." };
+    }
+
+    const nombreLimpio = datos.name.trim().toLowerCase();
+    const existeDuplicado = cuentasExistentes.some((c) => (c.name || "").trim().toLowerCase() === nombreLimpio);
+    if (existeDuplicado) {
+      return { valida: false, error: "Ya existe una cuenta financiera con este nombre." };
+    }
+
+    if (!datos.type || !TIPOS_CUENTA_VALIDOS.includes(datos.type)) {
+      return { valida: false, error: "Tipo de cuenta no soportado. Selecciona un tipo válido." };
+    }
+
+    return { valida: true };
+  }
+
+  /**
+   * Construye un objeto Account normalizado con valores por defecto (Spec 003 / RF-3, RF-4)
+   * @param {Object} datos 
+   * @returns {Object} Objeto Account
+   */
+  function crearCuentaObjeto(datos) {
+    const type = datos.type || "bank";
+    const defaultConfig = CONFIG_CUENTA_DEFECTO[type] || CONFIG_CUENTA_DEFECTO.bank;
+
+    let balance = Number(datos.initialBalance) || 0;
+    // En tarjetas de crédito, si el saldo se ingresa positivo representa deuda, por ende se registra negativo
+    if (type === "credit_card" && balance > 0) {
+      balance = -Math.abs(balance);
+    }
+
+    return {
+      id: datos.id || `ACC-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      name: (datos.name || "Nueva Cuenta").trim(),
+      type: type,
+      initialBalance: balance,
+      currentBalance: balance,
+      currency: datos.currency || "CLP",
+      color: datos.color || defaultConfig.color,
+      icon: datos.icon || defaultConfig.icon,
+      isExcludedFromTotal: Boolean(datos.isExcludedFromTotal)
+    };
+  }
+
   return {
     calcularPatrimonioNeto,
     calcularBalanceMes,
     calcularEjecucionPresupuesto,
     validarTransaccion,
-    aplicarTransaccionEnCuentas
+    aplicarTransaccionEnCuentas,
+    validarNuevaCuenta,
+    crearCuentaObjeto
   };
 });

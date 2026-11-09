@@ -801,6 +801,163 @@
   }
 
   // ========================================================
+  // PLANILLA INTERACTIVA: NUEVA CUENTA (SPEC 003)
+  // ========================================================
+  const DEFAULT_COLORS = {
+    bank: "#2563eb",
+    cash: "#16a34a",
+    wallet: "#0284c7",
+    savings: "#7c3aed",
+    credit_card: "#e11d48"
+  };
+
+  function openAccountModal() {
+    const modal = document.getElementById("app-modal");
+    const modalTitle = document.getElementById("modal-title");
+    const modalBody = document.getElementById("modal-body");
+    if (!modal || !modalTitle || !modalBody) return;
+
+    modalTitle.textContent = "Crear Nueva Cuenta Financiera";
+
+    modalBody.innerHTML = `
+      <form id="form-new-account" class="space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          <!-- Nombre de la cuenta -->
+          <div class="sm:col-span-2 space-y-1">
+            <label class="font-semibold text-slate-700 dark:text-slate-300">Nombre de la Cuenta *</label>
+            <input type="text" id="acc-input-name" placeholder="Ej. Banco Santander, Billetera Dólares, Tarjeta Visa..." required class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+          </div>
+
+          <!-- Tipo de Cuenta -->
+          <div class="sm:col-span-2 space-y-1">
+            <label class="font-semibold text-slate-700 dark:text-slate-300">Tipo de Cuenta *</label>
+            <select id="acc-input-type" required class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              <option value="bank">🏦 Cuenta Bancaria (Corriente / Vista / Débito)</option>
+              <option value="cash">💵 Efectivo (Billetera física / Caja)</option>
+              <option value="wallet">📱 Billetera Digital (MercadoPago / MACH / Fpay)</option>
+              <option value="savings">📈 Ahorro / Inversión (Fondo Mutuo / Depósito)</option>
+              <option value="credit_card">💳 Tarjeta de Crédito (Deuda / Pasivo)</option>
+            </select>
+          </div>
+
+          <!-- Saldo Inicial -->
+          <div class="space-y-1">
+            <label id="acc-balance-label" class="font-semibold text-slate-700 dark:text-slate-300">Saldo Inicial ($) *</label>
+            <input type="number" id="acc-input-balance" value="0" step="any" placeholder="0" required class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-bold tabular-nums focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            <p id="acc-balance-hint" class="text-[10px] text-slate-400">Saldo con el que comienzas en esta cuenta.</p>
+          </div>
+
+          <!-- Moneda -->
+          <div class="space-y-1">
+            <label class="font-semibold text-slate-700 dark:text-slate-300">Moneda *</label>
+            <select id="acc-input-currency" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              <option value="CLP">CLP ($ - Peso Chileno)</option>
+              <option value="ARS">ARS ($ - Peso Argentino)</option>
+              <option value="USD">USD ($ - Dólar)</option>
+              <option value="EUR">EUR (€ - Euro)</option>
+            </select>
+          </div>
+
+          <!-- Color Identificador -->
+          <div class="sm:col-span-2 space-y-1">
+            <label class="font-semibold text-slate-700 dark:text-slate-300">Color Identificador</label>
+            <div class="flex items-center gap-3">
+              <input type="color" id="acc-input-color" value="#2563eb" class="w-10 h-9 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer bg-transparent">
+              <span class="text-xs text-slate-500 dark:text-slate-400">Color distintivo para las tarjetas del dashboard</span>
+            </div>
+          </div>
+
+          <!-- Excluir del total -->
+          <div class="sm:col-span-2 pt-1 flex items-start gap-2">
+            <input type="checkbox" id="acc-input-exclude" class="mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
+            <label for="acc-input-exclude" class="text-xs text-slate-600 dark:text-slate-300 cursor-pointer">
+              Excluir del cálculo del Patrimonio Neto <span class="text-[10px] text-slate-400 block">(útil para fondos de terceros o garantías no computables)</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+          <button type="button" id="acc-form-cancel" class="px-4 py-2 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 transition-colors">
+            Cancelar
+          </button>
+          <button type="submit" id="acc-form-submit" class="px-5 py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all flex items-center gap-1.5 active:scale-95">
+            <i data-lucide="check" class="w-3.5 h-3.5"></i>
+            <span>Guardar Cuenta</span>
+          </button>
+        </div>
+      </form>
+    `;
+
+    safeRenderIcons();
+
+    const typeSelect = document.getElementById("acc-input-type");
+    const colorInput = document.getElementById("acc-input-color");
+    const balanceHint = document.getElementById("acc-balance-hint");
+    const balanceLabel = document.getElementById("acc-balance-label");
+
+    typeSelect?.addEventListener("change", (e) => {
+      const selectedType = e.target.value;
+      if (colorInput && DEFAULT_COLORS[selectedType]) {
+        colorInput.value = DEFAULT_COLORS[selectedType];
+      }
+      if (selectedType === "credit_card") {
+        if (balanceLabel) balanceLabel.textContent = "Saldo Adeudado Inicial ($) *";
+        if (balanceHint) balanceHint.textContent = "Monto adeudado actual en la tarjeta (se computará como deuda / pasivo).";
+      } else {
+        if (balanceLabel) balanceLabel.textContent = "Saldo Inicial ($) *";
+        if (balanceHint) balanceHint.textContent = "Saldo con el que comienzas en esta cuenta.";
+      }
+    });
+
+    document.getElementById("acc-form-cancel")?.addEventListener("click", () => modal.close());
+
+    // Submit handler
+    const form = document.getElementById("form-new-account");
+    form?.addEventListener("submit", (e) => {
+      e.preventDefault();
+
+      const nameVal = document.getElementById("acc-input-name")?.value.trim();
+      const typeVal = document.getElementById("acc-input-type")?.value;
+      const balanceVal = Number(document.getElementById("acc-input-balance")?.value);
+      const currencyVal = document.getElementById("acc-input-currency")?.value || "CLP";
+      const colorVal = document.getElementById("acc-input-color")?.value || DEFAULT_COLORS[typeVal] || "#2563eb";
+      const excludeVal = Boolean(document.getElementById("acc-input-exclude")?.checked);
+
+      const accountData = {
+        name: nameVal,
+        type: typeVal,
+        initialBalance: balanceVal,
+        currency: currencyVal,
+        color: colorVal,
+        isExcludedFromTotal: excludeVal
+      };
+
+      // Validar usando lógica pura
+      const validacion = Calculations ? Calculations.validarNuevaCuenta(accountData, state.accounts) : { valida: true };
+      if (!validacion.valida) {
+        showToast(validacion.error || "Datos de cuenta inválidos.", "error");
+        return;
+      }
+
+      // Crear objeto usando fábrica pura
+      const newAccount = Calculations ? Calculations.crearCuentaObjeto(accountData) : accountData;
+
+      // Actualizar estado y persistir
+      state.accounts.push(newAccount);
+      if (Storage) {
+        Storage.saveAccounts(state.accounts);
+      }
+
+      modal.close();
+      renderActiveView();
+      showToast(`Cuenta "${newAccount.name}" creada con éxito.`, "success");
+    });
+
+    modal.showModal();
+    setTimeout(() => document.getElementById("acc-input-name")?.focus(), 50);
+  }
+
+  // ========================================================
   // RENDERIZADO GENERAL Y CICLO DE VIDA
   // ========================================================
   function renderActiveView() {
@@ -939,7 +1096,7 @@
     };
 
     document.getElementById("btn-modal-new-account")?.addEventListener("click", () => {
-      showModalPlaceholder("Crear Nueva Cuenta Financiera", "Formulario para añadir cuentas bancarias, billeteras o tarjetas de crédito.");
+      openAccountModal();
     });
     document.getElementById("btn-modal-new-budget")?.addEventListener("click", () => {
       showModalPlaceholder("Definir Presupuesto Mensual", "Asigna límites máximos a categorías como Alimentación, Vivienda u Ocio.");
