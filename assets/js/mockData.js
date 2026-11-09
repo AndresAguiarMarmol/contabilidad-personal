@@ -1,261 +1,242 @@
 /**
- * mockData.js — Datos semilla iniciales para Insumos, Pedidos y Contabilidad
+ * mockData.js — Datos iniciales de demostración para Contabilidad Personal
  */
 
-export const INITIAL_SUPPLIES = [
+export const INITIAL_ACCOUNTS = [
   {
-    id: "INS-001",
-    sku: "TEL-ALG-01",
-    name: "Tela Algodón 100% Crudo",
-    description: "Rollo de tela de algodón 100% hilado fino para confección textil.",
-    category: "Telas",
-    unit: "Metro",
-    costPrice: 2800,
-    salePrice: 4800,
-    currentStock: 45,
-    minStock: 50,
-    criticalStock: 20,
-    imageUrl: "https://images.unsplash.com/photo-1584992236310-6edddc08acff?w=600&auto=format&fit=crop&q=80",
-    updatedAt: "2026-11-08T10:30:00Z"
+    id: "ACC-001",
+    name: "Banco Principal (Cuenta Corriente)",
+    type: "bank",
+    initialBalance: 650000,
+    currentBalance: 650000,
+    currency: "CLP",
+    color: "#2563eb",
+    icon: "building-2",
+    isExcludedFromTotal: false
   },
   {
-    id: "INS-002",
-    sku: "TEL-LIN-02",
-    name: "Lino Rústico Premium",
-    description: "Tejido de lino natural para tapicería y prendas sustentables.",
-    category: "Telas",
-    unit: "Metro",
-    costPrice: 5200,
-    salePrice: 8900,
-    currentStock: 12,
-    minStock: 25,
-    criticalStock: 10,
-    imageUrl: "https://images.unsplash.com/photo-1604014237800-1c9102c219da?w=600&auto=format&fit=crop&q=80",
-    updatedAt: "2026-11-07T14:15:00Z"
+    id: "ACC-002",
+    name: "Billetera Efectivo",
+    type: "cash",
+    initialBalance: 45000,
+    currentBalance: 45000,
+    currency: "CLP",
+    color: "#16a34a",
+    icon: "wallet",
+    isExcludedFromTotal: false
   },
   {
-    id: "INS-003",
-    sku: "HIL-POL-01",
-    name: "Bobina Hilo Poliéster 5000m",
-    description: "Hilo de alta resistencia color Negro para costura recta e interlock.",
-    category: "Hilos",
-    unit: "Bobina",
-    costPrice: 950,
-    salePrice: 1800,
-    currentStock: 80,
-    minStock: 30,
-    criticalStock: 15,
-    imageUrl: "https://images.unsplash.com/photo-1544441893-675973e31985?w=600&auto=format&fit=crop&q=80",
-    updatedAt: "2026-11-09T08:00:00Z"
+    id: "ACC-003",
+    name: "Billetera Digital (MercadoPago)",
+    type: "wallet",
+    initialBalance: 85000,
+    currentBalance: 85000,
+    currency: "CLP",
+    color: "#0284c7",
+    icon: "smartphone",
+    isExcludedFromTotal: false
   },
   {
-    id: "INS-004",
-    sku: "HIL-ELAS-02",
-    name: "Hilo Elástico Tubular Blanco",
-    description: "Bobina de elástico reforzado para pretinas y mangas.",
-    category: "Hilos",
-    unit: "Bobina",
-    costPrice: 1200,
-    salePrice: 2200,
-    currentStock: 5,
-    minStock: 20,
-    criticalStock: 8,
-    imageUrl: "https://images.unsplash.com/photo-1598532163257-ae3c6b2524b6?w=600&auto=format&fit=crop&q=80",
-    updatedAt: "2026-11-06T16:40:00Z"
+    id: "ACC-004",
+    name: "Cuenta de Ahorro e Inversión",
+    type: "savings",
+    initialBalance: 1200000,
+    currentBalance: 1200000,
+    currency: "CLP",
+    color: "#7c3aed",
+    icon: "piggy-bank",
+    isExcludedFromTotal: false
   },
   {
-    id: "INS-005",
-    sku: "BOT-MAD-01",
-    name: "Botón de Madera 4 Agujeros 20mm",
-    description: "Pack x100 botones ecológicos de madera pulida natural.",
-    category: "Botones & Avíos",
-    unit: "Pack x100",
-    costPrice: 1800,
-    salePrice: 3400,
-    currentStock: 0,
-    minStock: 10,
-    criticalStock: 5,
-    imageUrl: "https://images.unsplash.com/photo-1582738411706-bfc8e691d1c2?w=600&auto=format&fit=crop&q=80",
-    updatedAt: "2026-11-05T12:00:00Z"
-  },
-  {
-    id: "INS-006",
-    sku: "EMP-BOL-01",
-    name: "Bolsa Kraft con Asa 25x35cm",
-    description: "Pack x50 bolsas ecológicas para entrega de productos terminados.",
-    category: "Empaques",
-    unit: "Pack x50",
-    costPrice: 2400,
-    salePrice: 4200,
-    currentStock: 65,
-    minStock: 20,
-    criticalStock: 10,
-    imageUrl: "https://images.unsplash.com/photo-1530587191325-3db32d826c18?w=600&auto=format&fit=crop&q=80",
-    updatedAt: "2026-11-08T09:20:00Z"
-  },
-  {
-    id: "INS-007",
-    sku: "TIN-SER-01",
-    name: "Tinta Textil Serigrafía Acrílica 1kg",
-    description: "Tinta base agua color Azul Marino para estampados de alta durabilidad.",
-    category: "Tintas & Químicos",
-    unit: "Frasco 1kg",
-    costPrice: 4100,
-    salePrice: 6900,
-    currentStock: 14,
-    minStock: 15,
-    criticalStock: 6,
-    imageUrl: "https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=600&auto=format&fit=crop&q=80",
-    updatedAt: "2026-11-07T18:00:00Z"
-  },
-  {
-    id: "INS-008",
-    sku: "CIE-MET-01",
-    name: "Cierre Metálico N°5 Bronce 18cm",
-    description: "Docena de cremalleras metálicas reforzadas para camperas y bolsos.",
-    category: "Botones & Avíos",
-    unit: "Docena",
-    costPrice: 3100,
-    salePrice: 5600,
-    currentStock: 28,
-    minStock: 15,
-    criticalStock: 5,
-    imageUrl: "https://images.unsplash.com/photo-1517677208171-0bc6725a3e60?w=600&auto=format&fit=crop&q=80",
-    updatedAt: "2026-11-09T08:30:00Z"
+    id: "ACC-005",
+    name: "Tarjeta de Crédito Visa",
+    type: "credit_card",
+    initialBalance: -120000,
+    currentBalance: -120000,
+    currency: "CLP",
+    color: "#e11d48",
+    icon: "credit-card",
+    isExcludedFromTotal: false
   }
 ];
 
-export const INITIAL_ORDERS = [
+export const INITIAL_CATEGORIES = [
+  // Gastos
+  { id: "CAT-ALIM", name: "Alimentación & Supermercado", type: "expense", icon: "shopping-cart", color: "#f59e0b" },
+  { id: "CAT-VIV", name: "Vivienda & Servicios", type: "expense", icon: "home", color: "#3b82f6" },
+  { id: "CAT-TRAN", name: "Transporte & Combustible", type: "expense", icon: "car", color: "#64748b" },
+  { id: "CAT-SAL", name: "Salud & Bienestar", type: "expense", icon: "heart-pulse", color: "#ef4444" },
+  { id: "CAT-OCIO", name: "Ocio, Salidas & Restaurantes", type: "expense", icon: "utensils", color: "#8b5cf6" },
+  { id: "CAT-ROPA", name: "Ropa & Cuidado Personal", type: "expense", icon: "shirt", color: "#ec4899" },
+  { id: "CAT-EDUC", name: "Educación & Cursos", type: "expense", icon: "book-open", color: "#06b6d4" },
+  { id: "CAT-OTRO-G", name: "Otros Gastos", type: "expense", icon: "tag", color: "#94a3b8" },
+  // Ingresos
+  { id: "CAT-SUELDO", name: "Sueldo & Salario", type: "income", icon: "briefcase", color: "#10b981" },
+  { id: "CAT-FREE", name: "Honorarios & Freelance", type: "income", icon: "laptop", color: "#14b8a6" },
+  { id: "CAT-REND", name: "Rendimientos & Inversiones", type: "income", icon: "trending-up", color: "#8b5cf6" },
+  { id: "CAT-OTRO-I", name: "Otros Ingresos / Reembolsos", type: "income", icon: "plus-circle", color: "#10b981" }
+];
+
+export const INITIAL_TRANSACTIONS = [
   {
-    id: "PED-2026-001",
-    orderNumber: 1001,
-    date: "2026-11-07T11:20:00Z",
-    customerName: "Taller Confecciones Del Sur",
-    items: [
-      {
-        supplyId: "INS-001",
-        name: "Tela Algodón 100% Crudo",
-        quantity: 20,
-        costPrice: 2800,
-        salePrice: 4800,
-        subtotal: 96000
-      },
-      {
-        supplyId: "INS-003",
-        name: "Bobina Hilo Poliéster 5000m",
-        quantity: 6,
-        costPrice: 950,
-        salePrice: 1800,
-        subtotal: 10800
-      }
-    ],
-    totalCost: 61700,
-    totalAmount: 106800,
-    grossProfit: 45100,
-    status: "completed",
-    notes: "Entrega urgente en taller central."
+    id: "TX-2026-001",
+    date: "2026-11-01T09:00:00Z",
+    type: "income",
+    accountId: "ACC-001",
+    category: "Sueldo & Salario",
+    amount: 1450000,
+    description: "Depósito de sueldo mensual",
+    paymentMethod: "transfer",
+    isRecurring: true
   },
   {
-    id: "PED-2026-002",
-    orderNumber: 1002,
-    date: "2026-11-08T15:45:00Z",
-    customerName: "Boutique Artesanal Cordillera",
-    items: [
-      {
-        supplyId: "INS-002",
-        name: "Lino Rústico Premium",
-        quantity: 15,
-        costPrice: 5200,
-        salePrice: 8900,
-        subtotal: 133500
-      },
-      {
-        supplyId: "INS-006",
-        name: "Bolsa Kraft con Asa 25x35cm",
-        quantity: 2,
-        costPrice: 2400,
-        salePrice: 4200,
-        subtotal: 8400
-      }
-    ],
-    totalCost: 82800,
-    totalAmount: 141900,
-    grossProfit: 59100,
-    status: "completed",
-    notes: "Pago recibido por transferencia bancaria."
+    id: "TX-2026-002",
+    date: "2026-11-02T10:30:00Z",
+    type: "expense",
+    accountId: "ACC-001",
+    category: "Vivienda & Servicios",
+    amount: 380000,
+    description: "Pago de Alquiler mensual",
+    paymentMethod: "transfer",
+    isRecurring: true
   },
   {
-    id: "PED-2026-003",
-    orderNumber: 1003,
-    date: "2026-11-09T08:15:00Z",
-    customerName: "Diseños & Estampados Urbanos",
-    items: [
-      {
-        supplyId: "INS-007",
-        name: "Tinta Textil Serigrafía Acrílica 1kg",
-        quantity: 4,
-        costPrice: 4100,
-        salePrice: 6900,
-        subtotal: 27600
-      }
-    ],
-    totalCost: 16400,
-    totalAmount: 27600,
-    grossProfit: 11200,
-    status: "completed",
-    notes: "Retiro en mostrador."
+    id: "TX-2026-003",
+    date: "2026-11-03T18:45:00Z",
+    type: "expense",
+    accountId: "ACC-005",
+    category: "Alimentación & Supermercado",
+    amount: 145000,
+    description: "Compra quincenal de supermercado",
+    paymentMethod: "credit",
+    isRecurring: false
+  },
+  {
+    id: "TX-2026-004",
+    date: "2026-11-04T12:15:00Z",
+    type: "expense",
+    accountId: "ACC-003",
+    category: "Transporte & Combustible",
+    amount: 35000,
+    description: "Carga de combustible",
+    paymentMethod: "debit",
+    isRecurring: false
+  },
+  {
+    id: "TX-2026-005",
+    date: "2026-11-05T14:00:00Z",
+    type: "expense",
+    accountId: "ACC-005",
+    category: "Vivienda & Servicios",
+    amount: 28000,
+    description: "Internet Fibra y suscripciones",
+    paymentMethod: "credit",
+    isRecurring: true
+  },
+  {
+    id: "TX-2026-006",
+    date: "2026-11-06T11:00:00Z",
+    type: "expense",
+    accountId: "ACC-001",
+    category: "Salud & Bienestar",
+    amount: 42000,
+    description: "Farmacia y medicamentos",
+    paymentMethod: "debit",
+    isRecurring: false
+  },
+  {
+    id: "TX-2026-007",
+    date: "2026-11-07T21:30:00Z",
+    type: "expense",
+    accountId: "ACC-002",
+    category: "Ocio, Salidas & Restaurantes",
+    amount: 32000,
+    description: "Cena de fin de semana con amigos",
+    paymentMethod: "cash",
+    isRecurring: false
+  },
+  {
+    id: "TX-2026-008",
+    date: "2026-11-08T16:00:00Z",
+    type: "income",
+    accountId: "ACC-003",
+    category: "Honorarios & Freelance",
+    amount: 180000,
+    description: "Cobro trabajo freelance de diseño",
+    paymentMethod: "transfer",
+    isRecurring: false
+  },
+  {
+    id: "TX-2026-009",
+    date: "2026-11-08T19:20:00Z",
+    type: "expense",
+    accountId: "ACC-005",
+    category: "Ocio, Salidas & Restaurantes",
+    amount: 30000,
+    description: "Entradas concierto y delivery",
+    paymentMethod: "credit",
+    isRecurring: false
+  },
+  {
+    id: "TX-2026-010",
+    date: "2026-11-09T08:30:00Z",
+    type: "transfer",
+    accountId: "ACC-001",
+    toAccountId: "ACC-004",
+    category: "Ahorro",
+    amount: 150000,
+    description: "Aporte mensual a Fondo de Emergencia",
+    paymentMethod: "transfer",
+    isRecurring: true
   }
 ];
 
-export const INITIAL_ACCOUNTING = [
+export const INITIAL_BUDGETS = [
   {
-    id: "TX-001",
-    date: "2026-11-05T09:00:00Z",
-    type: "expense",
-    category: "restock",
-    concept: "Compra Reposición Hilos y Tintas",
-    amount: 85000,
-    referenceId: "COMP-001",
-    paymentMethod: "transfer"
+    id: "BUD-001",
+    category: "Alimentación & Supermercado",
+    limitAmount: 200000,
+    spentAmount: 145000,
+    month: "2026-11"
   },
   {
-    id: "TX-002",
-    date: "2026-11-06T10:30:00Z",
-    type: "expense",
-    category: "operating_expense",
-    concept: "Alquiler depósito y servicios de embalaje",
-    amount: 45000,
-    referenceId: null,
-    paymentMethod: "transfer"
+    id: "BUD-002",
+    category: "Vivienda & Servicios",
+    limitAmount: 420000,
+    spentAmount: 408000,
+    month: "2026-11"
   },
   {
-    id: "TX-003",
-    date: "2026-11-07T11:20:00Z",
-    type: "income",
-    category: "sale",
-    concept: "Cobro Pedido PED-2026-001 (Taller Confecciones Del Sur)",
-    amount: 106800,
-    referenceId: "PED-2026-001",
-    paymentMethod: "transfer"
+    id: "BUD-003",
+    category: "Ocio, Salidas & Restaurantes",
+    limitAmount: 50000,
+    spentAmount: 62000,
+    month: "2026-11"
   },
   {
-    id: "TX-004",
-    date: "2026-11-08T15:45:00Z",
-    type: "income",
-    category: "sale",
-    concept: "Cobro Pedido PED-2026-002 (Boutique Artesanal Cordillera)",
-    amount: 141900,
-    referenceId: "PED-2026-002",
-    paymentMethod: "transfer"
+    id: "BUD-004",
+    category: "Transporte & Combustible",
+    limitAmount: 60000,
+    spentAmount: 35000,
+    month: "2026-11"
+  }
+];
+
+export const INITIAL_GOALS = [
+  {
+    id: "GOAL-001",
+    title: "Fondo de Emergencia (6 Meses)",
+    targetAmount: 2000000,
+    currentAmount: 1200000,
+    deadlineDate: "2027-06-30",
+    color: "#10b981"
   },
   {
-    id: "TX-005",
-    date: "2026-11-09T08:15:00Z",
-    type: "income",
-    category: "sale",
-    concept: "Cobro Pedido PED-2026-003 (Diseños & Estampados Urbanos)",
-    amount: 27600,
-    referenceId: "PED-2026-003",
-    paymentMethod: "cash"
+    id: "GOAL-002",
+    title: "Vacaciones de Verano",
+    targetAmount: 800000,
+    currentAmount: 350000,
+    deadlineDate: "2027-01-15",
+    color: "#3b82f6"
   }
 ];

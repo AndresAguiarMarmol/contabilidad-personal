@@ -1,68 +1,49 @@
 # PROMPT_ANTIGRAVITY_FASE_1.md — Prompt de Ejecución para Agente Autónomo
 
-> **Instrucciones para el Agente:** Copia este prompt directamente o ejecútalo como la primera orden de desarrollo en Antigravity.
+> **Instrucciones:** Copia este prompt directamente para levantar el Shell Visual de la **App de Contabilidad Personal (PWA)** sin inventario comercial.
 
 ---
 
-### Contexto y Rol
-Actúa como un **Senior Frontend Engineer & UI Specialist**. Tu objetivo en esta primera iteración es levantar la base estructural y el **Shell Visual Completo** de la aplicación:
-**"Sistema Integrado de Contabilidad, Inventario y Pedidos para Ventas de Insumos"**.
+### Rol y Contexto Asignado
+Actúa como un **Lead Frontend Engineer & UI Specialist en Finanzas Personales**.
+Tu objetivo en esta fase es levantar la estructura base, los componentes visuales, la navegación SPA y los datos mock para la nueva:
+**"App de Contabilidad Personal y Gestión Patrimonial (PWA)"**.
 
-Debes apegarte estrictamente a las especificaciones descritas en `SPEC.md` y las reglas operativas de `AGENTS.md`. No implementes backend ni llamadas a servicios externos; utiliza arquitectura modular ES6 nativa con datos mock y Tailwind CSS vía CDN.
+Debes seguir estrictamente las especificaciones de `SPEC.md` y respetar las reglas de `AGENTS.md`. No utilices bundlers complejos (Webpack, Vite); utiliza Vanilla JavaScript modular (ES6), Tailwind CSS (vía CDN), Lucide Icons y prepara los manifiestos PWA para instalación móvil.
 
----
-
-### Tarea Inmediata de Ejecución: Levantamiento del Shell Visual
-
-1. **Estructura de Directorios y Archivos:**
-   Crea la estructura de carpetas y archivos base:
-   - `index.html`: Contenedor principal con Tailwind CSS CDN (`@tailwindcss/browser@4` o Tailwind CDN v3), Lucide Icons CDN, fuentes modernas (Inter o Sans del sistema) y contenedor semántico responsive.
-   - `assets/css/styles.css`: Estilos utilitarios complementarios (transiciones, personalización de scrollbars, badges).
-   - `assets/js/mockData.js`: Conjunto de datos mock representativo con:
-     - Al menos 8 insumos de diferentes categorías (Telas, Hilos, Empaques, Tintas) con stock óptimo, bajo, crítico y agotado.
-     - Al menos 3 pedidos de ejemplo (con detalle de insumos).
-     - Al menos 5 asientos contables de ejemplo (ingresos por ventas y egresos por reposición de stock).
-   - `assets/js/storage.js`: Módulo de carga inicial que lea de `localStorage` o inicialice con `mockData.js`, con métodos `get()`, `set()`, `reset()` y `exportBackup()`.
-   - `assets/js/app.js`: Coordinador principal que gestione:
-     - Inicialización de los datos.
-     - Navegación entre las 4 vistas principales sin recarga de página:
-       1. **Dashboard:** Métricas clave (Total Valor Inventario, Pedidos del Mes, Balance Neto en Caja, Alertas Activas de Stock) y lista de alertas urgentes.
-       2. **Catálogo & Inventario:** Cuadrícula visual de insumos con tarjetas, fotos, precio, stock actual y badges de alerta (Verde, Amarillo, Rojo, Negro).
-       3. **Pedidos:** Tabla de historial de pedidos recientes con estados, importes y botón "+ Nuevo Pedido".
-       4. **Contabilidad:** Resumen de ingresos vs egresos, balance en caja y tabla de movimientos contables.
-     - Toggle de Modo Claro / Modo Oscuro funcional.
-     - Menú móvil colapsable (hamburguesa).
-
-2. **Componentes y Diseño Visual:**
-   - Barra lateral (Sidebar) elegante con logotipo del negocio, indicador de alertas de stock activas (badge numérico con insumos en bajo/crítico) y navegación fluida.
-   - Header superior con selector de vista rápida, indicador de fecha/hora, toggle de tema y botón de "Restablecer Datos Demo".
-   - Renderizado inicial de datos en las 4 vistas utilizando los datos mock de `storage.js`.
+> [!IMPORTANT]
+> **Sin inventario ni catálogo:** Esta aplicación está orientada 100% a las **finanzas personales y familiares**. No incluye módulos de inventario, stock, catálogo de productos ni pedidos a proveedores.
 
 ---
 
-### Comandos de Verificación Permitidos
-Para validar la integridad del código sin romper el entorno, puedes ejecutar:
-- Servir localmente la aplicación para pruebas en navegador:
-  ```powershell
-  python -m http.server 8000
-  # o bien:
-  npx serve .
-  ```
-- Comprobar sintaxis de archivos JavaScript con Node:
-  ```powershell
-  node --check assets/js/mockData.js
-  node --check assets/js/storage.js
-  node --check assets/js/app.js
-  ```
+### Tarea de Ejecución Inmediata: Levantamiento del Shell Visual
 
----
+1. **Estructura de Archivos a Crear:**
+   - `index.html`: Shell principal con Tailwind CSS CDN, Lucide Icons, diseño responsivo móvil/tablet/desktop, Sidebar lateral y navegación SPA.
+   - `manifest.json`: Manifiesto PWA para instalación en Android, iOS y tablets (nombre "Contabilidad Personal", tema `#0f172a`, display standalone).
+   - `sw.js`: Service Worker para soporte offline y caché de recursos.
+   - `assets/css/styles.css`: Estilos visuales complementarios, números tabulares, barras de presupuesto y micro-interacciones.
+   - `assets/js/mockData.js`: Datos semilla de finanzas personales realistas:
+     - 4 Cuentas personales (Banco Principal, Billetera Efectivo, Tarjeta de Crédito, Cuenta Ahorros).
+     - 10 Transacciones recientes con categorías familiares y personales (Alimentación/Supermercado, Sueldo mensual, Alquiler/Vivienda, Servicios, Transporte, Ocio, Suscripciones).
+     - 4 Presupuestos mensuales por categoría con semáforos de porcentaje consumido (uno bajo control al 50%, uno de advertencia al 82%, uno excedido al 108%).
+     - 2 Metas de Ahorro con barras de progreso (Fondo de Emergencia, Vacaciones).
+   - `assets/js/storage.js`: Capa de persistencia en `localStorage` con soporte de exportación/importación de backup JSON y botón de restablecimiento de datos demo.
+   - `assets/js/dbAdapter.js`: Adaptador preparado para conectar con Supabase (PostgreSQL en la nube) mediante credenciales configurables, operando en modo local mientras no se configuren claves remotas.
+   - `assets/js/app.js`: Coordinador principal con:
+     - Enrutador de 5 vistas:
+       1. **Dashboard:** Patrimonio Neto consolidado, Ingresos vs Gastos del mes, Tasa de Ahorro %, Gráfico visual de gastos por categoría, Alertas de presupuesto.
+       2. **Cuentas & Billeteras:** Tarjetas de cuentas con saldo actual, desglose por tipo y botón "+ Nueva Cuenta".
+       3. **Transacciones:** Tabla/lista de movimientos con filtros (tipo, categoría, fecha, cuenta) y botón "+ Registrar Movimiento".
+       4. **Presupuestos & Metas:** Barras de progreso de presupuestos por categoría con semáforo (Verde, Amarillo, Rojo) y tarjetas de metas de ahorro.
+       5. **Configuración & Base de Datos:** Panel de conexión a base de datos real (Supabase URL / Anon Key), descarga de script `schema.sql`, exportación de backup y alternancia de tema.
+     - Toggle de Modo Claro / Modo Oscuro con persistencia.
+     - Notificaciones flotantes (*Toasts*).
 
-### Criterios de Aceptación ("Definition of Done")
-Antes de dar por concluida la Fase 1, debes verificar de forma verificable:
-1. [ ] `index.html` carga sin errores de sintaxis ni scripts rotos en la consola del navegador.
-2. [ ] La navegación entre las cuatro vistas (Dashboard, Inventario/Catálogo, Pedidos, Contabilidad) funciona de manera instantánea mediante pestañas/vistas SPA.
-3. [ ] El Catálogo Visual muestra las tarjetas de insumos con sus respectivos badges de semáforo de stock calculados según sus umbrales (Óptimo, Bajo, Crítico, Agotado).
-4. [ ] El Dashboard refleja los totales acumulados (valor del inventario, balance contable y cantidad de alertas de stock) calculados dinámicamente a partir de los datos mock.
-5. [ ] El botón de alternancia Modo Claro / Modo Oscuro conmuta correctamente y persiste la preferencia.
-6. [ ] Los iconos Lucide se inicializan y renderizan nítidamente.
-7. [ ] Se actualiza `memory.md` reflejando la estructura creada y los cambios realizados.
+2. **Criterios de Aceptación ("Definition of Done"):**
+   - [ ] `index.html` carga de forma limpia, sin errores de consola.
+   - [ ] La navegación entre las 5 vistas (Dashboard, Cuentas, Transacciones, Presupuestos/Metas, Configuración) funciona instantáneamente.
+   - [ ] El Dashboard calcula y muestra el Patrimonio Neto consolidado, Ingresos/Gastos del mes y la Tasa de Ahorro a partir de los datos mock de finanzas personales.
+   - [ ] La sección de Presupuestos muestra las barras de porcentaje consumido con sus colores de advertencia (Verde $\le 75\%$, Amarillo $> 75\%$, Rojo $> 100\%$).
+   - [ ] No existen referencias a inventario, stock comercial ni catálogo de venta.
+   - [ ] Modo Claro y Oscuro funcional.

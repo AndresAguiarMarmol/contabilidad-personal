@@ -1,23 +1,23 @@
 /**
- * app.js — Coordinador principal, enrutador de vistas y renderizado del Shell
+ * app.js — Coordinador principal de la App de Contabilidad Personal (PWA)
  */
 import { Storage } from "./storage.js";
+import { DbAdapter } from "./dbAdapter.js";
 
-// Estado en memoria de la sesión
+// Estado reactivo en memoria
 let state = {
   currentView: "dashboard",
-  supplies: [],
-  orders: [],
-  accounting: [],
+  accounts: [],
+  transactions: [],
+  budgets: [],
+  goals: [],
   filters: {
-    inventorySearch: "",
-    inventoryCategory: "all",
-    inventoryAlert: "all",
-    accountingType: "all"
+    txSearch: "",
+    txType: "all"
   }
 };
 
-// Formateadores estándar
+// Formateador de moneda estándar
 const formatMoney = (amount) => {
   return new Intl.NumberFormat("es-CL", {
     style: "currency",
@@ -26,6 +26,7 @@ const formatMoney = (amount) => {
   }).format(amount || 0);
 };
 
+// Formateador de fechas
 const formatDate = (isoStr) => {
   if (!isoStr) return "-";
   const date = new Date(isoStr);
@@ -78,15 +79,13 @@ function initTheme() {
   applyTheme(theme);
 
   const btnToggle = document.getElementById("btn-theme-toggle");
-  if (btnToggle) {
-    btnToggle.addEventListener("click", () => {
-      const current = document.documentElement.classList.contains("dark") ? "dark" : "light";
-      const next = current === "dark" ? "light" : "dark";
-      applyTheme(next);
-      Storage.saveTheme(next);
-      showToast(`Tema ${next === "dark" ? "oscuro" : "claro"} activado`, "info");
-    });
-  }
+  btnToggle?.addEventListener("click", () => {
+    const current = document.documentElement.classList.contains("dark") ? "dark" : "light";
+    const next = current === "dark" ? "light" : "dark";
+    applyTheme(next);
+    Storage.saveTheme(next);
+    showToast(`Tema ${next === "dark" ? "oscuro" : "claro"} activado`, "info");
+  });
 }
 
 function applyTheme(theme) {
@@ -95,34 +94,38 @@ function applyTheme(theme) {
 
   if (theme === "dark") {
     document.documentElement.classList.add("dark");
-    if (iconSun) iconSun.classList.remove("hidden");
-    if (iconMoon) iconMoon.classList.add("hidden");
+    iconSun?.classList.remove("hidden");
+    iconMoon?.classList.add("hidden");
   } else {
     document.documentElement.classList.remove("dark");
-    if (iconSun) iconSun.classList.add("hidden");
-    if (iconMoon) iconMoon.classList.remove("hidden");
+    iconSun?.classList.add("hidden");
+    iconMoon?.classList.remove("hidden");
   }
 }
 
 // ========================================================
-// NAVEGACIÓN Y SIDEBAR
+// NAVEGACIÓN Y ENRUTADOR SPA
 // ========================================================
 const VIEW_METADATA = {
   dashboard: {
-    title: "Dashboard General",
-    subtitle: "Resumen de existencias, pedidos y balance financiero en tiempo real"
+    title: "Dashboard Patrimonial",
+    subtitle: "Resumen de patrimonio neto, ingresos y gastos del mes en tiempo real"
   },
-  inventory: {
-    title: "Catálogo & Control de Stock",
-    subtitle: "Insumos disponibles, costos, precios de venta y semáforo de reabastecimiento"
+  accounts: {
+    title: "Cuentas & Billeteras",
+    subtitle: "Gestión de cuentas bancarias, efectivo, tarjetas de crédito y ahorros"
   },
-  orders: {
-    title: "Pedidos & Ventas",
-    subtitle: "Gestión de pedidos con descuento de existencias y registro de margen"
+  transactions: {
+    title: "Libro de Movimientos",
+    subtitle: "Historial completo de ingresos, gastos personales y transferencias"
   },
-  accounting: {
-    title: "Contabilidad & Balances",
-    subtitle: "Libro diario de ingresos y egresos para control financiero de la empresa"
+  budgets: {
+    title: "Presupuestos & Metas de Ahorro",
+    subtitle: "Semáforos de límites mensuales y avance hacia tus objetivos financieros"
+  },
+  settings: {
+    title: "Base de Datos & Ajustes",
+    subtitle: "Conexión a Supabase PostgreSQL en la nube, respaldo y restauración JSON"
   }
 };
 
@@ -130,12 +133,10 @@ function switchView(viewName) {
   if (!VIEW_METADATA[viewName]) return;
   state.currentView = viewName;
 
-  // Actualizar Título y Subtítulo
   document.getElementById("page-title").textContent = VIEW_METADATA[viewName].title;
   document.getElementById("page-subtitle").textContent = VIEW_METADATA[viewName].subtitle;
 
-  // Ocultar todas las vistas y mostrar la activa
-  const views = ["dashboard", "inventory", "orders", "accounting"];
+  const views = ["dashboard", "accounts", "transactions", "budgets", "settings"];
   views.forEach((v) => {
     const el = document.getElementById(`view-${v}`);
     if (el) {
@@ -147,7 +148,7 @@ function switchView(viewName) {
     }
   });
 
-  // Actualizar clases activas en botones de navegación
+  // Estilos de botones activos en sidebar
   document.querySelectorAll("[data-nav-view]").forEach((btn) => {
     const target = btn.getAttribute("data-nav-view");
     const isSidebarItem = btn.classList.contains("nav-item");
@@ -163,10 +164,7 @@ function switchView(viewName) {
     }
   });
 
-  // Cerrar sidebar móvil al navegar
   closeMobileSidebar();
-
-  // Renderizar la vista activada
   renderActiveView();
 }
 
@@ -181,7 +179,6 @@ function closeMobileSidebar() {
 }
 
 function initNavigation() {
-  // Listeners para botones con data-nav-view
   document.addEventListener("click", (e) => {
     const navBtn = e.target.closest("[data-nav-view]");
     if (navBtn) {
@@ -190,302 +187,191 @@ function initNavigation() {
     }
   });
 
-  // Mobile sidebar triggers
   document.getElementById("btn-open-sidebar")?.addEventListener("click", openMobileSidebar);
   document.getElementById("btn-close-sidebar")?.addEventListener("click", closeMobileSidebar);
   document.getElementById("sidebar-backdrop")?.addEventListener("click", closeMobileSidebar);
 }
 
 // ========================================================
-// RENDERIZADO 1: DASHBOARD
+// RENDERIZADO 1: DASHBOARD PATRIMONIAL
 // ========================================================
 function renderDashboard() {
-  const supplies = state.supplies;
-  const orders = state.orders;
-  const accounting = state.accounting;
+  // 1. Patrimonio Neto
+  const netWorthData = Storage.calculateNetWorth();
+  document.getElementById("dash-net-worth").textContent = formatMoney(netWorthData.netWorth);
+  document.getElementById("dash-assets-summary").textContent = `Activos: ${formatMoney(netWorthData.assets)} · Deudas: ${formatMoney(netWorthData.liabilities)}`;
 
-  // Cálculos de inventario y alertas
-  let inventoryValue = 0;
-  let alertCount = 0;
-  let criticalCount = 0;
-  const alertSupplies = [];
+  // 2. Ingresos y Gastos del Mes Corriente
+  let monthIncome = 0;
+  let monthExpense = 0;
+  const categoryExpenses = {};
 
-  supplies.forEach((item) => {
-    const cost = Number(item.costPrice) || 0;
-    const stock = Number(item.currentStock) || 0;
-    inventoryValue += cost * stock;
+  state.transactions.forEach((tx) => {
+    const amt = Number(tx.amount) || 0;
+    if (tx.type === "income") {
+      monthIncome += amt;
+    } else if (tx.type === "expense") {
+      monthExpense += amt;
+      const cat = tx.category || "Otros";
+      categoryExpenses[cat] = (categoryExpenses[cat] || 0) + amt;
+    }
+  });
 
-    const alertLevel = Storage.getStockAlertLevel(item);
-    if (alertLevel !== "optimal") {
-      alertCount++;
-      if (alertLevel === "critical" || alertLevel === "out_of_stock") {
-        criticalCount++;
+  document.getElementById("dash-month-income").textContent = formatMoney(monthIncome);
+  document.getElementById("dash-month-expense").textContent = formatMoney(monthExpense);
+
+  const netSavings = monthIncome - monthExpense;
+  const savingsRate = monthIncome > 0 ? Math.max(0, Math.round((netSavings / monthIncome) * 100)) : 0;
+  document.getElementById("dash-savings-rate").textContent = `${savingsRate}%`;
+  document.getElementById("dash-savings-amount").textContent = `Ahorro neto: ${formatMoney(netSavings)}`;
+
+  // 3. Alertas de Presupuestos Activas
+  let budgetAlertsCount = 0;
+  const budgetListEl = document.getElementById("dash-budget-progress-list");
+  if (budgetListEl) {
+    budgetListEl.innerHTML = state.budgets.map((b) => {
+      const pct = Math.round((b.spentAmount / (b.limitAmount || 1)) * 100);
+      let colorClass = "bg-emerald-500";
+      let textClass = "text-emerald-600 dark:text-emerald-400";
+      let badgeLabel = "Óptimo";
+
+      if (pct > 100) {
+        colorClass = "bg-rose-600";
+        textClass = "text-rose-600 dark:text-rose-400";
+        badgeLabel = "Excedido";
+        budgetAlertsCount++;
+      } else if (pct > 75) {
+        colorClass = "bg-amber-500";
+        textClass = "text-amber-600 dark:text-amber-400";
+        badgeLabel = "Alerta 80%";
+        budgetAlertsCount++;
       }
-      alertSupplies.push({ ...item, alertLevel });
-    }
-  });
 
-  // Cálculos de pedidos
-  const ordersCount = orders.length;
-  let totalSales = 0;
-  orders.forEach((o) => {
-    if (o.status === "completed") {
-      totalSales += Number(o.totalAmount) || 0;
-    }
-  });
-
-  // Cálculos de contabilidad
-  let totalIncome = 0;
-  let totalExpense = 0;
-  accounting.forEach((entry) => {
-    const amt = Number(entry.amount) || 0;
-    if (entry.type === "income") totalIncome += amt;
-    if (entry.type === "expense") totalExpense += amt;
-  });
-  const netBalance = totalIncome - totalExpense;
-  const grossMargin = totalIncome > 0 ? Math.round(((totalIncome - totalExpense) / totalIncome) * 100) : 0;
-
-  // Actualizar DOM Dashboard
-  document.getElementById("dash-inventory-value").textContent = formatMoney(inventoryValue);
-  document.getElementById("dash-inventory-count").textContent = `${supplies.length} insumos registrados`;
-
-  document.getElementById("dash-stock-alerts-count").textContent = alertCount;
-  document.getElementById("dash-critical-count").textContent = `${criticalCount} en estado crítico`;
-
-  document.getElementById("dash-orders-count").textContent = ordersCount;
-  document.getElementById("dash-sales-total").textContent = `${formatMoney(totalSales)} en ventas`;
-
-  document.getElementById("dash-net-balance").textContent = formatMoney(netBalance);
-  document.getElementById("dash-margin-rate").textContent = `Margen neto aprox: ${grossMargin}%`;
-
-  // Actualizar badge del sidebar
-  const badge = document.getElementById("sidebar-stock-alert-badge");
-  if (badge) {
-    if (alertCount > 0) {
-      badge.textContent = alertCount;
-      badge.classList.remove("hidden");
-    } else {
-      badge.classList.add("hidden");
-    }
-  }
-
-  // Render de Alertas Urgentes
-  const alertsContainer = document.getElementById("dash-alerts-list");
-  if (alertsContainer) {
-    if (alertSupplies.length === 0) {
-      alertsContainer.innerHTML = `
-        <div class="col-span-full py-4 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
-          <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500"></i>
-          <span>Todo el inventario se encuentra en niveles de stock óptimos.</span>
+      return `
+        <div class="p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 space-y-2">
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-bold text-slate-800 dark:text-slate-200 truncate">${b.category}</span>
+            <span class="text-[10px] font-bold uppercase ${textClass}">${badgeLabel}</span>
+          </div>
+          <div class="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+            <div class="h-full ${colorClass} transition-all duration-300" style="width: ${Math.min(pct, 100)}%"></div>
+          </div>
+          <div class="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+            <span>${formatMoney(b.spentAmount)}</span>
+            <span class="font-medium">de ${formatMoney(b.limitAmount)} (${pct}%)</span>
+          </div>
         </div>
       `;
-    } else {
-      alertsContainer.innerHTML = alertSupplies.slice(0, 3).map((item) => {
-        const isCritical = item.alertLevel === "critical" || item.alertLevel === "out_of_stock";
-        const badgeColor = isCritical 
-          ? "bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300 border-rose-200 dark:border-rose-900"
-          : "bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border-amber-200 dark:border-amber-900";
-        const label = item.alertLevel === "out_of_stock" ? "Agotado" : item.alertLevel === "critical" ? "Crítico" : "Bajo";
+    }).join("");
+  }
 
+  // Actualizar badge del sidebar
+  const budgetBadge = document.getElementById("sidebar-budget-alert-badge");
+  if (budgetBadge) {
+    if (budgetAlertsCount > 0) {
+      budgetBadge.textContent = budgetAlertsCount;
+      budgetBadge.classList.remove("hidden");
+    } else {
+      budgetBadge.classList.add("hidden");
+    }
+  }
+
+  // 4. Distribución de Gastos por Categoría
+  const catDistEl = document.getElementById("dash-category-distribution");
+  if (catDistEl) {
+    const sortedCats = Object.entries(categoryExpenses).sort((a, b) => b[1] - a[1]);
+    if (sortedCats.length === 0) {
+      catDistEl.innerHTML = `<p class="text-xs text-slate-400 py-4 text-center">Sin gastos registrados en el período.</p>`;
+    } else {
+      catDistEl.innerHTML = sortedCats.map(([catName, amount]) => {
+        const pct = monthExpense > 0 ? Math.round((amount / monthExpense) * 100) : 0;
         return `
-          <div class="p-3 rounded-lg border ${badgeColor} flex items-center justify-between">
-            <div class="flex items-center gap-2.5">
-              <img src="${item.imageUrl}" alt="${item.name}" class="w-10 h-10 rounded-md object-cover border border-slate-200 dark:border-slate-700" onerror="this.src='https://placehold.co/100x100?text=Insumo'">
-              <div>
-                <h4 class="text-xs font-bold text-slate-900 dark:text-white line-clamp-1">${item.name}</h4>
-                <p class="text-[11px] text-slate-500">Stock: <strong class="text-slate-800 dark:text-slate-200">${item.currentStock}</strong> / Mín: ${item.minStock} ${item.unit}</p>
-              </div>
+          <div class="space-y-1">
+            <div class="flex items-center justify-between text-xs">
+              <span class="font-medium text-slate-700 dark:text-slate-300">${catName}</span>
+              <span class="font-bold tabular-nums text-slate-900 dark:text-white">${formatMoney(amount)} <span class="text-[11px] font-normal text-slate-400">(${pct}%)</span></span>
             </div>
-            <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${badgeColor}">
-              ${label}
-            </span>
+            <div class="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+              <div class="h-full bg-emerald-500 rounded-full transition-all duration-300" style="width: ${pct}%"></div>
+            </div>
           </div>
         `;
       }).join("");
     }
   }
 
-  // Render Últimos Pedidos
-  const recentOrdersEl = document.getElementById("dash-recent-orders");
-  if (recentOrdersEl) {
-    if (orders.length === 0) {
-      recentOrdersEl.innerHTML = `<p class="text-xs text-slate-400 py-3 text-center">No hay pedidos registrados.</p>`;
-    } else {
-      recentOrdersEl.innerHTML = orders.slice(0, 4).map((o) => `
+  // 5. Últimos Movimientos
+  const recentTxEl = document.getElementById("dash-recent-transactions");
+  if (recentTxEl) {
+    const recent = state.transactions.slice(0, 5);
+    recentTxEl.innerHTML = recent.map((tx) => {
+      const isIncome = tx.type === "income";
+      const isTransfer = tx.type === "transfer";
+      
+      const iconName = isIncome ? "arrow-down-left" : isTransfer ? "arrow-left-right" : "arrow-up-right";
+      const iconClass = isIncome ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400" : isTransfer ? "bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400" : "bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400";
+      const amountColor = isIncome ? "text-emerald-600 dark:text-emerald-400" : isTransfer ? "text-blue-600 dark:text-blue-400" : "text-rose-600 dark:text-rose-400";
+
+      return `
         <div class="py-2.5 flex items-center justify-between">
           <div class="flex items-center gap-2.5">
-            <div class="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-mono font-bold text-xs">
-              #${o.orderNumber}
+            <div class="w-8 h-8 rounded-lg ${iconClass} flex items-center justify-center">
+              <i data-lucide="${iconName}" class="w-4 h-4"></i>
             </div>
             <div>
-              <p class="text-xs font-semibold text-slate-800 dark:text-slate-200">${o.customerName}</p>
-              <p class="text-[10px] text-slate-400">${formatDate(o.date)} · ${o.items.length} artículos</p>
+              <p class="text-xs font-semibold text-slate-800 dark:text-slate-200">${tx.description}</p>
+              <p class="text-[10px] text-slate-400">${formatDate(tx.date)} · ${tx.category}</p>
             </div>
           </div>
-          <div class="text-right">
-            <p class="text-xs font-bold text-slate-900 dark:text-white tabular-nums">${formatMoney(o.totalAmount)}</p>
-            <span class="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">+${formatMoney(o.grossProfit)} ganancia</span>
-          </div>
+          <p class="text-xs font-bold tabular-nums ${amountColor}">
+            ${isIncome ? '+' : isTransfer ? '↔' : '-'}${formatMoney(tx.amount)}
+          </p>
         </div>
-      `).join("");
-    }
-  }
-
-  // Render Últimos Asientos Contables
-  const recentAccEl = document.getElementById("dash-recent-accounting");
-  if (recentAccEl) {
-    if (accounting.length === 0) {
-      recentAccEl.innerHTML = `<p class="text-xs text-slate-400 py-3 text-center">Sin movimientos contables.</p>`;
-    } else {
-      recentAccEl.innerHTML = accounting.slice(-4).reverse().map((entry) => {
-        const isIncome = entry.type === "income";
-        return `
-          <div class="py-2.5 flex items-center justify-between">
-            <div class="flex items-center gap-2.5">
-              <div class="w-8 h-8 rounded-lg ${isIncome ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400' : 'bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400'} flex items-center justify-center">
-                <i data-lucide="${isIncome ? 'arrow-down-left' : 'arrow-up-right'}" class="w-4 h-4"></i>
-              </div>
-              <div>
-                <p class="text-xs font-semibold text-slate-800 dark:text-slate-200 line-clamp-1">${entry.concept}</p>
-                <p class="text-[10px] text-slate-400">${formatDate(entry.date)} · ${entry.paymentMethod}</p>
-              </div>
-            </div>
-            <p class="text-xs font-bold tabular-nums ${isIncome ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}">
-              ${isIncome ? '+' : '-'}${formatMoney(entry.amount)}
-            </p>
-          </div>
-        `;
-      }).join("");
-    }
+      `;
+    }).join("");
   }
 }
 
 // ========================================================
-// RENDERIZADO 2: CATÁLOGO & INVENTARIO
+// RENDERIZADO 2: CUENTAS & BILLETERAS
 // ========================================================
-function renderInventory() {
-  const container = document.getElementById("inventory-grid");
+function renderAccounts() {
+  const container = document.getElementById("accounts-grid");
   if (!container) return;
 
-  const { inventorySearch, inventoryCategory, inventoryAlert } = state.filters;
+  const accounts = state.accounts;
 
-  // Filtrado
-  const filtered = state.supplies.filter((item) => {
-    // Filtro por texto
-    if (inventorySearch) {
-      const q = inventorySearch.toLowerCase();
-      const matchName = item.name.toLowerCase().includes(q);
-      const matchSku = item.sku.toLowerCase().includes(q);
-      if (!matchName && !matchSku) return false;
-    }
-    // Filtro por categoría
-    if (inventoryCategory !== "all" && item.category !== inventoryCategory) {
-      return false;
-    }
-    // Filtro por nivel de stock
-    const level = Storage.getStockAlertLevel(item);
-    if (inventoryAlert === "alert_only" && level === "optimal") return false;
-    if (inventoryAlert !== "all" && inventoryAlert !== "alert_only" && level !== inventoryAlert) return false;
+  container.innerHTML = accounts.map((acc) => {
+    const isCredit = acc.type === "credit_card";
+    const balanceColor = isCredit 
+      ? (acc.currentBalance < 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-900 dark:text-white")
+      : (acc.currentBalance >= 0 ? "text-slate-900 dark:text-white" : "text-rose-600 dark:text-rose-400");
 
-    return true;
-  });
-
-  if (filtered.length === 0) {
-    container.innerHTML = `
-      <div class="col-span-full py-16 text-center text-slate-400">
-        <i data-lucide="package-x" class="w-12 h-12 mx-auto mb-3 text-slate-300 dark:text-slate-700"></i>
-        <h4 class="text-sm font-semibold text-slate-600 dark:text-slate-300">No se encontraron insumos</h4>
-        <p class="text-xs mt-1">Prueba cambiando los criterios del buscador o los filtros de categoría y alerta.</p>
-      </div>
-    `;
-    return;
-  }
-
-  container.innerHTML = filtered.map((item) => {
-    const level = Storage.getStockAlertLevel(item);
-    
-    // Configuración visual según nivel de alerta
-    const alertConfig = {
-      optimal: {
-        badgeClass: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border-emerald-200 dark:border-emerald-900",
-        label: "Stock Óptimo",
-        barClass: "bg-emerald-500",
-        icon: "check"
-      },
-      low: {
-        badgeClass: "bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border-amber-200 dark:border-amber-900",
-        label: "Stock Bajo",
-        barClass: "bg-amber-500",
-        icon: "alert-triangle"
-      },
-      critical: {
-        badgeClass: "bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300 border-rose-200 dark:border-rose-900",
-        label: "Crítico",
-        barClass: "bg-rose-600",
-        icon: "alert-octagon"
-      },
-      out_of_stock: {
-        badgeClass: "bg-slate-900 text-rose-400 dark:bg-rose-950/90 dark:text-rose-200 border-rose-800",
-        label: "Agotado",
-        barClass: "bg-slate-800 dark:bg-slate-600",
-        icon: "x-circle"
-      }
-    }[level];
-
-    // Porcentaje de stock relativo al mínimo
-    const stockPct = Math.min(Math.round((item.currentStock / (item.minStock || 1)) * 100), 100);
-    const margin = item.salePrice > 0 ? Math.round(((item.salePrice - item.costPrice) / item.salePrice) * 100) : 0;
+    const typeLabels = {
+      bank: "Cuenta Bancaria",
+      cash: "Efectivo",
+      wallet: "Billetera Digital",
+      savings: "Ahorro / Inversión",
+      credit_card: "Tarjeta de Crédito"
+    };
 
     return `
-      <div class="supply-card bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col justify-between">
-        <!-- Imagen y Badges -->
-        <div class="relative h-44 bg-slate-100 dark:bg-slate-800 overflow-hidden">
-          <img src="${item.imageUrl}" alt="${item.name}" class="w-full h-full object-cover transition-transform duration-300 hover:scale-105" onerror="this.src='https://placehold.co/400x250?text=Insumo'">
-          <div class="absolute top-2.5 left-2.5">
-            <span class="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md bg-white/90 dark:bg-slate-900/90 text-slate-700 dark:text-slate-300 backdrop-blur shadow-sm border border-slate-200/50 dark:border-slate-700/50">
-              ${item.category}
-            </span>
+      <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between space-y-4">
+        <div class="flex items-center justify-between">
+          <div class="w-10 h-10 rounded-xl flex items-center justify-center text-white" style="background-color: ${acc.color || '#10b981'}">
+            <i data-lucide="${acc.icon || 'wallet'}" class="w-5 h-5"></i>
           </div>
-          <div class="absolute top-2.5 right-2.5">
-            <span class="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md border backdrop-blur shadow-sm ${alertConfig.badgeClass}">
-              ${alertConfig.label}
-            </span>
-          </div>
+          <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+            ${typeLabels[acc.type] || acc.type}
+          </span>
         </div>
 
-        <!-- Contenido -->
-        <div class="p-4 flex-1 flex flex-col justify-between space-y-3">
-          <div>
-            <div class="flex items-center justify-between text-[11px] text-slate-400 mb-1">
-              <span class="font-mono">${item.sku}</span>
-              <span>${item.unit}</span>
-            </div>
-            <h3 class="text-sm font-bold text-slate-900 dark:text-white leading-snug line-clamp-2" title="${item.name}">${item.name}</h3>
-            ${item.description ? `<p class="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 mt-1">${item.description}</p>` : ''}
-          </div>
-
-          <!-- Barra de Stock -->
-          <div class="space-y-1 bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800">
-            <div class="flex items-center justify-between text-xs">
-              <span class="text-slate-500 dark:text-slate-400">Stock disponible:</span>
-              <span class="font-bold tabular-nums text-slate-900 dark:text-white">${item.currentStock} <span class="text-[10px] font-normal text-slate-400">/ Mín ${item.minStock}</span></span>
-            </div>
-            <div class="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-              <div class="h-full ${alertConfig.barClass} transition-all duration-300" style="width: ${stockPct}%"></div>
-            </div>
-          </div>
-
-          <!-- Precios y Margen -->
-          <div class="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-            <div>
-              <p class="text-[10px] text-slate-400">Costo: ${formatMoney(item.costPrice)}</p>
-              <p class="text-sm font-bold text-slate-900 dark:text-white tabular-nums">${formatMoney(item.salePrice)}</p>
-            </div>
-            <div class="text-right">
-              <span class="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
-                ${margin}% mg
-              </span>
-            </div>
+        <div>
+          <h3 class="text-sm font-bold text-slate-900 dark:text-white">${acc.name}</h3>
+          <p class="text-xs text-slate-400">${acc.currency || 'CLP'}</p>
+          <div class="mt-2">
+            <span class="text-xs text-slate-500">${isCredit ? 'Saldo adeudado:' : 'Saldo disponible:'}</span>
+            <p class="text-xl font-bold tabular-nums ${balanceColor}">${formatMoney(acc.currentBalance)}</p>
           </div>
         </div>
       </div>
@@ -494,103 +380,150 @@ function renderInventory() {
 }
 
 // ========================================================
-// RENDERIZADO 3: PEDIDOS & VENTAS
+// RENDERIZADO 3: TRANSACCIONES
 // ========================================================
-function renderOrders() {
-  const tbody = document.getElementById("orders-table-body");
+function renderTransactions() {
+  const tbody = document.getElementById("transactions-table-body");
   if (!tbody) return;
 
-  const orders = state.orders;
+  const { txSearch, txType } = state.filters;
 
-  if (orders.length === 0) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="7" class="py-8 text-center text-slate-400">No hay pedidos registrados en el sistema.</td>
-      </tr>
-    `;
-    return;
-  }
-
-  tbody.innerHTML = orders.map((o) => `
-    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-      <td class="py-3 px-4 font-mono font-bold text-slate-900 dark:text-white">#${o.orderNumber}</td>
-      <td class="py-3 px-4 text-slate-500 whitespace-nowrap">${formatDate(o.date)}</td>
-      <td class="py-3 px-4 font-semibold text-slate-800 dark:text-slate-200">${o.customerName}</td>
-      <td class="py-3 px-4">
-        <span class="text-slate-600 dark:text-slate-300" title="${o.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}">
-          ${o.items.length} ${o.items.length === 1 ? 'insumo' : 'insumos'}
-        </span>
-      </td>
-      <td class="py-3 px-4 text-right font-bold tabular-nums text-slate-900 dark:text-white">${formatMoney(o.totalAmount)}</td>
-      <td class="py-3 px-4 text-right font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">+${formatMoney(o.grossProfit)}</td>
-      <td class="py-3 px-4 text-center">
-        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${o.status === 'completed' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-400'}">
-          ${o.status === 'completed' ? 'Completado' : 'Cancelado'}
-        </span>
-      </td>
-    </tr>
-  `).join("");
-}
-
-// ========================================================
-// RENDERIZADO 4: CONTABILIDAD & BALANCES
-// ========================================================
-function renderAccounting() {
-  const tbody = document.getElementById("accounting-table-body");
-  const entries = state.accounting;
-
-  let totalIncome = 0;
-  let totalExpense = 0;
-
-  entries.forEach((e) => {
-    const amt = Number(e.amount) || 0;
-    if (e.type === "income") totalIncome += amt;
-    if (e.type === "expense") totalExpense += amt;
-  });
-
-  const netBalance = totalIncome - totalExpense;
-
-  document.getElementById("acc-total-income").textContent = formatMoney(totalIncome);
-  document.getElementById("acc-total-expense").textContent = formatMoney(totalExpense);
-  document.getElementById("acc-net-balance").textContent = formatMoney(netBalance);
-
-  if (!tbody) return;
-
-  const filterType = state.filters.accountingType;
-  const filtered = entries.filter((e) => {
-    if (filterType !== "all" && e.type !== filterType) return false;
+  const filtered = state.transactions.filter((tx) => {
+    if (txType !== "all" && tx.type !== txType) return false;
+    if (txSearch) {
+      const q = txSearch.toLowerCase();
+      const matchDesc = (tx.description || "").toLowerCase().includes(q);
+      const matchCat = (tx.category || "").toLowerCase().includes(q);
+      if (!matchDesc && !matchCat) return false;
+    }
     return true;
   });
 
   if (filtered.length === 0) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="6" class="py-8 text-center text-slate-400">Sin movimientos contables para el filtro seleccionado.</td>
-      </tr>
-    `;
+    tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-slate-400">No hay movimientos que coincidan con los filtros.</td></tr>`;
     return;
   }
 
-  tbody.innerHTML = filtered.slice().reverse().map((e) => {
-    const isIncome = e.type === "income";
+  tbody.innerHTML = filtered.map((tx) => {
+    const isIncome = tx.type === "income";
+    const isTransfer = tx.type === "transfer";
+    const typeLabel = isIncome ? "Ingreso" : isTransfer ? "Transferencia" : "Gasto";
+    const typeBadge = isIncome 
+      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300"
+      : isTransfer ? "bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300" : "bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300";
+
+    const account = state.accounts.find(a => a.id === tx.accountId);
+    const accountName = account ? account.name : "Cuenta";
+
     return `
       <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-        <td class="py-3 px-4 text-slate-500 whitespace-nowrap">${formatDate(e.date)}</td>
+        <td class="py-3 px-4 text-slate-500 whitespace-nowrap">${formatDate(tx.date)}</td>
         <td class="py-3 px-4">
-          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${isIncome ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300'}">
-            <i data-lucide="${isIncome ? 'arrow-down-left' : 'arrow-up-right'}" class="w-3 h-3"></i>
-            ${isIncome ? 'Ingreso' : 'Egreso'}
+          <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${typeBadge}">
+            ${typeLabel}
           </span>
         </td>
-        <td class="py-3 px-4 font-semibold text-slate-800 dark:text-slate-200">${e.concept}</td>
-        <td class="py-3 px-4 text-slate-500 capitalize">${e.category}</td>
-        <td class="py-3 px-4 text-center capitalize text-slate-500">${e.paymentMethod}</td>
-        <td class="py-3 px-4 text-right font-bold tabular-nums ${isIncome ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}">
-          ${isIncome ? '+' : '-'}${formatMoney(e.amount)}
+        <td class="py-3 px-4 font-semibold text-slate-800 dark:text-slate-200">${tx.description}</td>
+        <td class="py-3 px-4 text-slate-500">${tx.category}</td>
+        <td class="py-3 px-4 text-slate-500">${accountName}</td>
+        <td class="py-3 px-4 text-right font-bold tabular-nums ${isIncome ? 'text-emerald-600 dark:text-emerald-400' : isTransfer ? 'text-blue-600 dark:text-blue-400' : 'text-rose-600 dark:text-rose-400'}">
+          ${isIncome ? '+' : isTransfer ? '↔' : '-'}${formatMoney(tx.amount)}
         </td>
       </tr>
     `;
   }).join("");
+}
+
+// ========================================================
+// RENDERIZADO 4: PRESUPUESTOS & METAS
+// ========================================================
+function renderBudgets() {
+  // 1. Presupuestos Mensuales
+  const budgetsContainer = document.getElementById("budgets-grid");
+  if (budgetsContainer) {
+    budgetsContainer.innerHTML = state.budgets.map((b) => {
+      const pct = Math.round((b.spentAmount / (b.limitAmount || 1)) * 100);
+      let colorClass = "bg-emerald-500";
+      let statusText = "🟢 Dentro del presupuesto";
+
+      if (pct > 100) {
+        colorClass = "bg-rose-600";
+        statusText = "🔴 Presupuesto Excedido";
+      } else if (pct > 75) {
+        colorClass = "bg-amber-500";
+        statusText = "🟡 En Advertencia (>75%)";
+      }
+
+      return `
+        <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white">${b.category}</h3>
+            <span class="text-xs font-semibold ${pct > 100 ? 'text-rose-600' : pct > 75 ? 'text-amber-600' : 'text-emerald-600'}">${pct}%</span>
+          </div>
+
+          <div class="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+            <div class="h-full ${colorClass} rounded-full transition-all duration-300" style="width: ${Math.min(pct, 100)}%"></div>
+          </div>
+
+          <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+            <span>Gastado: <strong class="text-slate-800 dark:text-slate-200">${formatMoney(b.spentAmount)}</strong></span>
+            <span>Límite: ${formatMoney(b.limitAmount)}</span>
+          </div>
+
+          <p class="text-[11px] font-medium text-slate-500 pt-1 border-t border-slate-100 dark:border-slate-800">${statusText}</p>
+        </div>
+      `;
+    }).join("");
+  }
+
+  // 2. Metas de Ahorro
+  const goalsContainer = document.getElementById("goals-grid");
+  if (goalsContainer) {
+    goalsContainer.innerHTML = state.goals.map((g) => {
+      const pct = Math.min(100, Math.round((g.currentAmount / (g.targetAmount || 1)) * 100));
+
+      return `
+        <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white">${g.title}</h3>
+            <span class="text-xs font-bold text-blue-600 dark:text-blue-400">${pct}%</span>
+          </div>
+
+          <div class="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+            <div class="h-full bg-blue-600 rounded-full transition-all duration-300" style="width: ${pct}%"></div>
+          </div>
+
+          <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+            <span>Ahorrado: <strong class="text-slate-800 dark:text-slate-200">${formatMoney(g.currentAmount)}</strong></span>
+            <span>Meta: ${formatMoney(g.targetAmount)}</span>
+          </div>
+
+          ${g.deadlineDate ? `<p class="text-[11px] text-slate-400 pt-1 border-t border-slate-100 dark:border-slate-800">Fecha objetivo: ${formatDate(g.deadlineDate)}</p>` : ''}
+        </div>
+      `;
+    }).join("");
+  }
+}
+
+// ========================================================
+// RENDERIZADO 5: CONFIGURACIÓN & BASE DE DATOS
+// ========================================================
+function renderSettings() {
+  const config = Storage.getDbConfig();
+  const urlInput = document.getElementById("supabase-url");
+  const keyInput = document.getElementById("supabase-key");
+
+  if (urlInput) urlInput.value = config.url || "";
+  if (keyInput) keyInput.value = config.anonKey || "";
+
+  const dbStatusPill = document.getElementById("db-status-text");
+  if (dbStatusPill) {
+    if (config.provider === "supabase" && config.url) {
+      dbStatusPill.textContent = "Supabase Conectado";
+    } else {
+      dbStatusPill.textContent = "Local Storage";
+    }
+  }
 }
 
 // ========================================================
@@ -601,112 +534,153 @@ function renderActiveView() {
     case "dashboard":
       renderDashboard();
       break;
-    case "inventory":
-      renderInventory();
+    case "accounts":
+      renderAccounts();
       break;
-    case "orders":
-      renderOrders();
+    case "transactions":
+      renderTransactions();
       break;
-    case "accounting":
-      renderAccounting();
+    case "budgets":
+      renderBudgets();
+      break;
+    case "settings":
+      renderSettings();
       break;
   }
   lucide.createIcons();
 }
 
 function loadStateFromStorage() {
-  state.supplies = Storage.getSupplies();
-  state.orders = Storage.getOrders();
-  state.accounting = Storage.getAccounting();
+  state.accounts = Storage.getAccounts();
+  state.transactions = Storage.getTransactions();
+  state.budgets = Storage.getBudgets();
+  state.goals = Storage.getGoals();
 }
 
 // ========================================================
-// LISTENERS DE FILTROS Y EVENTOS
+// FILTROS Y EVENTOS GLOBALES
 // ========================================================
-function initFiltersAndActions() {
-  // Filtros de Inventario
-  const searchInput = document.getElementById("inventory-search");
-  searchInput?.addEventListener("input", (e) => {
-    state.filters.inventorySearch = e.target.value.trim();
-    renderInventory();
-    lucide.createIcons();
+function initFiltersAndEvents() {
+  // Filtros de transacciones
+  document.getElementById("tx-search")?.addEventListener("input", (e) => {
+    state.filters.txSearch = e.target.value.trim();
+    renderTransactions();
   });
 
-  const catSelect = document.getElementById("inventory-category-filter");
-  catSelect?.addEventListener("change", (e) => {
-    state.filters.inventoryCategory = e.target.value;
-    renderInventory();
-    lucide.createIcons();
-  });
-
-  const alertSelect = document.getElementById("inventory-alert-filter");
-  alertSelect?.addEventListener("change", (e) => {
-    state.filters.inventoryAlert = e.target.value;
-    renderInventory();
-    lucide.createIcons();
-  });
-
-  // Filtro de Contabilidad
-  const accFilter = document.getElementById("accounting-type-filter");
-  accFilter?.addEventListener("change", (e) => {
-    state.filters.accountingType = e.target.value;
-    renderAccounting();
-    lucide.createIcons();
+  document.getElementById("tx-type-filter")?.addEventListener("change", (e) => {
+    state.filters.txType = e.target.value;
+    renderTransactions();
   });
 
   // Botón Restablecer Datos Demo
-  document.getElementById("btn-reset-demo")?.addEventListener("click", () => {
-    if (confirm("¿Deseas restablecer todos los insumos, pedidos y datos contables a los datos de demostración originales?")) {
+  const resetHandler = () => {
+    if (confirm("¿Deseas restablecer todas tus cuentas, movimientos, presupuestos y metas a los datos de demostración?")) {
       Storage.resetToMockData();
       loadStateFromStorage();
       renderActiveView();
-      showToast("Datos restablecidos a la demostración inicial.", "success");
+      showToast("Datos demo de contabilidad personal cargados con éxito.", "success");
+    }
+  };
+  document.getElementById("btn-reset-demo")?.addEventListener("click", resetHandler);
+  document.getElementById("btn-settings-reset")?.addEventListener("click", resetHandler);
+
+  // Botón Exportar Backup
+  const exportHandler = () => {
+    Storage.exportBackup();
+    showToast("Copia de seguridad JSON descargada.", "info");
+  };
+  document.getElementById("btn-export-backup")?.addEventListener("click", exportHandler);
+  document.getElementById("btn-settings-export")?.addEventListener("click", exportHandler);
+
+  // Importar Backup
+  document.getElementById("input-import-json")?.addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const ok = Storage.importBackup(event.target.result);
+      if (ok) {
+        loadStateFromStorage();
+        renderActiveView();
+        showToast("Copia de seguridad restaurada correctamente.", "success");
+      } else {
+        showToast("Archivo JSON no válido.", "error");
+      }
+    };
+    reader.readAsText(file);
+  });
+
+  // Guardar y Probar Conexión Supabase
+  document.getElementById("btn-save-db")?.addEventListener("click", () => {
+    const url = document.getElementById("supabase-url")?.value.trim() || "";
+    const key = document.getElementById("supabase-key")?.value.trim() || "";
+
+    Storage.saveDbConfig({
+      provider: url && key ? "supabase" : "none",
+      url,
+      anonKey: key
+    });
+    renderSettings();
+    showToast("Configuración de base de datos guardada.", "success");
+  });
+
+  document.getElementById("btn-test-db")?.addEventListener("click", async () => {
+    const url = document.getElementById("supabase-url")?.value.trim() || "";
+    const key = document.getElementById("supabase-key")?.value.trim() || "";
+
+    showToast("Probando conexión con Supabase...", "info");
+    const result = await DbAdapter.testConnection(url, key);
+    if (result.success) {
+      showToast(result.message, "success");
+    } else {
+      showToast(result.message, "error");
     }
   });
 
-  // Botón Exportar Respaldo
-  document.getElementById("btn-export-backup")?.addEventListener("click", () => {
-    Storage.exportBackup();
-    showToast("Respaldo JSON descargado correctamente.", "info");
-  });
-
-  // Modal genérico
+  // Modales placeholders
   const modal = document.getElementById("app-modal");
   document.getElementById("modal-close-btn")?.addEventListener("click", () => modal?.close());
-  
-  // Botones de acción rápida que abren modal placeholder
-  const showModalPlaceholder = (title, msg) => {
+
+  const showModalPlaceholder = (title, desc) => {
     document.getElementById("modal-title").textContent = title;
     document.getElementById("modal-body").innerHTML = `
       <div class="py-4 text-center space-y-3">
         <i data-lucide="sparkles" class="w-8 h-8 text-emerald-500 mx-auto"></i>
-        <p class="text-xs text-slate-600 dark:text-slate-300">${msg}</p>
-        <p class="text-[11px] text-slate-400">El shell visual y los datos base están listos. En la siguiente iteración se conectará el formulario completo de creación.</p>
+        <p class="text-xs text-slate-600 dark:text-slate-300">${desc}</p>
+        <p class="text-[11px] text-slate-400">El shell y la arquitectura de Contabilidad Personal están listos. En la siguiente fase se conectará el formulario completo.</p>
       </div>
     `;
     lucide.createIcons();
     modal?.showModal();
   };
 
-  document.getElementById("btn-modal-new-supply")?.addEventListener("click", () => {
-    showModalPlaceholder("Registrar Nuevo Insumo", "Formulario de alta de insumos con control de stock mínimo y carga de fotos.");
+  document.getElementById("btn-quick-new-tx")?.addEventListener("click", () => {
+    showModalPlaceholder("Registrar Nuevo Movimiento", "Formulario para registrar un Ingreso, Gasto o Transferencia entre cuentas con categorías de vida.");
   });
 
-  document.getElementById("btn-open-order-modal")?.addEventListener("click", () => {
-    showModalPlaceholder("Registrar Nuevo Pedido", "Formulario de selección de insumos, cálculo automático de importes y descuento de existencias.");
+  document.getElementById("btn-modal-new-tx")?.addEventListener("click", () => {
+    showModalPlaceholder("Registrar Nuevo Movimiento", "Formulario para registrar un Ingreso, Gasto o Transferencia entre cuentas con categorías de vida.");
   });
 
-  document.getElementById("btn-quick-new-order")?.addEventListener("click", () => {
-    showModalPlaceholder("Registrar Nuevo Pedido", "Formulario de selección de insumos, cálculo automático de importes y descuento de existencias.");
+  document.getElementById("btn-modal-new-account")?.addEventListener("click", () => {
+    showModalPlaceholder("Crear Nueva Cuenta Financiera", "Formulario para añadir cuentas bancarias, billeteras o tarjetas de crédito.");
+  });
+
+  document.getElementById("btn-modal-new-budget")?.addEventListener("click", () => {
+    showModalPlaceholder("Definir Presupuesto Mensual", "Asigna límites máximos a categorías como Alimentación, Vivienda u Ocio.");
+  });
+
+  document.getElementById("btn-modal-new-goal")?.addEventListener("click", () => {
+    showModalPlaceholder("Crear Meta de Ahorro", "Define tu objetivo financiero (monto meta y fecha límite deseada).");
   });
 }
 
-// Inicialización de la aplicación
+// Inicialización de la aplicación al cargar el DOM
 document.addEventListener("DOMContentLoaded", () => {
   initTheme();
   initNavigation();
   loadStateFromStorage();
-  initFiltersAndActions();
+  initFiltersAndEvents();
   renderActiveView();
   lucide.createIcons();
 });

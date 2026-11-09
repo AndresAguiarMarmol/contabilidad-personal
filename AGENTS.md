@@ -1,4 +1,4 @@
-# AGENTS.md — Contabilidad, Inventario y Pedidos de Insumos
+# AGENTS.md — Contabilidad Personal y Gestión Patrimonial (PWA)
 
 Guía para agentes de IA que trabajen en este proyecto.
 
@@ -16,4 +16,11 @@ Guía para agentes de IA que trabajen en este proyecto.
 ---
 
 ## Descripción del proyecto
-Aplicación integrada de contabilidad, gestión de inventario y pedidos para un negocio de ventas de insumos, con alertas de stock mínimo/crítico y catálogo visual de productos.
+Aplicación Web Progresiva (PWA) orientada al 100% a la **Contabilidad y Finanzas Personales/Familiares**:
+- Gestión de cuentas y billeteras (bancos, efectivo, tarjetas de crédito, ahorros).
+- Registro de ingresos y gastos de la vida cotidiana categorizados.
+- Presupuestos mensuales con semáforos de alerta de sobregiro.
+- Metas de ahorro personal.
+- Panel de patrimonio neto consolidado y tasa de ahorro.
+- Sincronización opcional con base de datos real (Supabase PostgreSQL) y funcionamiento offline garantizado.
+- **Sin inventario, catálogo comercial ni existencias de insumos.**

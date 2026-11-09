@@ -3,8 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>InsumoFlow — Contabilidad, Inventario y Pedidos</title>
+  <title>ContaPersonal — Contabilidad y Finanzas Personales</title>
   
+  <!-- PWA Manifest & Theme Color -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#10b981">
+  <link rel="apple-touch-icon" href="manifest.json">
+
   <!-- Tipografía Google Fonts: Inter -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -22,13 +27,13 @@
           },
           colors: {
             brand: {
-              50: '#f0fdf4',
-              100: '#dcfce7',
-              500: '#22c55e',
-              600: '#16a34a',
-              700: '#15803d',
-              800: '#166534',
-              900: '#14532d',
+              50: '#ecfdf5',
+              100: '#d1fae5',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+              800: '#065f46',
+              900: '#064e3b',
             }
           }
         }
@@ -53,11 +58,11 @@
     <div class="h-16 flex items-center justify-between px-5 border-b border-slate-200 dark:border-slate-800">
       <div class="flex items-center gap-3">
         <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white shadow-md shadow-emerald-500/20">
-          <i data-lucide="layers" class="w-5 h-5"></i>
+          <i data-lucide="wallet" class="w-5 h-5"></i>
         </div>
         <div>
-          <span class="font-bold text-base tracking-tight text-slate-900 dark:text-white">Insumo<span class="text-emerald-600 dark:text-emerald-400">Flow</span></span>
-          <span class="block text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Gestión & Balances</span>
+          <span class="font-bold text-base tracking-tight text-slate-900 dark:text-white">Conta<span class="text-emerald-600 dark:text-emerald-400">Personal</span></span>
+          <span class="block text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Finanzas Personales</span>
         </div>
       </div>
       <!-- Botón cerrar en móvil -->
@@ -66,57 +71,65 @@
       </button>
     </div>
 
-    <!-- Navegación Principal -->
+    <!-- Navegación Principal de Finanzas -->
     <nav class="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto">
-      <button data-nav-view="dashboard" class="nav-item w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition-all text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-300">
+      <button data-nav-view="dashboard" class="nav-item w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-semibold transition-all text-emerald-700 bg-emerald-50 dark:bg-emerald-950/50 dark:text-emerald-300">
         <div class="flex items-center gap-3">
           <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
           <span>Dashboard</span>
         </div>
       </button>
 
-      <button data-nav-view="inventory" class="nav-item w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition-all text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-slate-100">
+      <button data-nav-view="accounts" class="nav-item w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition-all text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-slate-100">
         <div class="flex items-center gap-3">
-          <i data-lucide="boxes" class="w-4 h-4"></i>
-          <span>Catálogo & Stock</span>
-        </div>
-        <span id="sidebar-stock-alert-badge" class="hidden px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300">0</span>
-      </button>
-
-      <button data-nav-view="orders" class="nav-item w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition-all text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-slate-100">
-        <div class="flex items-center gap-3">
-          <i data-lucide="shopping-cart" class="w-4 h-4"></i>
-          <span>Pedidos & Ventas</span>
+          <i data-lucide="landmark" class="w-4 h-4"></i>
+          <span>Cuentas & Billeteras</span>
         </div>
       </button>
 
-      <button data-nav-view="accounting" class="nav-item w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition-all text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-slate-100">
+      <button data-nav-view="transactions" class="nav-item w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition-all text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-slate-100">
         <div class="flex items-center gap-3">
-          <i data-lucide="wallet" class="w-4 h-4"></i>
-          <span>Contabilidad</span>
+          <i data-lucide="arrow-left-right" class="w-4 h-4"></i>
+          <span>Movimientos</span>
+        </div>
+      </button>
+
+      <button data-nav-view="budgets" class="nav-item w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition-all text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-slate-100">
+        <div class="flex items-center gap-3">
+          <i data-lucide="pie-chart" class="w-4 h-4"></i>
+          <span>Presupuestos & Metas</span>
+        </div>
+        <span id="sidebar-budget-alert-badge" class="hidden px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300">0</span>
+      </button>
+
+      <button data-nav-view="settings" class="nav-item w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition-all text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-slate-100">
+        <div class="flex items-center gap-3">
+          <i data-lucide="database" class="w-4 h-4"></i>
+          <span>Base de Datos & Ajustes</span>
         </div>
       </button>
     </nav>
 
-    <!-- Footer Sidebar con utilidades -->
-    <div class="p-3 border-t border-slate-200 dark:border-slate-800 space-y-1">
-      <div class="px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+    <!-- Footer Sidebar con estado y utilidades -->
+    <div class="p-3 border-t border-slate-200 dark:border-slate-800 space-y-2">
+      <!-- Indicador de Base de Datos -->
+      <div id="db-status-pill" class="px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
         <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
           <span class="flex items-center gap-1.5">
             <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            Almacenamiento Local
+            <span id="db-status-text">Local Storage</span>
           </span>
-          <span class="text-[10px] font-mono">v1.0</span>
+          <span class="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-bold">PWA</span>
         </div>
       </div>
 
-      <div class="flex items-center justify-between pt-2">
+      <div class="flex items-center justify-between pt-1">
         <button id="btn-theme-toggle" title="Alternar tema oscuro/claro" class="p-2 rounded-lg text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
           <i id="theme-icon-sun" data-lucide="sun" class="w-4 h-4 hidden"></i>
           <i id="theme-icon-moon" data-lucide="moon" class="w-4 h-4"></i>
         </button>
 
-        <button id="btn-reset-demo" title="Restablecer datos demo iniciales" class="flex items-center gap-1.5 text-xs text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-400 px-2 py-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors">
+        <button id="btn-reset-demo" title="Restablecer datos iniciales de demo" class="flex items-center gap-1.5 text-xs text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-400 px-2 py-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors">
           <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
           <span>Datos Demo</span>
         </button>
@@ -144,16 +157,16 @@
           <i data-lucide="menu" class="w-5 h-5"></i>
         </button>
         <div>
-          <h1 id="page-title" class="text-base md:text-lg font-bold text-slate-900 dark:text-white leading-tight">Dashboard General</h1>
-          <p id="page-subtitle" class="text-xs text-slate-500 dark:text-slate-400">Resumen de existencias, pedidos y balance financiero</p>
+          <h1 id="page-title" class="text-base md:text-lg font-bold text-slate-900 dark:text-white leading-tight">Dashboard Patrimonial</h1>
+          <p id="page-subtitle" class="text-xs text-slate-500 dark:text-slate-400">Resumen de patrimonio neto, ingresos y gastos del mes</p>
         </div>
       </div>
 
       <!-- Quick Action Buttons en Header -->
       <div class="flex items-center gap-2">
-        <button id="btn-quick-new-order" class="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all shadow-emerald-600/20 active:scale-95">
+        <button id="btn-quick-new-tx" class="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all shadow-emerald-600/20 active:scale-95">
           <i data-lucide="plus-circle" class="w-4 h-4"></i>
-          <span class="hidden sm:inline">Nuevo Pedido</span>
+          <span>Nuevo Movimiento</span>
         </button>
       </div>
     </header>
@@ -162,101 +175,102 @@
     <main class="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50 dark:bg-slate-950">
 
       <!-- ==================================================== -->
-      <!-- VISTA 1: DASHBOARD                                  -->
+      <!-- VISTA 1: DASHBOARD PATRIMONIAL                       -->
       <!-- ==================================================== -->
       <section id="view-dashboard" class="space-y-6">
         
-        <!-- Tarjetas de Métricas Clave -->
+        <!-- Tarjetas de Métricas Clave de Finanzas Personales -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <!-- Métrica 1: Valor Inventario -->
+          <!-- Métrica 1: Patrimonio Neto -->
           <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
             <div>
-              <p class="text-xs font-medium text-slate-500 dark:text-slate-400">Valor del Inventario</p>
-              <h3 id="dash-inventory-value" class="text-xl md:text-2xl font-bold text-slate-900 dark:text-white mt-1 tabular-nums">$0</h3>
-              <p id="dash-inventory-count" class="text-xs text-slate-500 mt-1">0 insumos registrados</p>
-            </div>
-            <div class="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center">
-              <i data-lucide="package" class="w-6 h-6"></i>
-            </div>
-          </div>
-
-          <!-- Métrica 2: Alertas de Stock -->
-          <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
-            <div>
-              <p class="text-xs font-medium text-slate-500 dark:text-slate-400">Alertas de Stock</p>
-              <h3 id="dash-stock-alerts-count" class="text-xl md:text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1 tabular-nums">0</h3>
-              <p id="dash-critical-count" class="text-xs text-rose-500 font-medium mt-1">0 en estado crítico</p>
-            </div>
-            <div class="w-12 h-12 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center">
-              <i data-lucide="alert-triangle" class="w-6 h-6"></i>
-            </div>
-          </div>
-
-          <!-- Métrica 3: Pedidos Realizados -->
-          <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
-            <div>
-              <p class="text-xs font-medium text-slate-500 dark:text-slate-400">Pedidos Procesados</p>
-              <h3 id="dash-orders-count" class="text-xl md:text-2xl font-bold text-slate-900 dark:text-white mt-1 tabular-nums">0</h3>
-              <p id="dash-sales-total" class="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-1">$0 en ventas</p>
+              <p class="text-xs font-medium text-slate-500 dark:text-slate-400">Patrimonio Neto Total</p>
+              <h3 id="dash-net-worth" class="text-xl md:text-2xl font-bold text-slate-900 dark:text-white mt-1 tabular-nums">$0</h3>
+              <p id="dash-assets-summary" class="text-xs text-slate-500 mt-1">Activos vs Deudas</p>
             </div>
             <div class="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-              <i data-lucide="shopping-bag" class="w-6 h-6"></i>
-            </div>
-          </div>
-
-          <!-- Métrica 4: Balance Neto en Caja -->
-          <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
-            <div>
-              <p class="text-xs font-medium text-slate-500 dark:text-slate-400">Balance Neto en Caja</p>
-              <h3 id="dash-net-balance" class="text-xl md:text-2xl font-bold text-slate-900 dark:text-white mt-1 tabular-nums">$0</h3>
-              <p id="dash-margin-rate" class="text-xs text-slate-500 mt-1">Margen bruto: 0%</p>
-            </div>
-            <div class="w-12 h-12 rounded-xl bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 flex items-center justify-center">
               <i data-lucide="scale" class="w-6 h-6"></i>
             </div>
           </div>
+
+          <!-- Métrica 2: Ingresos del Mes -->
+          <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+            <div>
+              <p class="text-xs font-medium text-slate-500 dark:text-slate-400">Ingresos del Mes</p>
+              <h3 id="dash-month-income" class="text-xl md:text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1 tabular-nums">$0</h3>
+              <p id="dash-income-count" class="text-xs text-slate-500 mt-1">Sueldos y honorarios</p>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+              <i data-lucide="arrow-down-left" class="w-6 h-6"></i>
+            </div>
+          </div>
+
+          <!-- Métrica 3: Gastos del Mes -->
+          <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+            <div>
+              <p class="text-xs font-medium text-slate-500 dark:text-slate-400">Gastos del Mes</p>
+              <h3 id="dash-month-expense" class="text-xl md:text-2xl font-bold text-rose-600 dark:text-rose-400 mt-1 tabular-nums">$0</h3>
+              <p id="dash-expense-count" class="text-xs text-slate-500 mt-1">Gastos de vida</p>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+              <i data-lucide="arrow-up-right" class="w-6 h-6"></i>
+            </div>
+          </div>
+
+          <!-- Métrica 4: Tasa de Ahorro -->
+          <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+            <div>
+              <p class="text-xs font-medium text-slate-500 dark:text-slate-400">Tasa de Ahorro</p>
+              <h3 id="dash-savings-rate" class="text-xl md:text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1 tabular-nums">0%</h3>
+              <p id="dash-savings-amount" class="text-xs text-slate-500 mt-1">Balance neto del mes</p>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+              <i data-lucide="piggy-bank" class="w-6 h-6"></i>
+            </div>
+          </div>
         </div>
 
-        <!-- Banner de Insumos en Alerta Urgente -->
-        <div id="dash-alerts-section" class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm space-y-3">
+        <!-- Banner de Alertas Presupuestarias Activas -->
+        <div id="dash-budget-alerts" class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm space-y-3">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
-              <i data-lucide="bell-ring" class="w-5 h-5 text-amber-500"></i>
-              <h2 class="text-sm font-bold text-slate-900 dark:text-white">Insumos que Requieren Reabastecimiento</h2>
+              <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-500"></i>
+              <h2 class="text-sm font-bold text-slate-900 dark:text-white">Estado de Presupuestos Mensuales</h2>
             </div>
-            <button data-nav-view="inventory" class="text-xs font-medium text-emerald-600 hover:text-emerald-700 dark:text-emerald-400">Ver todo el catálogo &rarr;</button>
+            <button data-nav-view="budgets" class="text-xs font-medium text-emerald-600 hover:text-emerald-700 dark:text-emerald-400">Ver presupuestos &rarr;</button>
           </div>
-          <div id="dash-alerts-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            <!-- Se llena dinámicamente -->
+          <div id="dash-budget-progress-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            <!-- Dinámico -->
           </div>
         </div>
 
-        <!-- Dos Columnas: Últimos Pedidos y Últimos Movimientos -->
+        <!-- Dos Columnas: Distribución de Gastos y Últimos Movimientos -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <!-- Últimos Pedidos -->
+          
+          <!-- Desglose de Gastos por Categoría -->
           <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm space-y-4">
             <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
               <h2 class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <i data-lucide="clock" class="w-4 h-4 text-slate-500"></i>
-                Últimos Pedidos
+                <i data-lucide="pie-chart" class="w-4 h-4 text-slate-500"></i>
+                Distribución de Gastos
               </h2>
-              <button data-nav-view="orders" class="text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline">Ver historial</button>
+              <span class="text-xs text-slate-400">Mes Actual</span>
             </div>
-            <div id="dash-recent-orders" class="divide-y divide-slate-100 dark:divide-slate-800">
+            <div id="dash-category-distribution" class="space-y-3">
               <!-- Dinámico -->
             </div>
           </div>
 
-          <!-- Últimos Movimientos Contables -->
+          <!-- Últimos Movimientos Registrados -->
           <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm space-y-4">
             <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
               <h2 class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <i data-lucide="arrow-left-right" class="w-4 h-4 text-slate-500"></i>
-                Últimos Asientos Contables
+                <i data-lucide="clock" class="w-4 h-4 text-slate-500"></i>
+                Últimos Movimientos
               </h2>
-              <button data-nav-view="accounting" class="text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline">Ver libro diario</button>
+              <button data-nav-view="transactions" class="text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline">Ver todos</button>
             </div>
-            <div id="dash-recent-accounting" class="divide-y divide-slate-100 dark:divide-slate-800">
+            <div id="dash-recent-transactions" class="divide-y divide-slate-100 dark:divide-slate-800">
               <!-- Dinámico -->
             </div>
           </div>
@@ -264,141 +278,56 @@
       </section>
 
       <!-- ==================================================== -->
-      <!-- VISTA 2: CATÁLOGO & INVENTARIO                      -->
+      <!-- VISTA 2: CUENTAS & BILLETERAS                        -->
       <!-- ==================================================== -->
-      <section id="view-inventory" class="hidden space-y-5">
+      <section id="view-accounts" class="hidden space-y-5">
+        <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+          <div>
+            <h2 class="text-sm font-bold text-slate-900 dark:text-white">Cuentas Bancarias, Billeteras y Tarjetas</h2>
+            <p class="text-xs text-slate-500 dark:text-slate-400">Administra tus fuentes de dinero, saldos disponibles y pasivos</p>
+          </div>
+          <button id="btn-modal-new-account" class="flex items-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            <span>Nueva Cuenta</span>
+          </button>
+        </div>
+
+        <div id="accounts-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <!-- Render dinámico de cuentas -->
+        </div>
+      </section>
+
+      <!-- ==================================================== -->
+      <!-- VISTA 3: MOVIMIENTOS / TRANSACCIONES                 -->
+      <!-- ==================================================== -->
+      <section id="view-transactions" class="hidden space-y-5">
         
-        <!-- Barra de Filtros y Acciones -->
+        <!-- Barra de Filtros -->
         <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
           <div class="flex-1 flex flex-col sm:flex-row gap-2">
             <!-- Buscador -->
             <div class="relative flex-1">
               <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-              <input type="text" id="inventory-search" placeholder="Buscar insumo por nombre o SKU..." class="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              <input type="text" id="tx-search" placeholder="Buscar por concepto o detalle..." class="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500">
             </div>
 
-            <!-- Filtro de Categoría -->
-            <select id="inventory-category-filter" class="text-xs px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500">
-              <option value="all">Todas las categorías</option>
-              <option value="Telas">Telas</option>
-              <option value="Hilos">Hilos</option>
-              <option value="Botones & Avíos">Botones & Avíos</option>
-              <option value="Empaques">Empaques</option>
-              <option value="Tintas & Químicos">Tintas & Químicos</option>
+            <!-- Filtro de Tipo -->
+            <select id="tx-type-filter" class="text-xs px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              <option value="all">Todos los tipos</option>
+              <option value="expense">Solo Gastos (-)</option>
+              <option value="income">Solo Ingresos (+)</option>
+              <option value="transfer">Transferencias (↔)</option>
             </select>
           </div>
 
-          <!-- Filtro de Alerta de Stock y Botón Nuevo -->
-          <div class="flex items-center gap-2">
-            <select id="inventory-alert-filter" class="text-xs px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500">
-              <option value="all">Todos los stocks</option>
-              <option value="alert_only">⚠️ Solo en Alerta</option>
-              <option value="out_of_stock">⚫ Agotados</option>
-              <option value="critical">🔴 Stock Crítico</option>
-              <option value="low">🟡 Stock Bajo</option>
-              <option value="optimal">🟢 Stock Óptimo</option>
-            </select>
-
-            <button id="btn-modal-new-supply" class="flex items-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all whitespace-nowrap">
-              <i data-lucide="plus" class="w-4 h-4"></i>
-              <span>Nuevo Insumo</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Grid de Tarjetas del Catálogo Visual -->
-        <div id="inventory-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          <!-- Render dinámico desde JS -->
-        </div>
-      </section>
-
-      <!-- ==================================================== -->
-      <!-- VISTA 3: PEDIDOS & VENTAS                           -->
-      <!-- ==================================================== -->
-      <section id="view-orders" class="hidden space-y-5">
-        
-        <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
-          <div>
-            <h2 class="text-sm font-bold text-slate-900 dark:text-white">Historial de Pedidos y Ventas</h2>
-            <p class="text-xs text-slate-500 dark:text-slate-400">Cada pedido descuenta automáticamente del inventario y genera un ingreso contable</p>
-          </div>
-          <button id="btn-open-order-modal" class="flex items-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all">
+          <button id="btn-modal-new-tx" class="flex items-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all whitespace-nowrap">
             <i data-lucide="plus-circle" class="w-4 h-4"></i>
-            <span>Crear Pedido</span>
+            <span>Nuevo Movimiento</span>
           </button>
         </div>
 
-        <!-- Tabla de Pedidos -->
+        <!-- Tabla de Transacciones -->
         <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-          <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr class="border-b border-slate-200 dark:border-slate-800 bg-slate-50/75 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
-                  <th class="py-3 px-4">N° Pedido</th>
-                  <th class="py-3 px-4">Fecha</th>
-                  <th class="py-3 px-4">Cliente</th>
-                  <th class="py-3 px-4">Líneas</th>
-                  <th class="py-3 px-4 text-right">Total</th>
-                  <th class="py-3 px-4 text-right">Ganancia Bruta</th>
-                  <th class="py-3 px-4 text-center">Estado</th>
-                </tr>
-              </thead>
-              <tbody id="orders-table-body" class="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
-                <!-- Dinámico -->
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- ==================================================== -->
-      <!-- VISTA 4: CONTABILIDAD & BALANCES                    -->
-      <!-- ==================================================== -->
-      <section id="view-accounting" class="hidden space-y-5">
-        
-        <!-- Tarjetas de Balance Financiero -->
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
-            <span class="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
-              <i data-lucide="arrow-down-left" class="w-4 h-4"></i>
-              Total Ingresos
-            </span>
-            <h3 id="acc-total-income" class="text-2xl font-bold text-slate-900 dark:text-white mt-2 tabular-nums">$0</h3>
-            <p class="text-xs text-slate-500 mt-1">Cobros por pedidos y ventas</p>
-          </div>
-
-          <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
-            <span class="text-xs font-semibold uppercase tracking-wider text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
-              <i data-lucide="arrow-up-right" class="w-4 h-4"></i>
-              Total Egresos
-            </span>
-            <h3 id="acc-total-expense" class="text-2xl font-bold text-slate-900 dark:text-white mt-2 tabular-nums">$0</h3>
-            <p class="text-xs text-slate-500 mt-1">Compras de insumos y costos</p>
-          </div>
-
-          <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
-            <span class="text-xs font-semibold uppercase tracking-wider text-purple-600 dark:text-purple-400 flex items-center gap-1.5">
-              <i data-lucide="scale" class="w-4 h-4"></i>
-              Balance Neto
-            </span>
-            <h3 id="acc-net-balance" class="text-2xl font-bold text-slate-900 dark:text-white mt-2 tabular-nums">$0</h3>
-            <p class="text-xs text-slate-500 mt-1">Ingresos menos egresos</p>
-          </div>
-        </div>
-
-        <!-- Tabla del Libro Diario -->
-        <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-          <div class="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-            <h2 class="text-sm font-bold text-slate-900 dark:text-white">Libro Diario de Movimientos</h2>
-            <div class="flex items-center gap-2">
-              <select id="accounting-type-filter" class="text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500">
-                <option value="all">Todos los movimientos</option>
-                <option value="income">Solo Ingresos (+)</option>
-                <option value="expense">Solo Egresos (-)</option>
-              </select>
-            </div>
-          </div>
-
           <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse text-xs">
               <thead>
@@ -407,11 +336,11 @@
                   <th class="py-3 px-4">Tipo</th>
                   <th class="py-3 px-4">Concepto</th>
                   <th class="py-3 px-4">Categoría</th>
-                  <th class="py-3 px-4 text-center">Método</th>
+                  <th class="py-3 px-4">Cuenta</th>
                   <th class="py-3 px-4 text-right">Monto</th>
                 </tr>
               </thead>
-              <tbody id="accounting-table-body" class="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
+              <tbody id="transactions-table-body" class="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
                 <!-- Dinámico -->
               </tbody>
             </table>
@@ -419,11 +348,130 @@
         </div>
       </section>
 
+      <!-- ==================================================== -->
+      <!-- VISTA 4: PRESUPUESTOS & METAS                        -->
+      <!-- ==================================================== -->
+      <section id="view-budgets" class="hidden space-y-6">
+        
+        <!-- Presupuestos Mensuales -->
+        <div class="space-y-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-sm font-bold text-slate-900 dark:text-white">Presupuestos por Categoría</h2>
+              <p class="text-xs text-slate-500 dark:text-slate-400">Semáforo de control de gasto mensual para no exceder tus límites</p>
+            </div>
+            <button id="btn-modal-new-budget" class="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all">
+              <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+              <span>Nuevo Presupuesto</span>
+            </button>
+          </div>
+
+          <div id="budgets-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Dinámico -->
+          </div>
+        </div>
+
+        <!-- Metas de Ahorro -->
+        <div class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-sm font-bold text-slate-900 dark:text-white">Metas de Ahorro Personal</h2>
+              <p class="text-xs text-slate-500 dark:text-slate-400">Proyección y avance de tus fondos y objetivos financieros</p>
+            </div>
+            <button id="btn-modal-new-goal" class="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all">
+              <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+              <span>Nueva Meta</span>
+            </button>
+          </div>
+
+          <div id="goals-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Dinámico -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================================================== -->
+      <!-- VISTA 5: BASE DE DATOS REAL & CONFIGURACIÓN          -->
+      <!-- ==================================================== -->
+      <section id="view-settings" class="hidden space-y-6">
+        
+        <!-- Conexión a Base de Datos Real (Supabase) -->
+        <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm space-y-4">
+          <div class="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+            <div class="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+              <i data-lucide="database" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <h2 class="text-sm font-bold text-slate-900 dark:text-white">Conexión a Base de Datos Real (Supabase PostgreSQL)</h2>
+              <p class="text-xs text-slate-500 dark:text-slate-400">Sincroniza tus finanzas personales en la nube con respaldo PostgreSQL automático</p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            <div class="space-y-1.5">
+              <label class="font-semibold text-slate-700 dark:text-slate-300">Supabase Project URL</label>
+              <input type="text" id="supabase-url" placeholder="https://tu-proyecto.supabase.co" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            </div>
+
+            <div class="space-y-1.5">
+              <label class="font-semibold text-slate-700 dark:text-slate-300">Supabase Anon Key (Public)</label>
+              <input type="password" id="supabase-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..." class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-3 pt-2">
+            <button id="btn-save-db" class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-sm transition-all flex items-center gap-2">
+              <i data-lucide="save" class="w-3.5 h-3.5"></i>
+              <span>Guardar Conexión</span>
+            </button>
+            <button id="btn-test-db" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold text-xs transition-all flex items-center gap-2">
+              <i data-lucide="activity" class="w-3.5 h-3.5"></i>
+              <span>Probar Conexión</span>
+            </button>
+            <span class="text-[11px] text-slate-400 ml-auto">
+              Script SQL para crear tablas disponible en: <code class="font-mono bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">schema.sql</code>
+            </span>
+          </div>
+        </div>
+
+        <!-- Respaldo y Portabilidad -->
+        <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm space-y-4">
+          <div class="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+            <div class="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+              <i data-lucide="shield-check" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <h2 class="text-sm font-bold text-slate-900 dark:text-white">Respaldo y Portabilidad de Datos</h2>
+              <p class="text-xs text-slate-500 dark:text-slate-400">Tus datos te pertenecen: expórtalos en formato JSON o restáuralos en cualquier dispositivo</p>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-3 text-xs">
+            <button id="btn-settings-export" class="px-4 py-2 rounded-lg bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 text-white font-semibold flex items-center gap-2 transition-all">
+              <i data-lucide="download" class="w-3.5 h-3.5"></i>
+              <span>Descargar Copia JSON</span>
+            </button>
+            
+            <label class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold flex items-center gap-2 cursor-pointer transition-all">
+              <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+              <span>Restaurar Copia JSON</span>
+              <input type="file" id="input-import-json" accept=".json" class="hidden">
+            </label>
+
+            <button id="btn-settings-reset" class="px-4 py-2 rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 font-semibold flex items-center gap-2 transition-all ml-auto">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              <span>Borrar y Cargar Demo</span>
+            </button>
+          </div>
+        </div>
+
+      </section>
+
     </main>
   </div>
 
   <!-- ======================================================== -->
-  <!-- MODAL: DETALLE / ACCIÓN RÁPIDA                           -->
+  <!-- MODAL GENÉRICO DE ACCIÓN                                 -->
   <!-- ======================================================== -->
   <dialog id="app-modal" class="rounded-2xl p-0 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-2xl border border-slate-200 dark:border-slate-800 max-w-lg w-full mx-auto">
     <div class="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
@@ -433,7 +481,7 @@
       </button>
     </div>
     <div id="modal-body" class="p-5 text-xs text-slate-600 dark:text-slate-300">
-      <!-- Contenido dinámico -->
+      <!-- Dinámico -->
     </div>
   </dialog>
 
@@ -444,5 +492,14 @@
 
   <!-- SCRIPT PRINCIPAL MODULAR -->
   <script type="module" src="assets/js/app.js"></script>
+
+  <!-- Registro de Service Worker para PWA -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+      });
+    }
+  </script>
 </body>
 </html>
