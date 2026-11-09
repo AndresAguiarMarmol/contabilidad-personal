@@ -63,3 +63,4 @@
   5. `calcularProgresoMeta` calcula porcentaje exacto y saldo restante.
   6. `calcularProgresoMeta` identifica meta cumplida cuando `currentAmount >= targetAmount`.
   7. `aplicarAporteMeta` incrementa el monto acumulado de forma inmutable y rechaza aportes negativos.
+

@@ -17,7 +17,12 @@
     goals: [],
     filters: {
       txSearch: "",
-      txType: "all"
+      txType: "all",
+      txAccount: "all",
+      txCategory: "all",
+      txDateRange: "all",
+      txStartDate: "",
+      txEndDate: ""
     }
   };
 
@@ -401,21 +406,44 @@
     const tbody = document.getElementById("transactions-table-body");
     if (!tbody) return;
 
-    const { txSearch, txType } = state.filters;
+    // Actualizar selector de cuentas en filtros
+    const accountFilterEl = document.getElementById("tx-account-filter");
+    if (accountFilterEl) {
+      const currentVal = state.filters.txAccount || "all";
+      const opts = ['<option value="all">Todas las cuentas</option>'];
+      (state.accounts || []).forEach(acc => {
+        opts.push(`<option value="${acc.id}" ${currentVal === acc.id ? 'selected' : ''}>${acc.name}</option>`);
+      });
+      accountFilterEl.innerHTML = opts.join("");
+    }
 
-    const filtered = state.transactions.filter((tx) => {
-      if (txType !== "all" && tx.type !== txType) return false;
-      if (txSearch) {
-        const q = txSearch.toLowerCase();
-        const matchDesc = (tx.description || "").toLowerCase().includes(q);
-        const matchCat = (tx.category || "").toLowerCase().includes(q);
-        if (!matchDesc && !matchCat) return false;
-      }
-      return true;
-    });
+    // Actualizar selector de categorías en filtros
+    const categoryFilterEl = document.getElementById("tx-category-filter");
+    if (categoryFilterEl) {
+      const currentVal = state.filters.txCategory || "all";
+      const categorySet = new Set([...EXPENSE_CATEGORIES, ...INCOME_CATEGORIES]);
+      (state.transactions || []).forEach(tx => {
+        if (tx.category) categorySet.add(tx.category);
+        if (Array.isArray(tx.splitLines)) {
+          tx.splitLines.forEach(l => {
+            if (l.category) categorySet.add(l.category);
+          });
+        }
+      });
+      const sortedCategories = Array.from(categorySet).sort();
+      const opts = ['<option value="all">Todas las categorías</option>'];
+      sortedCategories.forEach(cat => {
+        opts.push(`<option value="${cat}" ${currentVal === cat ? 'selected' : ''}>${cat}</option>`);
+      });
+      categoryFilterEl.innerHTML = opts.join("");
+    }
+
+    const filtered = Calculations && Calculations.filtrarTransacciones
+      ? Calculations.filtrarTransacciones(state.transactions, state.filters)
+      : state.transactions;
 
     if (filtered.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-slate-400">No hay movimientos que coincidan con los filtros.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-slate-400">No hay movimientos que coincidan con los filtros aplicados.</td></tr>`;
       return;
     }
 
@@ -1826,6 +1854,65 @@
       renderTransactions();
     });
 
+    document.getElementById("tx-account-filter")?.addEventListener("change", (e) => {
+      state.filters.txAccount = e.target.value;
+      renderTransactions();
+    });
+
+    document.getElementById("tx-category-filter")?.addEventListener("change", (e) => {
+      state.filters.txCategory = e.target.value;
+      renderTransactions();
+    });
+
+    const daterangeEl = document.getElementById("tx-daterange-filter");
+    const customDateContainer = document.getElementById("tx-custom-date-container");
+    daterangeEl?.addEventListener("change", (e) => {
+      state.filters.txDateRange = e.target.value;
+      if (e.target.value === "custom") {
+        customDateContainer?.classList.remove("hidden");
+        state.filters.txStartDate = document.getElementById("tx-date-start")?.value || "";
+        state.filters.txEndDate = document.getElementById("tx-date-end")?.value || "";
+      } else {
+        customDateContainer?.classList.add("hidden");
+        state.filters.txStartDate = "";
+        state.filters.txEndDate = "";
+      }
+      renderTransactions();
+    });
+
+    document.getElementById("tx-date-start")?.addEventListener("change", (e) => {
+      state.filters.txStartDate = e.target.value;
+      renderTransactions();
+    });
+
+    document.getElementById("tx-date-end")?.addEventListener("change", (e) => {
+      state.filters.txEndDate = e.target.value;
+      renderTransactions();
+    });
+
+    document.getElementById("btn-export-csv")?.addEventListener("click", () => {
+      const filtered = Calculations && Calculations.filtrarTransacciones
+        ? Calculations.filtrarTransacciones(state.transactions, state.filters)
+        : state.transactions;
+
+      if (!filtered || filtered.length === 0) {
+        showToast("No hay movimientos filtrados para exportar a CSV.", "warning");
+        return;
+      }
+
+      if (Calculations && Calculations.generarTransaccionesCSV) {
+        const csvContent = Calculations.generarTransaccionesCSV(filtered, state.accounts);
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `movimientos_${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast(`Exportados ${filtered.length} movimientos a CSV compatible con Excel.`, "success");
+      }
+    });
+
     const resetHandler = () => {
       if (confirm("¿Deseas restablecer todas tus cuentas, movimientos, presupuestos y metas a los datos de demostración?")) {
         if (Storage) Storage.resetToMockData();
@@ -1849,14 +1936,33 @@
       if (!file) return;
       const reader = new FileReader();
       reader.onload = (event) => {
-        const ok = Storage ? Storage.importBackup(event.target.result) : false;
-        if (ok) {
-          loadStateFromStorage();
-          renderActiveView();
-          showToast("Copia de seguridad restaurada correctamente.", "success");
-        } else {
-          showToast("Archivo JSON no válido.", "error");
+        let parsed;
+        try {
+          parsed = JSON.parse(event.target.result);
+        } catch (err) {
+          showToast("Error de sintaxis: el archivo no es un JSON válido.", "error");
+          return;
         }
+
+        const validation = Calculations ? Calculations.validarBackupJSON(parsed) : { isValid: true, counts: {} };
+        if (!validation.isValid) {
+          showToast(validation.error || "Copia de seguridad inválida.", "error");
+          return;
+        }
+
+        const counts = validation.counts || {};
+        const confirmMsg = `¿Deseas restaurar este respaldo?\n\n• Cuentas: ${counts.accounts || 0}\n• Movimientos: ${counts.transactions || 0}\n• Presupuestos: ${counts.budgets || 0}\n• Metas de ahorro: ${counts.goals || 0}\n\nLos datos actuales serán reemplazados.`;
+        if (confirm(confirmMsg)) {
+          const ok = Storage ? Storage.importBackup(event.target.result) : false;
+          if (ok) {
+            loadStateFromStorage();
+            renderActiveView();
+            showToast("Copia de seguridad restaurada correctamente.", "success");
+          } else {
+            showToast("Error al restaurar copia de seguridad.", "error");
+          }
+        }
+        e.target.value = "";
       };
       reader.readAsText(file);
     });

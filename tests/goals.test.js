@@ -70,3 +70,4 @@ test("RF-4: aplicarAporteMeta suma el aporte de forma inmutable y valida montos"
   assert.throws(() => aplicarAporteMeta(meta, 0), /mayor a cero/i);
   assert.throws(() => aplicarAporteMeta(meta, -50000), /mayor a cero/i);
 });
+

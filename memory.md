@@ -29,12 +29,14 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 2. Decisiones vigentes
 
+- **Respaldo y Restauración Integral JSON:** Permite descargar un backup completo de toda la información contable (cuentas, transacciones split, presupuestos y metas) con versión y timestamp. Validación de integridad mediante la función pura `validarBackupJSON()` antes de sobreescribir `localStorage`, con diálogo de confirmación informando la cantidad exacta de registros a restaurar.
+- **Filtros Multidimensionales y Exportación CSV (RFC 4180 con UTF-8 BOM):** Filtrado reactivo en el Libro de Movimientos por búsqueda textual, tipo de transacción, cuenta financiera, categoría y rango de fechas (mes actual, mes anterior, últimos 3 meses o rango personalizado con selectores de fecha). Exportación de los movimientos filtrados a formato CSV estándar con cabecera BOM (`\uFEFF`) para compatibilidad directa con Microsoft Excel, incluyendo el desglose pormenorizado de partidas de movimientos divididos (split).
 - **Gestión de Metas de Ahorro Personal:** Implementada en `<dialog id="app-modal">`. Permite crear y editar metas (título, monto objetivo, monto ahorrado inicial, fecha límite y color). Tarjetas interactivas con cálculo de porcentaje, monto faltante o insignia de logro `🏆 ¡Meta Cumplida!`. Modal de aporte rápido `openContributeGoalModal()` para sumar fondos periódicos a una meta. Acciones de edición y eliminación con persistencia en `finance_goals_data`.
 - **Gestión de Presupuestos Mensuales por Categoría:** Implementada en `<dialog id="app-modal">`. Permite crear y editar límites mensuales por categoría, detectando en tiempo real el gasto del mes desde las transacciones (estándar y partidas split). Semáforos visuales de alerta: verde ($\le 75\%$), amarillo ($76\% - 100\%$) y rojo ($> 100\%$ sobregiro). Acciones de edición de límite y eliminación con persistencia en `finance_budgets_data`.
 - **Movimientos Divididos (Split Transactions):** Permite desglosar un pago global (ej. tarjeta de crédito) en múltiples partidas que afectan de forma atómica a diferentes cuentas patrimoniales/activos o categorías de gasto. Aplica principio de cuadratura contable estricta en tiempo real ($\sum \text{líneas} = \text{monto total}$). Bloquea guardado ante descuadres numéricos o montos no positivos. Las funciones puras `validarMovimientoSplit()` y `aplicarMovimientoSplitEnCuentas()` garantizan inmutabilidad y atomicidad.
 - **Planilla Interactiva de Nuevas Cuentas Financieras:** Implementada dentro del `<dialog id="app-modal">` nativo. Permite dar de alta cuentas de tipo Banco, Efectivo, Billetera Digital, Ahorro/Inversión y Tarjeta de Crédito, asignando color, icono y moneda. Si es tarjeta de crédito con saldo positivo ingresado, se registra automáticamente como deuda contable negativa.
 - **Planilla Interactiva de Nuevos Movimientos:** Implementada en `<dialog id="app-modal">` nativo. Conmutación reactiva entre Gasto, Ingreso y Transferencia. Integra de inmediato cualquier cuenta nueva creada y soporta modo Split.
-- **Validación e Inmutabilidad (`financeCalculations.js`):** Funciones puras `validarNuevaCuenta()`, `crearCuentaObjeto()`, `validarTransaccion()`, `aplicarTransaccionEnCuentas()`, `validarMovimientoSplit()`, `aplicarMovimientoSplitEnCuentas()`, `validarPresupuesto()`, `calcularGastoCategoriaMes()`, `sincronizarPresupuestosConTransacciones()`, `validarMetaAhorro()`, `calcularProgresoMeta()` y `aplicarAporteMeta()` probadas con `node --test` (37/37 pruebas en verde).
+- **Validación e Inmutabilidad (`financeCalculations.js`):** Funciones puras `validarNuevaCuenta()`, `crearCuentaObjeto()`, `validarTransaccion()`, `aplicarTransaccionEnCuentas()`, `validarMovimientoSplit()`, `aplicarMovimientoSplitEnCuentas()`, `validarPresupuesto()`, `calcularGastoCategoriaMes()`, `sincronizarPresupuestosConTransacciones()`, `validarMetaAhorro()`, `calcularProgresoMeta()`, `aplicarAporteMeta()`, `validarBackupJSON()`, `filtrarTransacciones()` y `generarTransaccionesCSV()` probadas con `node --test` (41/41 pruebas en verde).
 - **Arranque Universal sin CORS:** Scripts universales bajo `window.ContaPersonal` y orden de carga secuencial en `index.html` (compatible con `file:///` y HTTP).
 - **Enfoque Exclusivo:** Contabilidad y Finanzas Personales/Familiares (sin inventario comercial ni pedidos).
 
@@ -42,6 +44,14 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 3. Historial de cambios
 
+- **2026-11-09 — Spec 007: Respaldo Integral JSON y Filtros Avanzados con Exportación CSV (SDD):**
+  - Creada especificación formal `specs/007-backup-filtros-csv/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
+  - Diseñada e implementada la suite `tests/backup-and-export.test.js` con metodología TDD Red-Green (4 pruebas unitarias exhaustivas, 41/41 pruebas totales en verde en el proyecto).
+  - Implementadas en `assets/js/financeCalculations.js` las funciones puras `validarBackupJSON()`, `generarTransaccionesCSV()` y `filtrarTransacciones()`.
+  - Añadida barra de filtros multidimensionales en `view-transactions` (`index.html`) con selectores de tipo, cuenta, categoría, rango temporal y selector condicional de fechas personalizadas.
+  - Implementada en `assets/js/app.js` la reactividad de filtros en tiempo real y el botón de exportación CSV con descarga directa compatible con Microsoft Excel (UTF-8 BOM y detalle split).
+  - Implementada la validación previa de respaldo JSON e importación con confirmación de conteo de entidades.
+  - Verificado en el navegador con Chrome DevTools (búsqueda, filtros por cuenta/categoría/fechas, exportación CSV y backup JSON con 0 errores de consola).
 - **2026-11-09 — Spec 006: Gestión de Metas de Ahorro Personal (SDD):**
   - Creada especificación formal `specs/006-metas-ahorro/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
   - Diseñada e implementada la suite `tests/goals.test.js` con metodología TDD Red-Green (6 pruebas unitarias, 37/37 pruebas totales en verde en el proyecto).

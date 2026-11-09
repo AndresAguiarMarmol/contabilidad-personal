@@ -490,6 +490,204 @@
     };
   }
 
+  /**
+   * Valida la estructura y coherencia de un backup JSON (Spec 007 / RF-2)
+   * @param {Object} backupData 
+   * @returns {{ valida: boolean, error?: string, counts?: Object }}
+   */
+  function validarBackupJSON(backupData) {
+    if (!backupData || typeof backupData !== "object") {
+      return { valida: false, isValid: false, error: "El archivo no contiene un objeto JSON válido." };
+    }
+
+    if (!Array.isArray(backupData.accounts) || !Array.isArray(backupData.transactions)) {
+      return { valida: false, isValid: false, error: "El backup debe contener las colecciones de cuentas y transacciones." };
+    }
+
+    const counts = {
+      accounts: backupData.accounts.length,
+      transactions: backupData.transactions.length,
+      budgets: Array.isArray(backupData.budgets) ? backupData.budgets.length : 0,
+      goals: Array.isArray(backupData.goals) ? backupData.goals.length : 0
+    };
+
+    return {
+      valida: true,
+      isValid: true,
+      counts
+    };
+  }
+
+  /**
+   * Filtra una lista de transacciones por múltiples dimensiones (Spec 007 / RF-4)
+   * @param {Array} transactions 
+   * @param {Object} filtros 
+   * @returns {Array} Transacciones filtradas
+   */
+  function filtrarTransacciones(transactions, filtros = {}) {
+    if (!Array.isArray(transactions)) return [];
+
+    const type = filtros.type || filtros.txType || "all";
+    const accountId = filtros.accountId || filtros.txAccount || "all";
+    const category = filtros.category || filtros.txCategory || "all";
+    const search = filtros.search || filtros.txSearch || "";
+    const dateRange = filtros.dateRange || filtros.txDateRange || "all";
+    const startDate = filtros.startDate || filtros.txStartDate || "";
+    const endDate = filtros.endDate || filtros.txEndDate || "";
+    const referenceDate = filtros.referenceDate || null;
+
+    const query = search ? search.trim().toLowerCase() : "";
+    const ref = referenceDate ? new Date(referenceDate) : new Date();
+    const currentMonthPrefix = ref.toISOString().slice(0, 7);
+
+    // Calcular mes anterior
+    const prevMonthDate = new Date(ref.getFullYear(), ref.getMonth() - 1, 1);
+    const prevMonthPrefix = prevMonthDate.toISOString().slice(0, 7);
+
+    // Fecha límite para 3 meses
+    const ninetyDaysAgo = new Date(ref.getTime() - (90 * 24 * 60 * 60 * 1000));
+
+    return transactions.filter(tx => {
+      // Filtro por tipo
+      if (type && type !== "all" && tx.type !== type) {
+        return false;
+      }
+
+      // Filtro por cuenta
+      if (accountId && accountId !== "all") {
+        if (tx.accountId !== accountId && tx.toAccountId !== accountId) {
+          return false;
+        }
+      }
+
+      // Filtro por categoría
+      if (category && category !== "all") {
+        const matchMainCat = tx.category === category;
+        const matchSplitCat = tx.isSplit && Array.isArray(tx.splitLines) && tx.splitLines.some(l => l.category === category);
+        if (!matchMainCat && !matchSplitCat) {
+          return false;
+        }
+      }
+
+      // Filtro por texto de búsqueda
+      if (query) {
+        const desc = (tx.description || "").toLowerCase();
+        const cat = (tx.category || "").toLowerCase();
+        const splitText = tx.isSplit && Array.isArray(tx.splitLines)
+          ? tx.splitLines.map(l => (l.description || '') + ' ' + (l.category || '')).join(' ').toLowerCase()
+          : "";
+        if (!desc.includes(query) && !cat.includes(query) && !splitText.includes(query)) {
+          return false;
+        }
+      }
+
+      // Filtro por rango de fechas
+      if (dateRange && dateRange !== "all") {
+        const txDateStr = (tx.date || "").slice(0, 10);
+        if (dateRange === "current_month") {
+          if (!tx.date || !tx.date.startsWith(currentMonthPrefix)) return false;
+        } else if (dateRange === "last_month") {
+          if (!tx.date || !tx.date.startsWith(prevMonthPrefix)) return false;
+        } else if (dateRange === "last_3_months") {
+          if (!tx.date || new Date(tx.date) < ninetyDaysAgo) return false;
+        } else if (dateRange === "custom") {
+          if (startDate && txDateStr < startDate) return false;
+          if (endDate && txDateStr > endDate) return false;
+        }
+      }
+
+      return true;
+    });
+  }
+
+  /**
+   * Genera el contenido de una planilla CSV (RFC 4180) con BOM UTF-8 (Spec 007 / RF-5)
+   * @param {Array} transactions 
+   * @param {Array} accounts 
+   * @returns {string} Contenido CSV
+   */
+  function generarTransaccionesCSV(transactions, accounts = []) {
+    const accMap = new Map();
+    if (Array.isArray(accounts)) {
+      accounts.forEach(a => accMap.set(a.id, a.name));
+    }
+
+    const typeLabels = {
+      expense: "Gasto",
+      income: "Ingreso",
+      transfer: "Transferencia"
+    };
+
+    const methodLabels = {
+      credit: "Tarjeta de Crédito",
+      debit: "Tarjeta de Débito",
+      transfer: "Transferencia Bancaria",
+      cash: "Efectivo"
+    };
+
+    const escapeCsv = (val) => {
+      if (val === null || val === undefined) return '""';
+      const str = String(val);
+      if (str.includes('"') || str.includes(',') || str.includes('\n') || str.includes('\r')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return `"${str}"`;
+    };
+
+    const headers = [
+      "Fecha",
+      "Tipo",
+      "Concepto",
+      "Categoría",
+      "Cuenta",
+      "Medio de Pago",
+      "Monto",
+      "Es Split",
+      "Detalle Partidas"
+    ];
+
+    const rows = [headers.join(",")];
+
+    if (Array.isArray(transactions)) {
+      transactions.forEach(tx => {
+        const dateStr = (tx.date || "").slice(0, 10);
+        const tipo = typeLabels[tx.type] || tx.type || "Gasto";
+        const concepto = tx.description || "";
+        const categoria = tx.category || "Otros";
+        const cuenta = accMap.get(tx.accountId) || "Cuenta";
+        const medio = methodLabels[tx.paymentMethod] || tx.paymentMethod || "Otro";
+        const signedAmount = tx.type === "expense" ? -Math.abs(tx.amount) : tx.amount;
+        const isSplitStr = tx.isSplit ? "SI" : "NO";
+
+        let detallePartidas = "";
+        if (tx.isSplit && Array.isArray(tx.splitLines)) {
+          detallePartidas = tx.splitLines.map(l => {
+            const destAcc = l.targetAccountId ? (accMap.get(l.targetAccountId) || l.targetAccountId) : "";
+            const destInfo = destAcc ? ` → ${destAcc}` : ` (${l.category || ''})`;
+            return `${l.description || 'Partida'}${destInfo}: $${l.amount}`;
+          }).join("; ");
+        }
+
+        const row = [
+          escapeCsv(dateStr),
+          escapeCsv(tipo),
+          escapeCsv(concepto),
+          escapeCsv(categoria),
+          escapeCsv(cuenta),
+          escapeCsv(medio),
+          signedAmount,
+          escapeCsv(isSplitStr),
+          escapeCsv(detallePartidas)
+        ];
+
+        rows.push(row.join(","));
+      });
+    }
+
+    // BOM UTF-8 para visualización automática en Excel en Windows
+    return "\uFEFF" + rows.join("\r\n");
+  }
+
   return {
     calcularPatrimonioNeto,
     calcularBalanceMes,
@@ -505,6 +703,9 @@
     sincronizarPresupuestosConTransacciones,
     validarMetaAhorro,
     calcularProgresoMeta,
-    aplicarAporteMeta
+    aplicarAporteMeta,
+    validarBackupJSON,
+    filtrarTransacciones,
+    generarTransaccionesCSV
   };
 });
