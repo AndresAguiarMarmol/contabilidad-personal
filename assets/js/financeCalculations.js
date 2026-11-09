@@ -688,6 +688,79 @@
     return "\uFEFF" + rows.join("\r\n");
   }
 
+  /**
+   * Obtiene y ordena cronológicamente todos los movimientos asociados a una cuenta (Spec 008 / RF-6)
+   * @param {Array} transactions 
+   * @param {string} accountId 
+   * @returns {Array} Movimientos asociados ordenados de más reciente a más antiguo
+   */
+  function obtenerMovimientosDeCuenta(transactions, accountId) {
+    if (!Array.isArray(transactions) || !accountId) return [];
+    return transactions
+      .filter((tx) => {
+        if (tx.accountId === accountId) return true;
+        if (tx.toAccountId === accountId) return true;
+        if (Boolean(tx.isSplit && Array.isArray(tx.splitLines))) {
+          return tx.splitLines.some((l) => l.targetAccountId === accountId);
+        }
+        return false;
+      })
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
+  }
+
+  /**
+   * Calcula el resumen financiero (abonos, cargos, neto y total) de una cuenta específica (Spec 008 / RF-2, RF-6)
+   * @param {Array} transactions 
+   * @param {string} accountId 
+   * @returns {Object} Resumen { totalAbonos, totalCargos, neto, cantidadMovimientos }
+   */
+  function calcularResumenCuenta(transactions, accountId) {
+    if (!Array.isArray(transactions) || !accountId) {
+      return { totalAbonos: 0, totalCargos: 0, neto: 0, cantidadMovimientos: 0 };
+    }
+
+    const movimientos = obtenerMovimientosDeCuenta(transactions, accountId);
+    let totalAbonos = 0;
+    let totalCargos = 0;
+
+    movimientos.forEach((tx) => {
+      const isSplit = Boolean(tx.isSplit && Array.isArray(tx.splitLines));
+
+      if (isSplit) {
+        if (tx.accountId === accountId) {
+          totalCargos += Number(tx.amount) || 0;
+        }
+        tx.splitLines.forEach((line) => {
+          if (line.targetAccountId === accountId) {
+            totalAbonos += Number(line.amount) || 0;
+          }
+        });
+      } else if (tx.type === "income") {
+        if (tx.accountId === accountId) {
+          totalAbonos += Number(tx.amount) || 0;
+        }
+      } else if (tx.type === "expense") {
+        if (tx.accountId === accountId) {
+          totalCargos += Number(tx.amount) || 0;
+        }
+      } else if (tx.type === "transfer") {
+        if (tx.accountId === accountId) {
+          totalCargos += Number(tx.amount) || 0;
+        }
+        if (tx.toAccountId === accountId) {
+          totalAbonos += Number(tx.amount) || 0;
+        }
+      }
+    });
+
+    return {
+      totalAbonos,
+      totalCargos,
+      neto: totalAbonos - totalCargos,
+      cantidadMovimientos: movimientos.length
+    };
+  }
+
   return {
     calcularPatrimonioNeto,
     calcularBalanceMes,
@@ -706,6 +779,8 @@
     aplicarAporteMeta,
     validarBackupJSON,
     filtrarTransacciones,
-    generarTransaccionesCSV
+    generarTransaccionesCSV,
+    obtenerMovimientosDeCuenta,
+    calcularResumenCuenta
   };
 });

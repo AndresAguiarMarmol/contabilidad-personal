@@ -126,3 +126,4 @@ test("RF-5: generarTransaccionesCSV genera archivo RFC 4180 con BOM y detalle sp
   assert.match(csv, /Aspiradora/);
   assert.match(csv, /Televisor/);
 });
+

@@ -15,6 +15,7 @@
     transactions: [],
     budgets: [],
     goals: [],
+    selectedAccountId: null,
     filters: {
       txSearch: "",
       txType: "all",
@@ -363,6 +364,7 @@
 
     container.innerHTML = accounts.map((acc) => {
       const isCredit = acc.type === "credit_card";
+      const isSelected = state.selectedAccountId === acc.id;
       const balanceColor = isCredit 
         ? (acc.currentBalance < 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-900 dark:text-white")
         : (acc.currentBalance >= 0 ? "text-slate-900 dark:text-white" : "text-rose-600 dark:text-rose-400");
@@ -375,19 +377,33 @@
         credit_card: "Tarjeta de Crédito"
       };
 
+      const selectionBorder = isSelected
+        ? "ring-2 ring-emerald-500 border-emerald-500 bg-emerald-50/30 dark:bg-emerald-950/30 shadow-md"
+        : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-md";
+
       return `
-        <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between space-y-4">
+        <div data-account-id="${acc.id}" class="account-card cursor-pointer bg-white dark:bg-slate-900 p-5 rounded-xl border ${selectionBorder} shadow-sm flex flex-col justify-between space-y-4 transition-all duration-200" title="Haz clic para ver movimientos de ${acc.name}">
           <div class="flex items-center justify-between">
-            <div class="w-10 h-10 rounded-xl flex items-center justify-center text-white" style="background-color: ${acc.color || '#10b981'}">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-sm" style="background-color: ${acc.color || '#10b981'}">
               <i data-lucide="${acc.icon || 'wallet'}" class="w-5 h-5"></i>
             </div>
-            <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-              ${typeLabels[acc.type] || acc.type}
-            </span>
+            <div class="flex items-center gap-1.5">
+              ${isSelected ? `
+                <span class="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <i data-lucide="check" class="w-3 h-3"></i> Activa
+                </span>
+              ` : ''}
+              <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                ${typeLabels[acc.type] || acc.type}
+              </span>
+            </div>
           </div>
 
           <div>
-            <h3 class="text-sm font-bold text-slate-900 dark:text-white">${acc.name}</h3>
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white flex items-center justify-between">
+              <span>${acc.name}</span>
+              <i data-lucide="chevron-right" class="w-4 h-4 text-slate-300 dark:text-slate-600 transition-transform ${isSelected ? 'rotate-90 text-emerald-600 dark:text-emerald-400' : ''}"></i>
+            </h3>
             <p class="text-xs text-slate-400">${acc.currency || 'CLP'}</p>
             <div class="mt-2">
               <span class="text-xs text-slate-500">${isCredit ? 'Saldo adeudado:' : 'Saldo disponible:'}</span>
@@ -397,6 +413,249 @@
         </div>
       `;
     }).join("");
+
+    // Enlazar eventos de selección en las tarjetas
+    container.querySelectorAll(".account-card").forEach((card) => {
+      card.addEventListener("click", () => {
+        const id = card.getAttribute("data-account-id");
+        state.selectedAccountId = state.selectedAccountId === id ? null : id;
+        renderAccounts();
+      });
+    });
+
+    renderAccountDetail();
+  }
+
+  function renderAccountDetail() {
+    const detailContainer = document.getElementById("account-detail-container");
+    if (!detailContainer) return;
+
+    if (!state.selectedAccountId) {
+      detailContainer.classList.add("hidden");
+      detailContainer.innerHTML = "";
+      return;
+    }
+
+    const account = state.accounts.find((a) => a.id === state.selectedAccountId);
+    if (!account) {
+      state.selectedAccountId = null;
+      detailContainer.classList.add("hidden");
+      detailContainer.innerHTML = "";
+      return;
+    }
+
+    const movements = Calculations && Calculations.obtenerMovimientosDeCuenta
+      ? Calculations.obtenerMovimientosDeCuenta(state.transactions, account.id)
+      : [];
+
+    const resumen = Calculations && Calculations.calcularResumenCuenta
+      ? Calculations.calcularResumenCuenta(state.transactions, account.id)
+      : { totalAbonos: 0, totalCargos: 0, neto: 0, cantidadMovimientos: 0 };
+
+    detailContainer.classList.remove("hidden");
+
+    const isCredit = account.type === "credit_card";
+    const balanceColor = isCredit 
+      ? (account.currentBalance < 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-900 dark:text-white")
+      : (account.currentBalance >= 0 ? "text-slate-900 dark:text-white" : "text-rose-600 dark:text-rose-400");
+
+    let movementsHtml = "";
+    if (movements.length === 0) {
+      movementsHtml = `
+        <div class="py-10 text-center space-y-3 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+          <i data-lucide="receipt" class="w-8 h-8 text-slate-400 mx-auto"></i>
+          <p class="text-xs text-slate-500 dark:text-slate-400">Esta cuenta no tiene movimientos registrados todavía.</p>
+          <button type="button" id="btn-account-empty-new-tx" class="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors">
+            + Registrar movimiento en esta cuenta
+          </button>
+        </div>
+      `;
+    } else {
+      movementsHtml = `
+        <div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-50 dark:bg-slate-800/60 text-slate-500 font-semibold border-b border-slate-200 dark:border-slate-800">
+              <tr>
+                <th class="py-2.5 px-3">Fecha</th>
+                <th class="py-2.5 px-3">Tipo</th>
+                <th class="py-2.5 px-3">Concepto / Detalle</th>
+                <th class="py-2.5 px-3">Categoría</th>
+                <th class="py-2.5 px-3 text-right">Monto</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+              ${movements.map((tx) => {
+                const isSplit = Boolean(tx.isSplit && Array.isArray(tx.splitLines) && tx.splitLines.length > 0);
+                
+                // Determinar si para esta cuenta es abono (+) o cargo (-)
+                let isAbono = false;
+                let displayAmount = tx.amount;
+                let relLabel = "";
+
+                if (isSplit) {
+                  if (tx.accountId === account.id) {
+                    isAbono = false;
+                    displayAmount = tx.amount;
+                    relLabel = "Cargo Pago Global";
+                  } else {
+                    const myLine = tx.splitLines.find(l => l.targetAccountId === account.id);
+                    if (myLine) {
+                      isAbono = true;
+                      displayAmount = myLine.amount;
+                      relLabel = "Partida recibida";
+                    }
+                  }
+                } else if (tx.type === "income") {
+                  isAbono = true;
+                } else if (tx.type === "expense") {
+                  isAbono = false;
+                } else if (tx.type === "transfer") {
+                  isAbono = tx.toAccountId === account.id;
+                  relLabel = isAbono ? "Transferencia Recibida" : "Transferencia Enviada";
+                }
+
+                const typeBadgeClass = isSplit
+                  ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/80 dark:text-indigo-300"
+                  : (tx.type === "income" 
+                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300" 
+                    : (tx.type === "transfer" ? "bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300" : "bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300"));
+
+                const splitDetailsHtml = isSplit ? `
+                  <div class="mt-1.5 space-y-1 text-[11px] bg-slate-50 dark:bg-slate-800/60 p-2 rounded-lg border border-slate-100 dark:border-slate-800">
+                    <p class="font-bold text-slate-700 dark:text-slate-300 text-[10px] uppercase tracking-wider">Partidas (${tx.splitLines.length}):</p>
+                    ${tx.splitLines.map(l => {
+                      const isThisAcc = l.targetAccountId === account.id;
+                      return `
+                        <div class="flex items-center justify-between text-slate-600 dark:text-slate-300 ${isThisAcc ? 'font-bold text-emerald-600 dark:text-emerald-400' : ''}">
+                          <span>• ${l.description || 'Partida'} ${isThisAcc ? '(Asignado a esta cuenta)' : ''}</span>
+                          <span class="tabular-nums">${formatMoney(l.amount)}</span>
+                        </div>
+                      `;
+                    }).join("")}
+                  </div>
+                ` : "";
+
+                return `
+                  <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                    <td class="py-2.5 px-3 text-slate-500 whitespace-nowrap">${formatDate(tx.date)}</td>
+                    <td class="py-2.5 px-3">
+                      <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${typeBadgeClass}">
+                        ${isSplit ? 'Split' : (tx.type === 'income' ? 'Ingreso' : tx.type === 'transfer' ? 'Transfer' : 'Gasto')}
+                      </span>
+                    </td>
+                    <td class="py-2.5 px-3 font-semibold text-slate-800 dark:text-slate-200">
+                      <div>${tx.description}</div>
+                      ${relLabel ? `<span class="text-[10px] font-normal text-slate-400">${relLabel}</span>` : ''}
+                      ${splitDetailsHtml}
+                    </td>
+                    <td class="py-2.5 px-3 text-slate-500">${tx.category}</td>
+                    <td class="py-2.5 px-3 text-right font-bold tabular-nums ${isAbono ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'} whitespace-nowrap">
+                      ${isAbono ? '+' : '-'}${formatMoney(displayAmount)}
+                    </td>
+                  </tr>
+                `;
+              }).join("")}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    detailContainer.innerHTML = `
+      <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+        <!-- Encabezado del Detalle -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
+          <div class="flex items-center gap-3">
+            <div class="w-11 h-11 rounded-xl flex items-center justify-center text-white shadow-sm flex-shrink-0" style="background-color: ${account.color || '#10b981'}">
+              <i data-lucide="${account.icon || 'wallet'}" class="w-6 h-6"></i>
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h3 class="text-base font-bold text-slate-900 dark:text-white">${account.name}</h3>
+                <span class="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                  ${account.currency || 'CLP'}
+                </span>
+              </div>
+              <p class="text-xs text-slate-500 dark:text-slate-400">
+                Historial de movimientos asociados y métricas de cuenta
+              </p>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 self-end sm:self-auto">
+            <button type="button" id="btn-account-new-tx" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors">
+              <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+              <span>Nuevo Movimiento</span>
+            </button>
+            <button type="button" id="btn-close-account-detail" class="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="Deseleccionar cuenta">
+              <i data-lucide="x" class="w-4 h-4"></i>
+              <span>Cerrar</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 3 KPIs Rápidos de la Cuenta -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div class="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800 space-y-1">
+            <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1">
+              <i data-lucide="arrow-down-left" class="w-3.5 h-3.5 text-emerald-500"></i> Total Abonos / Ingresos
+            </span>
+            <p class="text-base font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">${formatMoney(resumen.totalAbonos)}</p>
+          </div>
+
+          <div class="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800 space-y-1">
+            <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1">
+              <i data-lucide="arrow-up-right" class="w-3.5 h-3.5 text-rose-500"></i> Total Cargos / Gastos
+            </span>
+            <p class="text-base font-bold text-rose-600 dark:text-rose-400 tabular-nums">${formatMoney(resumen.totalCargos)}</p>
+          </div>
+
+          <div class="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800 space-y-1">
+            <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1">
+              <i data-lucide="wallet" class="w-3.5 h-3.5 text-blue-500"></i> Saldo Actual Contable
+            </span>
+            <p class="text-base font-bold ${balanceColor} tabular-nums">${formatMoney(account.currentBalance)}</p>
+          </div>
+        </div>
+
+        <!-- Lista de Movimientos -->
+        <div class="space-y-2 pt-2">
+          <div class="flex items-center justify-between">
+            <h4 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+              <span>Movimientos de esta cuenta</span>
+              <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                ${movements.length}
+              </span>
+            </h4>
+          </div>
+          ${movementsHtml}
+        </div>
+      </div>
+    `;
+
+    // Eventos del panel de detalle
+    document.getElementById("btn-close-account-detail")?.addEventListener("click", () => {
+      state.selectedAccountId = null;
+      renderAccounts();
+    });
+
+    document.getElementById("btn-account-new-tx")?.addEventListener("click", () => {
+      openTransactionModal("expense");
+      setTimeout(() => {
+        const sel = document.getElementById("tx-input-account");
+        if (sel) sel.value = account.id;
+      }, 50);
+    });
+
+    document.getElementById("btn-account-empty-new-tx")?.addEventListener("click", () => {
+      openTransactionModal("expense");
+      setTimeout(() => {
+        const sel = document.getElementById("tx-input-account");
+        if (sel) sel.value = account.id;
+      }, 50);
+    });
+
+    safeRenderIcons();
   }
 
   // ========================================================

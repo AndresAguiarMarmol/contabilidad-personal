@@ -53,3 +53,4 @@
   3. `generarTransaccionesCSV` genera encabezados correctos y escapa comas y comillas.
   4. `generarTransaccionesCSV` incluye desglose de movimientos split.
   5. `filtrarTransacciones` filtra adecuadamente por texto, cuenta, categoría y fechas.
+
