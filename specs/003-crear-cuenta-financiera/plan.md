@@ -51,3 +51,4 @@ function crearCuentaObjeto(datos) {
   - **Test RF-2:** Rechaza tipo de cuenta no soportado.
   - **Test RF-3:** Tarjeta de crédito convierte saldo adeudado inicial en saldo negativo contable.
   - **Test RF-4:** Asigna correctamente icono y color por defecto según el tipo seleccionado.
+

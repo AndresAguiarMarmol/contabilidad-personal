@@ -320,10 +320,12 @@
       recentTxEl.innerHTML = recent.map((tx) => {
         const isIncome = tx.type === "income";
         const isTransfer = tx.type === "transfer";
+        const isSplit = Boolean(tx.isSplit && Array.isArray(tx.splitLines) && tx.splitLines.length > 0);
         
-        const iconName = isIncome ? "arrow-down-left" : isTransfer ? "arrow-left-right" : "arrow-up-right";
-        const iconClass = isIncome ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400" : isTransfer ? "bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400" : "bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400";
+        const iconName = isSplit ? "split" : (isIncome ? "arrow-down-left" : isTransfer ? "arrow-left-right" : "arrow-up-right");
+        const iconClass = isSplit ? "bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400" : (isIncome ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400" : isTransfer ? "bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400" : "bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400");
         const amountColor = isIncome ? "text-emerald-600 dark:text-emerald-400" : isTransfer ? "text-blue-600 dark:text-blue-400" : "text-rose-600 dark:text-rose-400";
+        const splitBadge = isSplit ? `<span class="ml-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300">Split (${tx.splitLines.length})</span>` : '';
 
         return `
           <div class="py-2.5 flex items-center justify-between">
@@ -332,7 +334,7 @@
                 <i data-lucide="${iconName}" class="w-4 h-4"></i>
               </div>
               <div>
-                <p class="text-xs font-semibold text-slate-800 dark:text-slate-200">${tx.description}</p>
+                <p class="text-xs font-semibold text-slate-800 dark:text-slate-200">${tx.description} ${splitBadge}</p>
                 <p class="text-[10px] text-slate-400">${formatDate(tx.date)} · ${tx.category}</p>
               </div>
             </div>
@@ -420,13 +422,32 @@
     tbody.innerHTML = filtered.map((tx) => {
       const isIncome = tx.type === "income";
       const isTransfer = tx.type === "transfer";
-      const typeLabel = isIncome ? "Ingreso" : isTransfer ? "Transferencia" : "Gasto";
-      const typeBadge = isIncome 
-        ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300"
-        : isTransfer ? "bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300" : "bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300";
+      const isSplit = Boolean(tx.isSplit && Array.isArray(tx.splitLines) && tx.splitLines.length > 0);
+      const typeLabel = isSplit ? "Split" : (isIncome ? "Ingreso" : isTransfer ? "Transferencia" : "Gasto");
+      const typeBadge = isSplit
+        ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/80 dark:text-indigo-300"
+        : (isIncome 
+          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300"
+          : isTransfer ? "bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300" : "bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300");
 
       const account = state.accounts.find(a => a.id === tx.accountId);
       const accountName = account ? account.name : "Cuenta";
+
+      const splitDetailsHtml = isSplit ? `
+        <div class="mt-2 space-y-1 text-[11px] bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800">
+          <p class="font-bold text-slate-700 dark:text-slate-300 text-[10px] uppercase tracking-wider mb-1">Desglose de Partidas (${tx.splitLines.length}):</p>
+          ${tx.splitLines.map(l => {
+            const destAcc = l.targetAccountId ? state.accounts.find(a => a.id === l.targetAccountId) : null;
+            const destLabel = destAcc ? `→ Cuenta: ${destAcc.name}` : `(${l.category})`;
+            return `
+              <div class="flex items-center justify-between text-slate-600 dark:text-slate-300">
+                <span>• <strong class="text-slate-700 dark:text-slate-200">${l.description || 'Partida'}</strong> <span class="text-slate-400 font-normal">${destLabel}</span></span>
+                <span class="font-bold tabular-nums">${formatMoney(l.amount)}</span>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      ` : '';
 
       return `
         <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
@@ -436,7 +457,10 @@
               ${typeLabel}
             </span>
           </td>
-          <td class="py-3 px-4 font-semibold text-slate-800 dark:text-slate-200">${tx.description}</td>
+          <td class="py-3 px-4 font-semibold text-slate-800 dark:text-slate-200">
+            <div>${tx.description}</div>
+            ${splitDetailsHtml}
+          </td>
           <td class="py-3 px-4 text-slate-500">${tx.category}</td>
           <td class="py-3 px-4 text-slate-500">${accountName}</td>
           <td class="py-3 px-4 text-right font-bold tabular-nums ${isIncome ? 'text-emerald-600 dark:text-emerald-400' : isTransfer ? 'text-blue-600 dark:text-blue-400' : 'text-rose-600 dark:text-rose-400'}">
@@ -573,6 +597,11 @@
 
     const today = new Date().toISOString().slice(0, 10);
     let selectedType = initialType;
+    let isSplitActive = false;
+    let splitLines = [
+      { id: "spl-1", description: "", amount: "", target: "" },
+      { id: "spl-2", description: "", amount: "", target: "" }
+    ];
 
     // Generar opciones de cuenta origen
     const accountOptions = state.accounts.map((acc) => {
@@ -600,8 +629,8 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
           <!-- Monto -->
           <div class="space-y-1">
-            <label class="font-semibold text-slate-700 dark:text-slate-300">Monto ($) *</label>
-            <input type="number" id="tx-input-amount" min="1" step="any" placeholder="Ej. 25000" required class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-bold tabular-nums focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            <label class="font-semibold text-slate-700 dark:text-slate-300">Monto Total ($) *</label>
+            <input type="number" id="tx-input-amount" min="1" step="any" placeholder="Ej. 1000000" required class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-bold tabular-nums focus:outline-none focus:ring-2 focus:ring-emerald-500">
           </div>
 
           <!-- Fecha -->
@@ -612,8 +641,8 @@
 
           <!-- Concepto / Descripción -->
           <div class="sm:col-span-2 space-y-1">
-            <label class="font-semibold text-slate-700 dark:text-slate-300">Concepto / Detalle *</label>
-            <input type="text" id="tx-input-desc" placeholder="Ej. Compra supermercado, Pago alquiler..." required class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            <label class="font-semibold text-slate-700 dark:text-slate-300">Concepto / Detalle Global *</label>
+            <input type="text" id="tx-input-desc" placeholder="Ej. Compra Grandes Tiendas, Pago Tarjeta..." required class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
           </div>
 
           <!-- Cuenta Origen -->
@@ -642,11 +671,50 @@
           <div id="col-method" class="sm:col-span-2 space-y-1">
             <label class="font-semibold text-slate-700 dark:text-slate-300">Forma / Medio de Pago</label>
             <select id="tx-input-method" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
-              <option value="debit">Tarjeta de Débito / Redcompra</option>
               <option value="credit">Tarjeta de Crédito</option>
+              <option value="debit">Tarjeta de Débito / Redcompra</option>
               <option value="transfer">Transferencia Bancaria</option>
               <option value="cash">Efectivo</option>
             </select>
+          </div>
+
+          <!-- Opción Dividir Movimiento / Split (Spec 004 / RF-1) -->
+          <div id="col-split-toggle" class="sm:col-span-2 pt-1 border-t border-slate-100 dark:border-slate-800">
+            <label class="relative flex items-center justify-between p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/50 cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-800 transition-colors">
+              <div class="flex items-center gap-2.5">
+                <div class="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                  <i data-lucide="split" class="w-4 h-4"></i>
+                </div>
+                <div>
+                  <span class="text-xs font-bold text-slate-800 dark:text-slate-200">Dividir movimiento (Split)</span>
+                  <p class="text-[10px] text-slate-400">Desglosa este pago en múltiples partidas afectando varias cuentas o categorías</p>
+                </div>
+              </div>
+              <input type="checkbox" id="tx-toggle-split" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer">
+            </label>
+          </div>
+
+          <!-- Sección de Partidas Dinámicas Split (Spec 004 / RF-1, RF-2, RF-3) -->
+          <div id="tx-split-section" class="sm:col-span-2 space-y-3 p-3 bg-slate-50/90 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 hidden">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <i data-lucide="layers" class="w-3.5 h-3.5 text-indigo-500"></i>
+                <span>Partidas del Movimiento (mínimo 2)</span>
+              </span>
+              <button type="button" id="btn-add-split-line" class="px-2.5 py-1 text-[11px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/80 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 rounded-lg transition-colors flex items-center gap-1">
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                <span>Añadir partida</span>
+              </button>
+            </div>
+
+            <div id="tx-split-lines-container" class="space-y-2">
+              <!-- Renderizado dinámico de filas -->
+            </div>
+
+            <!-- Resumen y Cuadratura Contable en Vivo (RF-2) -->
+            <div id="tx-split-balance-bar" class="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs flex flex-wrap items-center justify-between gap-2 shadow-sm">
+              <!-- Actualizado dinámicamente -->
+            </div>
           </div>
         </div>
 
@@ -668,10 +736,14 @@
     const colDest = document.getElementById("col-dest-account");
     const colCat = document.getElementById("col-category");
     const colMethod = document.getElementById("col-method");
+    const colSplitToggle = document.getElementById("col-split-toggle");
+    const toggleSplit = document.getElementById("tx-toggle-split");
+    const splitSection = document.getElementById("tx-split-section");
     const selAccount = document.getElementById("tx-input-account");
     const selToAccount = document.getElementById("tx-input-to-account");
     const selCategory = document.getElementById("tx-input-category");
     const lblSource = document.getElementById("lbl-source-account");
+    const amountInput = document.getElementById("tx-input-amount");
 
     // Función interna para refrescar categorías y cuentas destino
     function updateFormTabs(type) {
@@ -690,16 +762,18 @@
       if (type === "expense") {
         if (lblSource) lblSource.textContent = "Cuenta de Pago *";
         if (colDest) colDest.classList.add("hidden");
-        if (colCat) colCat.classList.remove("hidden");
+        if (colSplitToggle) colSplitToggle.classList.remove("hidden");
         if (colMethod) colMethod.classList.remove("hidden");
+        if (!isSplitActive && colCat) colCat.classList.remove("hidden");
         if (selCategory) {
           selCategory.innerHTML = EXPENSE_CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join("");
         }
       } else if (type === "income") {
         if (lblSource) lblSource.textContent = "Cuenta Receptora *";
         if (colDest) colDest.classList.add("hidden");
-        if (colCat) colCat.classList.remove("hidden");
+        if (colSplitToggle) colSplitToggle.classList.remove("hidden");
         if (colMethod) colMethod.classList.remove("hidden");
+        if (!isSplitActive && colCat) colCat.classList.remove("hidden");
         if (selCategory) {
           selCategory.innerHTML = INCOME_CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join("");
         }
@@ -707,6 +781,7 @@
         if (lblSource) lblSource.textContent = "Cuenta de Origen *";
         if (colDest) colDest.classList.remove("hidden");
         if (colCat) colCat.classList.add("hidden");
+        if (colSplitToggle) colSplitToggle.classList.remove("hidden");
         if (colMethod) colMethod.classList.add("hidden");
         updateDestinationAccounts();
       }
@@ -720,8 +795,172 @@
       selToAccount.innerHTML = destAccounts.map(a => `<option value="${a.id}">${a.name} (${formatMoney(a.currentBalance)})</option>`).join("");
     }
 
+    // Generador de opciones para el selector de destino en cada línea Split
+    function getSplitTargetOptionsHtml(selectedTarget, currentOriginId) {
+      const destAccounts = state.accounts.filter(a => a.id !== currentOriginId);
+      const accOptions = destAccounts.map(a => {
+        const val = `acc:${a.id}`;
+        const sel = val === selectedTarget ? "selected" : "";
+        return `<option value="${val}" ${sel}>🏦 Cuenta: ${a.name} (${formatMoney(a.currentBalance)})</option>`;
+      }).join("");
+
+      const catOptions = EXPENSE_CATEGORIES.map(c => {
+        const val = `cat:${c}`;
+        const sel = val === selectedTarget ? "selected" : "";
+        return `<option value="${val}" ${sel}>📁 ${c}</option>`;
+      }).join("");
+
+      return `
+        <optgroup label="Cuentas Receptores / Activos">
+          ${accOptions}
+        </optgroup>
+        <optgroup label="Categorías de Gasto">
+          ${catOptions}
+        </optgroup>
+      `;
+    }
+
+    // Renderizador de filas split
+    function renderSplitLines() {
+      const container = document.getElementById("tx-split-lines-container");
+      if (!container) return;
+
+      const originId = selAccount ? selAccount.value : "";
+
+      container.innerHTML = splitLines.map((line, idx) => {
+        const canDelete = splitLines.length > 2;
+        return `
+          <div class="split-line-row flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 text-xs" data-line-index="${idx}">
+            <span class="w-5 text-[10px] font-bold text-slate-400 text-center sm:text-left">#${idx + 1}</span>
+            <input type="text" value="${line.description || ''}" placeholder="Concepto (ej. Aspiradora, TV...)" data-field="description" class="split-input-desc flex-1 px-2.5 py-1.5 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500">
+            <input type="number" min="1" step="any" value="${line.amount || ''}" placeholder="Monto ($)" data-field="amount" class="split-input-amount w-full sm:w-28 px-2.5 py-1.5 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-bold tabular-nums focus:outline-none focus:ring-1 focus:ring-indigo-500">
+            <select data-field="target" class="split-select-target w-full sm:w-56 px-2 py-1.5 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500">
+              ${getSplitTargetOptionsHtml(line.target, originId)}
+            </select>
+            <button type="button" data-del-index="${idx}" ${canDelete ? '' : 'disabled'} class="btn-del-split p-1.5 rounded text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors self-end sm:self-center" title="${canDelete ? 'Eliminar partida' : 'Se requieren al menos 2 partidas'}">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        `;
+      }).join("");
+
+      safeRenderIcons();
+      updateSplitBalanceBar();
+      attachSplitLineEvents();
+    }
+
+    // Actualizador reactivo de la barra de cuadratura contable (RF-2)
+    function updateSplitBalanceBar() {
+      const bar = document.getElementById("tx-split-balance-bar");
+      if (!bar) return;
+
+      const totalAmount = Number(amountInput?.value) || 0;
+      let sumLines = 0;
+      splitLines.forEach(l => {
+        sumLines += Number(l.amount) || 0;
+      });
+
+      const difference = Math.round((totalAmount - sumLines) * 100) / 100;
+
+      let statusBadge = "";
+      if (totalAmount === 0 && sumLines === 0) {
+        statusBadge = `<span class="px-2 py-0.5 rounded font-bold text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500">Ingresa los montos</span>`;
+      } else if (Math.abs(difference) <= 0.001 && totalAmount > 0) {
+        statusBadge = `<span class="px-2.5 py-1 rounded font-bold text-[11px] bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 flex items-center gap-1"><i data-lucide="check-circle" class="w-3.5 h-3.5"></i> Cuadrado exacto</span>`;
+      } else if (difference > 0) {
+        statusBadge = `<span class="px-2.5 py-1 rounded font-bold text-[11px] bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 flex items-center gap-1"><i data-lucide="alert-circle" class="w-3.5 h-3.5"></i> Faltan ${formatMoney(difference)}</span>`;
+      } else {
+        statusBadge = `<span class="px-2.5 py-1 rounded font-bold text-[11px] bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 flex items-center gap-1"><i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> Excedido por ${formatMoney(Math.abs(difference))}</span>`;
+      }
+
+      bar.innerHTML = `
+        <div class="flex items-center gap-3">
+          <div><span class="text-slate-400">Total Cabecera:</span> <strong class="text-slate-800 dark:text-slate-200 tabular-nums">${formatMoney(totalAmount)}</strong></div>
+          <div><span class="text-slate-400">Desglosado:</span> <strong class="text-slate-800 dark:text-slate-200 tabular-nums">${formatMoney(sumLines)}</strong></div>
+        </div>
+        <div>${statusBadge}</div>
+      `;
+      safeRenderIcons();
+    }
+
+    // Eventos internos de las filas split
+    function attachSplitLineEvents() {
+      const container = document.getElementById("tx-split-lines-container");
+      if (!container) return;
+
+      container.querySelectorAll(".split-line-row").forEach(row => {
+        const idx = Number(row.dataset.lineIndex);
+        const descInput = row.querySelector(".split-input-desc");
+        const amtInput = row.querySelector(".split-input-amount");
+        const targetSelect = row.querySelector(".split-select-target");
+
+        descInput?.addEventListener("input", (e) => {
+          splitLines[idx].description = e.target.value;
+        });
+
+        amtInput?.addEventListener("input", (e) => {
+          splitLines[idx].amount = e.target.value;
+          updateSplitBalanceBar();
+        });
+
+        targetSelect?.addEventListener("change", (e) => {
+          splitLines[idx].target = e.target.value;
+        });
+      });
+
+      container.querySelectorAll(".btn-del-split").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const idx = Number(btn.dataset.delIndex);
+          if (splitLines.length > 2) {
+            splitLines.splice(idx, 1);
+            renderSplitLines();
+          }
+        });
+      });
+    }
+
+    // Conmutador Split
+    toggleSplit?.addEventListener("change", (e) => {
+      isSplitActive = Boolean(e.target.checked);
+      if (isSplitActive) {
+        splitSection?.classList.remove("hidden");
+        colCat?.classList.add("hidden");
+        // Establecer opciones iniciales por defecto si están vacías
+        const defaultOrigin = selAccount ? selAccount.value : "";
+        splitLines.forEach((l) => {
+          if (!l.target) {
+            const firstDest = state.accounts.find(a => a.id !== defaultOrigin);
+            l.target = firstDest ? `acc:${firstDest.id}` : `cat:${EXPENSE_CATEGORIES[0]}`;
+          }
+        });
+        renderSplitLines();
+      } else {
+        splitSection?.classList.add("hidden");
+        if (selectedType !== "transfer") colCat?.classList.remove("hidden");
+      }
+    });
+
+    // Botón "+ Añadir partida"
+    document.getElementById("btn-add-split-line")?.addEventListener("click", () => {
+      const originId = selAccount ? selAccount.value : "";
+      const defaultDest = state.accounts.find(a => a.id !== originId);
+      splitLines.push({
+        id: `spl-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        description: "",
+        amount: "",
+        target: defaultDest ? `acc:${defaultDest.id}` : `cat:${EXPENSE_CATEGORIES[0]}`
+      });
+      renderSplitLines();
+    });
+
+    // Escuchar cambios en el monto total para actualizar la barra en tiempo real
+    amountInput?.addEventListener("input", () => {
+      if (isSplitActive) updateSplitBalanceBar();
+    });
+
     selAccount?.addEventListener("change", () => {
       if (selectedType === "transfer") updateDestinationAccounts();
+      if (isSplitActive) renderSplitLines();
     });
 
     document.getElementById("btn-type-expense")?.addEventListener("click", () => updateFormTabs("expense"));
@@ -743,8 +982,88 @@
       const accountVal = document.getElementById("tx-input-account")?.value;
       const toAccountVal = selectedType === "transfer" ? document.getElementById("tx-input-to-account")?.value : undefined;
       const categoryVal = selectedType === "transfer" ? "Ahorro / Transferencia" : (document.getElementById("tx-input-category")?.value || "Otros");
-      const methodVal = document.getElementById("tx-input-method")?.value || "debit";
+      const methodVal = document.getElementById("tx-input-method")?.value || "credit";
 
+      if (isSplitActive) {
+        // Parsear líneas split desde el array reactivo
+        const parsedSplitLines = splitLines.map((line, idx) => {
+          const descEl = document.querySelector(`[data-line-index="${idx}"] .split-input-desc`);
+          const amtEl = document.querySelector(`[data-line-index="${idx}"] .split-input-amount`);
+          const targetEl = document.querySelector(`[data-line-index="${idx}"] .split-select-target`);
+
+          const desc = descEl ? descEl.value.trim() : (line.description || "");
+          const amt = amtEl ? Number(amtEl.value) : Number(line.amount);
+          const targetVal = targetEl ? targetEl.value : (line.target || "");
+
+          let targetAccountId = null;
+          let cat = "Varios";
+          if (targetVal.startsWith("acc:")) {
+            targetAccountId = targetVal.replace("acc:", "");
+            const targetAcc = state.accounts.find(a => a.id === targetAccountId);
+            cat = targetAcc ? targetAcc.name : "Activos";
+          } else if (targetVal.startsWith("cat:")) {
+            cat = targetVal.replace("cat:", "");
+          }
+
+          return {
+            id: line.id || `SPL-${idx + 1}`,
+            description: desc || `Partida #${idx + 1}`,
+            amount: amt,
+            category: cat,
+            targetAccountId: targetAccountId
+          };
+        });
+
+        const tx = {
+          id: `TX-${Date.now()}`,
+          date: dateVal ? new Date(dateVal).toISOString() : new Date().toISOString(),
+          type: selectedType,
+          amount: amountVal,
+          description: descVal,
+          accountId: accountVal,
+          category: "Varios (Split)",
+          paymentMethod: methodVal,
+          isSplit: true,
+          splitLines: parsedSplitLines
+        };
+
+        // Validar con la lógica pura desacoplada (Spec 004 / RF-3)
+        const validacion = Calculations ? Calculations.validarMovimientoSplit(tx, state.accounts) : { valida: true };
+        if (!validacion.valida) {
+          showToast(validacion.error || "Datos inválidos en las partidas.", "error");
+          return;
+        }
+
+        // Aplicar impacto atómico en cuentas usando lógica pura (Spec 004 / RF-4)
+        if (Calculations && Calculations.aplicarMovimientoSplitEnCuentas) {
+          state.accounts = Calculations.aplicarMovimientoSplitEnCuentas(state.accounts, tx);
+        }
+
+        // Si alguna línea es gasto puro de consumo, actualizar presupuesto de categoría
+        parsedSplitLines.forEach(l => {
+          if (!l.targetAccountId && l.category) {
+            const matchingBudget = state.budgets.find(b => b.category === l.category);
+            if (matchingBudget) {
+              matchingBudget.spentAmount = (Number(matchingBudget.spentAmount) || 0) + l.amount;
+            }
+          }
+        });
+
+        state.transactions.unshift(tx);
+
+        if (Storage) {
+          Storage.saveAccounts(state.accounts);
+          Storage.saveTransactions(state.transactions);
+          Storage.saveBudgets(state.budgets);
+        }
+
+        modal.close();
+        renderActiveView();
+        showToast(`Movimiento dividido de ${formatMoney(tx.amount)} registrado con éxito (${tx.splitLines.length} partidas).`, "success");
+        return;
+      }
+
+      // Transacción estándar (no split)
       const tx = {
         id: `TX-${Date.now()}`,
         date: dateVal ? new Date(dateVal).toISOString() : new Date().toISOString(),

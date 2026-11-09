@@ -73,9 +73,22 @@
       if (tx.type === "income") {
         income += amt;
       } else if (tx.type === "expense") {
-        expense += amt;
-        const cat = tx.category || "Otros";
-        categoryExpenses[cat] = (categoryExpenses[cat] || 0) + amt;
+        if (tx.isSplit && Array.isArray(tx.splitLines)) {
+          let totalExpenseInLines = 0;
+          tx.splitLines.forEach((line) => {
+            const lineAmt = Number(line.amount) || 0;
+            if (!line.targetAccountId) {
+              totalExpenseInLines += lineAmt;
+              const cat = line.category || "Otros";
+              categoryExpenses[cat] = (categoryExpenses[cat] || 0) + lineAmt;
+            }
+          });
+          expense += totalExpenseInLines;
+        } else {
+          expense += amt;
+          const cat = tx.category || "Otros";
+          categoryExpenses[cat] = (categoryExpenses[cat] || 0) + amt;
+        }
       }
     });
 
@@ -240,6 +253,108 @@
     };
   }
 
+  /**
+   * Valida un movimiento tipo Split verificando cabecera, arreglo de líneas y cuadratura contable (Spec 004 / RF-1, RF-2, RF-3)
+   * @param {Object} tx 
+   * @param {Array} accounts 
+   * @returns {{ valida: boolean, error?: string, sumLines?: number, difference?: number }}
+   */
+  function validarMovimientoSplit(tx, accounts = []) {
+    if (!tx || typeof tx !== "object") {
+      return { valida: false, error: "Datos de transacción inválidos." };
+    }
+
+    const totalAmount = Number(tx.amount);
+    if (isNaN(totalAmount) || totalAmount <= 0) {
+      return { valida: false, error: "El monto total debe ser un número mayor a cero." };
+    }
+
+    if (!tx.accountId) {
+      return { valida: false, error: "Debes seleccionar una cuenta pagadora u origen." };
+    }
+
+    if (!Array.isArray(tx.splitLines) || tx.splitLines.length < 2) {
+      return { valida: false, error: "Un movimiento dividido debe contener al menos 2 partidas." };
+    }
+
+    let sumLines = 0;
+    for (let i = 0; i < tx.splitLines.length; i++) {
+      const line = tx.splitLines[i];
+      if (!line || typeof line !== "object") {
+        return { valida: false, error: `La partida #${i + 1} no es válida.` };
+      }
+
+      const lineAmount = Number(line.amount);
+      if (isNaN(lineAmount) || lineAmount <= 0) {
+        return { valida: false, error: `La partida #${i + 1} debe tener un monto mayor a cero.` };
+      }
+
+      if (line.targetAccountId && line.targetAccountId === tx.accountId) {
+        return { valida: false, error: `La cuenta de destino no puede ser igual a la cuenta de origen en la partida #${i + 1}.` };
+      }
+
+      sumLines += lineAmount;
+    }
+
+    const difference = Math.round((totalAmount - sumLines) * 100) / 100;
+    if (Math.abs(difference) > 0.001) {
+      return {
+        valida: false,
+        error: `La suma de las partidas (${sumLines}) no cuadra con el monto total (${totalAmount}). Diferencia: ${difference}.`,
+        sumLines,
+        difference
+      };
+    }
+
+    return {
+      valida: true,
+      sumLines,
+      difference: 0
+    };
+  }
+
+  /**
+   * Aplica el impacto de un movimiento split de forma atómica e inmutable (Spec 004 / RF-4)
+   * @param {Array} accounts 
+   * @param {Object} tx 
+   * @returns {Array} Nueva lista de cuentas con saldos recalculados
+   */
+  function aplicarMovimientoSplitEnCuentas(accounts, tx) {
+    if (!Array.isArray(accounts)) return [];
+    const totalAmount = Number(tx.amount) || 0;
+
+    const balanceDeltas = new Map();
+
+    // Origen resta el monto total
+    if (tx.accountId) {
+      balanceDeltas.set(tx.accountId, (balanceDeltas.get(tx.accountId) || 0) - totalAmount);
+    }
+
+    // Líneas con cuenta destino suman a sus respectivas cuentas
+    if (Array.isArray(tx.splitLines)) {
+      tx.splitLines.forEach(line => {
+        if (line && line.targetAccountId) {
+          const lAmount = Number(line.amount) || 0;
+          balanceDeltas.set(
+            line.targetAccountId,
+            (balanceDeltas.get(line.targetAccountId) || 0) + lAmount
+          );
+        }
+      });
+    }
+
+    return accounts.map(acc => {
+      if (balanceDeltas.has(acc.id)) {
+        const delta = balanceDeltas.get(acc.id);
+        return {
+          ...acc,
+          currentBalance: (Number(acc.currentBalance) || 0) + delta
+        };
+      }
+      return { ...acc };
+    });
+  }
+
   return {
     calcularPatrimonioNeto,
     calcularBalanceMes,
@@ -247,6 +362,8 @@
     validarTransaccion,
     aplicarTransaccionEnCuentas,
     validarNuevaCuenta,
-    crearCuentaObjeto
+    crearCuentaObjeto,
+    validarMovimientoSplit,
+    aplicarMovimientoSplitEnCuentas
   };
 });

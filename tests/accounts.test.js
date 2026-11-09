@@ -74,3 +74,4 @@ test("RF-3 y RF-4: crearCuentaObjeto construye el objeto con icono, color y sald
   assert.strictEqual(acc2.icon, "credit-card");
   assert.strictEqual(acc2.color, "#e11d48");
 });
+
