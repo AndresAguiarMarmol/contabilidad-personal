@@ -129,3 +129,4 @@ test("RF-3: sincronizarPresupuestosConTransacciones recalcula los gastados inmut
   // Presupuesto original no mutado
   assert.strictEqual(budgets[0].spentAmount, 0);
 });
+

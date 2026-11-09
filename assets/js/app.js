@@ -589,29 +589,108 @@
 
     const goalsContainer = document.getElementById("goals-grid");
     if (goalsContainer) {
-      goalsContainer.innerHTML = state.goals.map((g) => {
-        const pct = Math.min(100, Math.round((g.currentAmount / (g.targetAmount || 1)) * 100));
-
-        return `
-          <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-            <div class="flex items-center justify-between">
-              <h3 class="text-sm font-bold text-slate-900 dark:text-white">${g.title}</h3>
-              <span class="text-xs font-bold text-blue-600 dark:text-blue-400">${pct}%</span>
-            </div>
-
-            <div class="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-              <div class="h-full bg-blue-600 rounded-full transition-all duration-300" style="width: ${pct}%"></div>
-            </div>
-
-            <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-              <span>Ahorrado: <strong class="text-slate-800 dark:text-slate-200">${formatMoney(g.currentAmount)}</strong></span>
-              <span>Meta: ${formatMoney(g.targetAmount)}</span>
-            </div>
-
-            ${g.deadlineDate ? `<p class="text-[11px] text-slate-400 pt-1 border-t border-slate-100 dark:border-slate-800">Fecha objetivo: ${formatDate(g.deadlineDate)}</p>` : ''}
+      if (state.goals.length === 0) {
+        goalsContainer.innerHTML = `
+          <div class="col-span-full py-8 text-center text-slate-400 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 space-y-3">
+            <i data-lucide="target" class="w-8 h-8 text-slate-400 mx-auto"></i>
+            <p class="text-xs">No tienes metas de ahorro definidas todavía.</p>
+            <button type="button" id="btn-empty-new-goal" class="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 transition-colors">
+              Crear tu primera meta
+            </button>
           </div>
         `;
-      }).join("");
+        document.getElementById("btn-empty-new-goal")?.addEventListener("click", () => openGoalModal());
+        safeRenderIcons();
+      } else {
+        goalsContainer.innerHTML = state.goals.map((g) => {
+          const progreso = Calculations
+            ? Calculations.calcularProgresoMeta(g.currentAmount, g.targetAmount)
+            : { percentage: 0, remainingAmount: g.targetAmount, isCompleted: false };
+
+          const barColor = g.color || '#2563eb';
+
+          return `
+            <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3 flex flex-col justify-between">
+              <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <span class="w-3 h-3 rounded-full flex-shrink-0" style="background-color: ${barColor}"></span>
+                    <h3 class="text-sm font-bold text-slate-900 dark:text-white">${g.title}</h3>
+                  </div>
+                  <span class="text-xs font-bold px-2 py-0.5 rounded-full ${progreso.isCompleted ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-950/80 dark:text-blue-300'} tabular-nums">
+                    ${progreso.percentage}%
+                  </span>
+                </div>
+
+                <div class="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div class="h-full rounded-full transition-all duration-300" style="width: ${Math.min(progreso.percentage, 100)}%; background-color: ${barColor}"></div>
+                </div>
+
+                <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                  <span>Ahorrado: <strong class="text-slate-800 dark:text-slate-200">${formatMoney(g.currentAmount)}</strong></span>
+                  <span>Meta: ${formatMoney(g.targetAmount)}</span>
+                </div>
+
+                <div class="text-[11px] pt-1">
+                  ${progreso.isCompleted 
+                    ? `<span class="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">🏆 ¡Meta Cumplida con éxito!</span>` 
+                    : `<span class="text-slate-500 dark:text-slate-400">Faltan: <strong class="text-slate-700 dark:text-slate-300">${formatMoney(progreso.remainingAmount)}</strong></span>`}
+                </div>
+
+                ${g.deadlineDate ? `<p class="text-[10px] text-slate-400">Fecha objetivo: ${formatDate(g.deadlineDate)}</p>` : ''}
+              </div>
+
+              <div class="flex items-center justify-between pt-2.5 border-t border-slate-100 dark:border-slate-800 text-xs">
+                <button type="button" class="btn-contribute-goal px-2.5 py-1 rounded-lg text-[11px] font-bold bg-blue-50 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-colors flex items-center gap-1" data-goal-id="${g.id}">
+                  <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
+                  <span>Aportar</span>
+                </button>
+                <div class="flex items-center gap-1.5">
+                  <button type="button" class="btn-edit-goal p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors" data-goal-id="${g.id}" title="Editar meta">
+                    <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                  </button>
+                  <button type="button" class="btn-delete-goal p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/50 text-slate-400 hover:text-rose-600 transition-colors" data-goal-id="${g.id}" title="Eliminar meta">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join("");
+
+        safeRenderIcons();
+
+        // Enlazar botones de aporte
+        goalsContainer.querySelectorAll(".btn-contribute-goal").forEach(btn => {
+          btn.addEventListener("click", () => {
+            const id = btn.getAttribute("data-goal-id");
+            openContributeGoalModal(id);
+          });
+        });
+
+        // Enlazar botones de edición
+        goalsContainer.querySelectorAll(".btn-edit-goal").forEach(btn => {
+          btn.addEventListener("click", () => {
+            const id = btn.getAttribute("data-goal-id");
+            openGoalModal(id);
+          });
+        });
+
+        // Enlazar botones de eliminación
+        goalsContainer.querySelectorAll(".btn-delete-goal").forEach(btn => {
+          btn.addEventListener("click", () => {
+            const id = btn.getAttribute("data-goal-id");
+            const targetGoal = state.goals.find(g => g.id === id);
+            const title = targetGoal ? targetGoal.title : "esta meta";
+            if (confirm(`¿Estás seguro de eliminar la meta de ahorro "${title}"?`)) {
+              state.goals = state.goals.filter(g => g.id !== id);
+              if (Storage) Storage.saveGoals(state.goals);
+              renderActiveView();
+              showToast("Meta de ahorro eliminada.", "info");
+            }
+          });
+        });
+      }
     }
   }
 
@@ -1490,6 +1569,217 @@
   }
 
   // ========================================================
+  // PLANILLA INTERACTIVA: NUEVA/EDITAR META DE AHORRO (SPEC 006)
+  // ========================================================
+  function openGoalModal(goalIdToEdit = null) {
+    const modal = document.getElementById("app-modal");
+    const modalTitle = document.getElementById("modal-title");
+    const modalBody = document.getElementById("modal-body");
+    if (!modal || !modalTitle || !modalBody) return;
+
+    const existing = goalIdToEdit ? state.goals.find(g => g.id === goalIdToEdit) : null;
+    modalTitle.textContent = existing ? "Editar Meta de Ahorro" : "Crear Nueva Meta de Ahorro";
+
+    const currentColor = existing ? (existing.color || "#2563eb") : "#2563eb";
+
+    modalBody.innerHTML = `
+      <form id="form-new-goal" class="space-y-4">
+        <div class="space-y-3 text-xs">
+          <!-- Título de la meta -->
+          <div class="space-y-1">
+            <label class="font-semibold text-slate-700 dark:text-slate-300">Objetivo / Nombre de la Meta *</label>
+            <input type="text" id="goal-input-title" required placeholder="Ej. Fondo de Emergencia, Vacaciones en Familia..." value="${existing ? existing.title : ''}" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <!-- Monto Objetivo -->
+            <div class="space-y-1">
+              <label class="font-semibold text-slate-700 dark:text-slate-300">Monto Objetivo ($) *</label>
+              <input type="number" id="goal-input-target" min="1" step="any" required placeholder="Ej. 1500000" value="${existing ? existing.targetAmount : ''}" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-bold tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+
+            <!-- Monto Ahorrado Inicial -->
+            <div class="space-y-1">
+              <label class="font-semibold text-slate-700 dark:text-slate-300">Monto Ahorrado Inicial ($)</label>
+              <input type="number" id="goal-input-current" min="0" step="any" placeholder="0" value="${existing ? existing.currentAmount : 0}" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-bold tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+
+            <!-- Fecha Límite -->
+            <div class="space-y-1">
+              <label class="font-semibold text-slate-700 dark:text-slate-300">Fecha Objetivo (Opcional)</label>
+              <input type="date" id="goal-input-deadline" value="${existing && existing.deadlineDate ? existing.deadlineDate.slice(0, 10) : ''}" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+
+            <!-- Color Identificador -->
+            <div class="space-y-1">
+              <label class="font-semibold text-slate-700 dark:text-slate-300">Color Identificador</label>
+              <div class="flex items-center gap-2">
+                <input type="color" id="goal-input-color" value="${currentColor}" class="w-9 h-9 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer bg-transparent">
+                <span class="text-[11px] text-slate-400">Color de la barra de progreso</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+          <button type="button" id="goal-form-cancel" class="px-4 py-2 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 transition-colors">
+            Cancelar
+          </button>
+          <button type="submit" id="goal-form-submit" class="px-5 py-2 rounded-lg text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all flex items-center gap-1.5 active:scale-95">
+            <i data-lucide="check" class="w-3.5 h-3.5"></i>
+            <span>${existing ? 'Actualizar Meta' : 'Crear Meta de Ahorro'}</span>
+          </button>
+        </div>
+      </form>
+    `;
+
+    safeRenderIcons();
+
+    document.getElementById("goal-form-cancel")?.addEventListener("click", () => modal.close());
+
+    const form = document.getElementById("form-new-goal");
+    form?.addEventListener("submit", (e) => {
+      e.preventDefault();
+
+      const title = document.getElementById("goal-input-title")?.value.trim();
+      const targetAmount = Number(document.getElementById("goal-input-target")?.value);
+      const currentAmount = Number(document.getElementById("goal-input-current")?.value) || 0;
+      const deadlineDate = document.getElementById("goal-input-deadline")?.value || null;
+      const color = document.getElementById("goal-input-color")?.value || "#2563eb";
+
+      const goalData = { title, targetAmount, currentAmount, deadlineDate, color };
+
+      const validacion = Calculations ? Calculations.validarMetaAhorro(goalData) : { valida: true };
+      if (!validacion.valida) {
+        showToast(validacion.error || "Datos inválidos", "error");
+        return;
+      }
+
+      if (existing) {
+        existing.title = title;
+        existing.targetAmount = targetAmount;
+        existing.currentAmount = currentAmount;
+        existing.deadlineDate = deadlineDate;
+        existing.color = color;
+        showToast(`Meta "${title}" actualizada con éxito.`, "success");
+      } else {
+        const newGoal = {
+          id: `GOAL-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          title,
+          targetAmount,
+          currentAmount,
+          deadlineDate,
+          color
+        };
+        state.goals.push(newGoal);
+        showToast(`Meta de ahorro "${title}" creada con éxito.`, "success");
+      }
+
+      if (Storage) {
+        Storage.saveGoals(state.goals);
+      }
+
+      modal.close();
+      renderActiveView();
+    });
+
+    modal.showModal();
+    setTimeout(() => document.getElementById("goal-input-title")?.focus(), 50);
+  }
+
+  // Modal para Aportar a una Meta existente (RF-4)
+  function openContributeGoalModal(goalId) {
+    const modal = document.getElementById("app-modal");
+    const modalTitle = document.getElementById("modal-title");
+    const modalBody = document.getElementById("modal-body");
+    if (!modal || !modalTitle || !modalBody) return;
+
+    const goal = state.goals.find(g => g.id === goalId);
+    if (!goal) return;
+
+    modalTitle.textContent = `Aportar a "${goal.title}"`;
+
+    const progreso = Calculations
+      ? Calculations.calcularProgresoMeta(goal.currentAmount, goal.targetAmount)
+      : { percentage: 0, remainingAmount: goal.targetAmount, isCompleted: false };
+
+    modalBody.innerHTML = `
+      <form id="form-contribute-goal" class="space-y-4">
+        <div class="space-y-3 text-xs">
+          <div class="p-3 bg-blue-50/70 dark:bg-blue-950/50 rounded-xl border border-blue-100 dark:border-blue-900/60 space-y-1.5">
+            <div class="flex items-center justify-between text-slate-700 dark:text-slate-300">
+              <span class="font-semibold">Progreso actual:</span>
+              <strong class="text-blue-600 dark:text-blue-400 font-bold">${progreso.percentage}%</strong>
+            </div>
+            <div class="flex items-center justify-between text-slate-500 text-[11px]">
+              <span>Ahorrado: ${formatMoney(goal.currentAmount)}</span>
+              <span>Meta: ${formatMoney(goal.targetAmount)}</span>
+            </div>
+            ${!progreso.isCompleted ? `<div class="text-[11px] text-slate-500">Faltante: <strong class="text-slate-800 dark:text-slate-200">${formatMoney(progreso.remainingAmount)}</strong></div>` : ''}
+          </div>
+
+          <div class="space-y-1">
+            <label class="font-semibold text-slate-700 dark:text-slate-300">Monto a Aportar ($) *</label>
+            <input type="number" id="contribute-input-amount" min="1" step="any" required placeholder="Ej. 50000" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-bold tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+          <button type="button" id="contribute-form-cancel" class="px-4 py-2 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 transition-colors">
+            Cancelar
+          </button>
+          <button type="submit" id="contribute-form-submit" class="px-5 py-2 rounded-lg text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all flex items-center gap-1.5 active:scale-95">
+            <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
+            <span>Confirmar Aporte</span>
+          </button>
+        </div>
+      </form>
+    `;
+
+    safeRenderIcons();
+
+    document.getElementById("contribute-form-cancel")?.addEventListener("click", () => modal.close());
+
+    const form = document.getElementById("form-contribute-goal");
+    form?.addEventListener("submit", (e) => {
+      e.preventDefault();
+
+      const aporte = Number(document.getElementById("contribute-input-amount")?.value);
+      if (isNaN(aporte) || aporte <= 0) {
+        showToast("Ingresa un monto de aporte mayor a cero.", "error");
+        return;
+      }
+
+      try {
+        const goalActualizada = Calculations ? Calculations.aplicarAporteMeta(goal, aporte) : { ...goal, currentAmount: (goal.currentAmount || 0) + aporte };
+        const idx = state.goals.findIndex(g => g.id === goalId);
+        if (idx !== -1) {
+          state.goals[idx] = goalActualizada;
+        }
+
+        if (Storage) {
+          Storage.saveGoals(state.goals);
+        }
+
+        modal.close();
+        renderActiveView();
+
+        const nuevoProgreso = Calculations ? Calculations.calcularProgresoMeta(goalActualizada.currentAmount, goalActualizada.targetAmount) : { isCompleted: false };
+        if (nuevoProgreso.isCompleted) {
+          showToast(`🎉 ¡Felicitaciones! Has completado tu meta "${goal.title}" con ${formatMoney(goalActualizada.currentAmount)}.`, "success");
+        } else {
+          showToast(`Aporte de ${formatMoney(aporte)} sumado a "${goal.title}".`, "success");
+        }
+      } catch (err) {
+        showToast(err.message || "Error al aplicar aporte", "error");
+      }
+    });
+
+    modal.showModal();
+    setTimeout(() => document.getElementById("contribute-input-amount")?.focus(), 50);
+  }
+
+  // ========================================================
   // RENDERIZADO GENERAL Y CICLO DE VIDA
   // ========================================================
   function renderActiveView() {
@@ -1634,7 +1924,7 @@
       openBudgetModal();
     });
     document.getElementById("btn-modal-new-goal")?.addEventListener("click", () => {
-      showModalPlaceholder("Crear Meta de Ahorro", "Define tu objetivo financiero (monto meta y fecha límite deseada).");
+      openGoalModal();
     });
   }
 

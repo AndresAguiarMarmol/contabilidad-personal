@@ -426,6 +426,70 @@
     });
   }
 
+  /**
+   * Valida los datos requeridos para una meta de ahorro (Spec 006 / RF-2)
+   * @param {Object} datos 
+   * @returns {{ valida: boolean, error?: string }}
+   */
+  function validarMetaAhorro(datos) {
+    if (!datos || typeof datos !== "object") {
+      return { valida: false, error: "Datos de meta de ahorro inválidos." };
+    }
+
+    if (!datos.title || typeof datos.title !== "string" || datos.title.trim() === "") {
+      return { valida: false, error: "El título de la meta no puede estar vacío." };
+    }
+
+    const target = Number(datos.targetAmount);
+    if (isNaN(target) || target <= 0) {
+      return { valida: false, error: "El monto objetivo debe ser un número mayor a cero." };
+    }
+
+    return { valida: true };
+  }
+
+  /**
+   * Calcula el porcentaje de avance, monto restante y estado de cumplimiento (Spec 006 / RF-3)
+   * @param {number} currentAmount 
+   * @param {number} targetAmount 
+   * @returns {{ percentage: number, remainingAmount: number, isCompleted: boolean }}
+   */
+  function calcularProgresoMeta(currentAmount, targetAmount) {
+    const target = Number(targetAmount) || 1;
+    const current = Number(currentAmount) || 0;
+    const percentage = Math.round((current / target) * 100);
+    const remainingAmount = Math.max(0, target - current);
+    const isCompleted = current >= target;
+
+    return {
+      percentage,
+      remainingAmount,
+      isCompleted
+    };
+  }
+
+  /**
+   * Aplica un aporte a una meta de ahorro de forma inmutable (Spec 006 / RF-4)
+   * @param {Object} goal 
+   * @param {number} contributionAmount 
+   * @returns {Object} Nueva meta con saldo incrementado
+   */
+  function aplicarAporteMeta(goal, contributionAmount) {
+    if (!goal || typeof goal !== "object") {
+      throw new Error("Meta inválida.");
+    }
+
+    const aporte = Number(contributionAmount);
+    if (isNaN(aporte) || aporte <= 0) {
+      throw new Error("El monto del aporte debe ser un número mayor a cero.");
+    }
+
+    return {
+      ...goal,
+      currentAmount: (Number(goal.currentAmount) || 0) + aporte
+    };
+  }
+
   return {
     calcularPatrimonioNeto,
     calcularBalanceMes,
@@ -438,6 +502,9 @@
     aplicarMovimientoSplitEnCuentas,
     validarPresupuesto,
     calcularGastoCategoriaMes,
-    sincronizarPresupuestosConTransacciones
+    sincronizarPresupuestosConTransacciones,
+    validarMetaAhorro,
+    calcularProgresoMeta,
+    aplicarAporteMeta
   };
 });

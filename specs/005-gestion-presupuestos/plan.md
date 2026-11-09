@@ -66,3 +66,4 @@
   5. `calcularGastoCategoriaMes` suma correctamente gastos estándar del mes.
   6. `calcularGastoCategoriaMes` incluye partidas split correspondientes a la categoría y descarta transferencias de activos.
   7. `sincronizarPresupuestosConTransacciones` actualiza de forma inmutable el campo `spentAmount` en toda la lista de presupuestos.
+
