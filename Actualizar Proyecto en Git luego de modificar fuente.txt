@@ -1,3 +1,0 @@
-git add .
-git commit -m "feat: describe aquí los cambios realizados"
-git push origin main
