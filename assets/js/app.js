@@ -477,42 +477,114 @@
   function renderBudgets() {
     const budgetsContainer = document.getElementById("budgets-grid");
     if (budgetsContainer) {
-      budgetsContainer.innerHTML = state.budgets.map((b) => {
-        const ejecucion = Calculations
-          ? Calculations.calcularEjecucionPresupuesto(b.spentAmount, b.limitAmount)
-          : { percentage: 0, status: "optimal" };
+      // Sincronizar dinámicamente con transacciones reales del mes
+      if (Calculations && Calculations.sincronizarPresupuestosConTransacciones) {
+        state.budgets = Calculations.sincronizarPresupuestosConTransacciones(state.budgets, state.transactions);
+        if (Storage) Storage.saveBudgets(state.budgets);
+      }
 
-        let colorClass = "bg-emerald-500";
-        let statusText = "🟢 Dentro del presupuesto";
-
-        if (ejecucion.status === "exceeded") {
-          colorClass = "bg-rose-600";
-          statusText = "🔴 Presupuesto Excedido";
-        } else if (ejecucion.status === "warning") {
-          colorClass = "bg-amber-500";
-          statusText = "🟡 En Advertencia (>75%)";
-        }
-
-        return `
-          <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-            <div class="flex items-center justify-between">
-              <h3 class="text-sm font-bold text-slate-900 dark:text-white">${b.category}</h3>
-              <span class="text-xs font-semibold ${ejecucion.status === 'exceeded' ? 'text-rose-600' : ejecucion.status === 'warning' ? 'text-amber-600' : 'text-emerald-600'}">${ejecucion.percentage}%</span>
-            </div>
-
-            <div class="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-              <div class="h-full ${colorClass} rounded-full transition-all duration-300" style="width: ${Math.min(ejecucion.percentage, 100)}%"></div>
-            </div>
-
-            <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-              <span>Gastado: <strong class="text-slate-800 dark:text-slate-200">${formatMoney(b.spentAmount)}</strong></span>
-              <span>Límite: ${formatMoney(b.limitAmount)}</span>
-            </div>
-
-            <p class="text-[11px] font-medium text-slate-500 pt-1 border-t border-slate-100 dark:border-slate-800">${statusText}</p>
+      if (state.budgets.length === 0) {
+        budgetsContainer.innerHTML = `
+          <div class="col-span-full py-8 text-center text-slate-400 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 space-y-3">
+            <i data-lucide="piggy-bank" class="w-8 h-8 text-slate-400 mx-auto"></i>
+            <p class="text-xs">No tienes presupuestos mensuales definidos.</p>
+            <button type="button" id="btn-empty-new-budget" class="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors">
+              Crear tu primer presupuesto
+            </button>
           </div>
         `;
-      }).join("");
+        document.getElementById("btn-empty-new-budget")?.addEventListener("click", () => openBudgetModal());
+        safeRenderIcons();
+      } else {
+        budgetsContainer.innerHTML = state.budgets.map((b) => {
+          const ejecucion = Calculations
+            ? Calculations.calcularEjecucionPresupuesto(b.spentAmount, b.limitAmount)
+            : { percentage: 0, status: "optimal" };
+
+          let colorClass = "bg-emerald-500";
+          let statusText = "🟢 Dentro del presupuesto";
+
+          if (ejecucion.status === "exceeded") {
+            colorClass = "bg-rose-600";
+            statusText = "🔴 Presupuesto Excedido";
+          } else if (ejecucion.status === "warning") {
+            colorClass = "bg-amber-500";
+            statusText = "🟡 En Advertencia (>75%)";
+          }
+
+          const limit = Number(b.limitAmount) || 0;
+          const spent = Number(b.spentAmount) || 0;
+          const restante = limit - spent;
+
+          return `
+            <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3 flex flex-col justify-between">
+              <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <h3 class="text-sm font-bold text-slate-900 dark:text-white">${b.category}</h3>
+                    <p class="text-[10px] text-slate-400">${b.month || 'Período actual'}</p>
+                  </div>
+                  <span class="text-xs font-semibold px-2 py-0.5 rounded-full ${ejecucion.status === 'exceeded' ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/80 dark:text-rose-300' : ejecucion.status === 'warning' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/80 dark:text-amber-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300'} font-bold tabular-nums">
+                    ${ejecucion.percentage}%
+                  </span>
+                </div>
+
+                <div class="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div class="h-full ${colorClass} rounded-full transition-all duration-300" style="width: ${Math.min(ejecucion.percentage, 100)}%"></div>
+                </div>
+
+                <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                  <span>Gastado: <strong class="text-slate-800 dark:text-slate-200">${formatMoney(b.spentAmount)}</strong></span>
+                  <span>Límite: ${formatMoney(b.limitAmount)}</span>
+                </div>
+
+                <div class="text-[11px] pt-1">
+                  ${restante >= 0 
+                    ? `<span class="text-emerald-600 dark:text-emerald-400 font-semibold">Disponible: ${formatMoney(restante)}</span>` 
+                    : `<span class="text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1"><i data-lucide="alert-triangle" class="w-3 h-3"></i> Sobregiro: ${formatMoney(Math.abs(restante))}</span>`}
+                </div>
+              </div>
+
+              <div class="flex items-center justify-between pt-2.5 border-t border-slate-100 dark:border-slate-800 text-xs">
+                <span class="text-[11px] font-medium text-slate-500">${statusText}</span>
+                <div class="flex items-center gap-1.5">
+                  <button type="button" class="btn-edit-budget p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors" data-budget-id="${b.id}" title="Editar límite">
+                    <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                  </button>
+                  <button type="button" class="btn-delete-budget p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/50 text-slate-400 hover:text-rose-600 transition-colors" data-budget-id="${b.id}" title="Eliminar presupuesto">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join("");
+
+        safeRenderIcons();
+
+        // Enlazar botones de edición
+        budgetsContainer.querySelectorAll(".btn-edit-budget").forEach(btn => {
+          btn.addEventListener("click", () => {
+            const id = btn.getAttribute("data-budget-id");
+            openBudgetModal(id);
+          });
+        });
+
+        // Enlazar botones de eliminación
+        budgetsContainer.querySelectorAll(".btn-delete-budget").forEach(btn => {
+          btn.addEventListener("click", () => {
+            const id = btn.getAttribute("data-budget-id");
+            const targetBudget = state.budgets.find(b => b.id === id);
+            const catName = targetBudget ? targetBudget.category : "este presupuesto";
+            if (confirm(`¿Estás seguro de eliminar el presupuesto para "${catName}"?`)) {
+              state.budgets = state.budgets.filter(b => b.id !== id);
+              if (Storage) Storage.saveBudgets(state.budgets);
+              renderActiveView();
+              showToast("Presupuesto eliminado con éxito.", "info");
+            }
+          });
+        });
+      }
     }
 
     const goalsContainer = document.getElementById("goals-grid");
@@ -1277,6 +1349,147 @@
   }
 
   // ========================================================
+  // PLANILLA INTERACTIVA: NUEVO/EDITAR PRESUPUESTO (SPEC 005)
+  // ========================================================
+  function openBudgetModal(budgetIdToEdit = null) {
+    const modal = document.getElementById("app-modal");
+    const modalTitle = document.getElementById("modal-title");
+    const modalBody = document.getElementById("modal-body");
+    if (!modal || !modalTitle || !modalBody) return;
+
+    const existing = budgetIdToEdit ? state.budgets.find(b => b.id === budgetIdToEdit) : null;
+    const currentMonth = new Date().toISOString().slice(0, 7); // "YYYY-MM"
+    const selectedMonth = existing ? existing.month : currentMonth;
+    const initialCategory = existing ? existing.category : EXPENSE_CATEGORIES[0];
+
+    modalTitle.textContent = existing ? "Editar Presupuesto Mensual" : "Nuevo Presupuesto Mensual";
+
+    modalBody.innerHTML = `
+      <form id="form-new-budget" class="space-y-4">
+        <div class="space-y-3 text-xs">
+          <!-- Categoría -->
+          <div class="space-y-1">
+            <label class="font-semibold text-slate-700 dark:text-slate-300">Categoría de Gasto *</label>
+            <select id="budget-input-category" required class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              ${EXPENSE_CATEGORIES.map(c => `
+                <option value="${c}" ${(existing ? existing.category === c : c === initialCategory) ? 'selected' : ''}>${c}</option>
+              `).join("")}
+            </select>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <!-- Límite de Gasto -->
+            <div class="space-y-1">
+              <label class="font-semibold text-slate-700 dark:text-slate-300">Límite Mensual ($) *</label>
+              <input type="number" id="budget-input-limit" min="1" step="any" required placeholder="Ej. 250000" value="${existing ? existing.limitAmount : ''}" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-bold tabular-nums focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            </div>
+
+            <!-- Período / Mes -->
+            <div class="space-y-1">
+              <label class="font-semibold text-slate-700 dark:text-slate-300">Mes del Presupuesto *</label>
+              <input type="month" id="budget-input-month" required value="${selectedMonth}" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            </div>
+          </div>
+
+          <!-- Vista previa del gasto acumulado actual en esa categoría y mes -->
+          <div id="budget-spent-preview" class="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-[11px] text-slate-600 dark:text-slate-300 flex items-center justify-between">
+            <!-- Actualizado dinámicamente -->
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+          <button type="button" id="budget-form-cancel" class="px-4 py-2 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 transition-colors">
+            Cancelar
+          </button>
+          <button type="submit" id="budget-form-submit" class="px-5 py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all flex items-center gap-1.5 active:scale-95">
+            <i data-lucide="check" class="w-3.5 h-3.5"></i>
+            <span>${existing ? 'Actualizar Presupuesto' : 'Guardar Presupuesto'}</span>
+          </button>
+        </div>
+      </form>
+    `;
+
+    safeRenderIcons();
+
+    const selCat = document.getElementById("budget-input-category");
+    const inputMonth = document.getElementById("budget-input-month");
+    const previewEl = document.getElementById("budget-spent-preview");
+
+    function updateSpentPreview() {
+      if (!previewEl || !selCat || !inputMonth) return;
+      const cat = selCat.value;
+      const m = inputMonth.value;
+      const spent = Calculations ? Calculations.calcularGastoCategoriaMes(state.transactions, cat, m) : 0;
+      previewEl.innerHTML = `
+        <span class="text-slate-500">Gasto detectado en ${m || 'este mes'}:</span>
+        <strong class="text-slate-900 dark:text-white font-bold tabular-nums">${formatMoney(spent)}</strong>
+      `;
+    }
+
+    selCat?.addEventListener("change", updateSpentPreview);
+    inputMonth?.addEventListener("change", updateSpentPreview);
+    updateSpentPreview();
+
+    document.getElementById("budget-form-cancel")?.addEventListener("click", () => modal.close());
+
+    const form = document.getElementById("form-new-budget");
+    form?.addEventListener("submit", (e) => {
+      e.preventDefault();
+
+      const category = selCat?.value;
+      const limitAmount = Number(document.getElementById("budget-input-limit")?.value);
+      const month = inputMonth?.value || currentMonth;
+
+      const budgetData = { category, limitAmount, month };
+
+      const validacion = Calculations ? Calculations.validarPresupuesto(budgetData) : { valida: true };
+      if (!validacion.valida) {
+        showToast(validacion.error || "Datos inválidos", "error");
+        return;
+      }
+
+      const spentAmount = Calculations ? Calculations.calcularGastoCategoriaMes(state.transactions, category, month) : 0;
+
+      if (existing) {
+        // Edición de presupuesto existente
+        existing.category = category;
+        existing.limitAmount = limitAmount;
+        existing.month = month;
+        existing.spentAmount = spentAmount;
+        showToast(`Presupuesto de "${category}" actualizado.`, "success");
+      } else {
+        // Verificar si ya existe para este mes y categoría
+        const alreadyExists = state.budgets.find(b => b.category === category && b.month === month);
+        if (alreadyExists) {
+          alreadyExists.limitAmount = limitAmount;
+          alreadyExists.spentAmount = spentAmount;
+          showToast(`Presupuesto de "${category}" actualizado al nuevo límite.`, "success");
+        } else {
+          const newBudget = {
+            id: `BUD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            category,
+            limitAmount,
+            spentAmount,
+            month
+          };
+          state.budgets.push(newBudget);
+          showToast(`Presupuesto para "${category}" establecido con éxito.`, "success");
+        }
+      }
+
+      if (Storage) {
+        Storage.saveBudgets(state.budgets);
+      }
+
+      modal.close();
+      renderActiveView();
+    });
+
+    modal.showModal();
+    setTimeout(() => document.getElementById("budget-input-limit")?.focus(), 50);
+  }
+
+  // ========================================================
   // RENDERIZADO GENERAL Y CICLO DE VIDA
   // ========================================================
   function renderActiveView() {
@@ -1418,7 +1631,7 @@
       openAccountModal();
     });
     document.getElementById("btn-modal-new-budget")?.addEventListener("click", () => {
-      showModalPlaceholder("Definir Presupuesto Mensual", "Asigna límites máximos a categorías como Alimentación, Vivienda u Ocio.");
+      openBudgetModal();
     });
     document.getElementById("btn-modal-new-goal")?.addEventListener("click", () => {
       showModalPlaceholder("Crear Meta de Ahorro", "Define tu objetivo financiero (monto meta y fecha límite deseada).");

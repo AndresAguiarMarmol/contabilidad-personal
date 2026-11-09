@@ -29,10 +29,11 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 2. Decisiones vigentes
 
+- **Gestión de Presupuestos Mensuales por Categoría:** Implementada en `<dialog id="app-modal">`. Permite crear y editar límites mensuales por categoría, detectando en tiempo real el gasto del mes desde las transacciones (estándar y partidas split). Semáforos visuales de alerta: verde ($\le 75\%$), amarillo ($76\% - 100\%$) y rojo ($> 100\%$ sobregiro). Acciones de edición de límite y eliminación con persistencia en `finance_budgets_data`.
 - **Movimientos Divididos (Split Transactions):** Permite desglosar un pago global (ej. tarjeta de crédito) en múltiples partidas que afectan de forma atómica a diferentes cuentas patrimoniales/activos o categorías de gasto. Aplica principio de cuadratura contable estricta en tiempo real ($\sum \text{líneas} = \text{monto total}$). Bloquea guardado ante descuadres numéricos o montos no positivos. Las funciones puras `validarMovimientoSplit()` y `aplicarMovimientoSplitEnCuentas()` garantizan inmutabilidad y atomicidad.
 - **Planilla Interactiva de Nuevas Cuentas Financieras:** Implementada dentro del `<dialog id="app-modal">` nativo. Permite dar de alta cuentas de tipo Banco, Efectivo, Billetera Digital, Ahorro/Inversión y Tarjeta de Crédito, asignando color, icono y moneda. Si es tarjeta de crédito con saldo positivo ingresado, se registra automáticamente como deuda contable negativa.
 - **Planilla Interactiva de Nuevos Movimientos:** Implementada en `<dialog id="app-modal">` nativo. Conmutación reactiva entre Gasto, Ingreso y Transferencia. Integra de inmediato cualquier cuenta nueva creada y soporta modo Split.
-- **Validación e Inmutabilidad (`financeCalculations.js`):** Funciones puras `validarNuevaCuenta()`, `crearCuentaObjeto()`, `validarTransaccion()`, `aplicarTransaccionEnCuentas()`, `validarMovimientoSplit()` y `aplicarMovimientoSplitEnCuentas()` probadas con `node --test` (25/25 pruebas en verde).
+- **Validación e Inmutabilidad (`financeCalculations.js`):** Funciones puras `validarNuevaCuenta()`, `crearCuentaObjeto()`, `validarTransaccion()`, `aplicarTransaccionEnCuentas()`, `validarMovimientoSplit()`, `aplicarMovimientoSplitEnCuentas()`, `validarPresupuesto()`, `calcularGastoCategoriaMes()` y `sincronizarPresupuestosConTransacciones()` probadas con `node --test` (31/31 pruebas en verde).
 - **Arranque Universal sin CORS:** Scripts universales bajo `window.ContaPersonal` y orden de carga secuencial en `index.html` (compatible con `file:///` y HTTP).
 - **Enfoque Exclusivo:** Contabilidad y Finanzas Personales/Familiares (sin inventario comercial ni pedidos).
 
@@ -40,6 +41,13 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 3. Historial de cambios
 
+- **2026-11-09 — Spec 005: Gestión de Presupuestos Mensuales por Categoría (SDD):**
+  - Creada especificación formal `specs/005-gestion-presupuestos/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
+  - Diseñada e implementada la suite `tests/budgets.test.js` con metodología TDD Red-Green (6 pruebas unitarias, 31/31 pruebas totales en verde en el proyecto).
+  - Implementadas en `assets/js/financeCalculations.js` las funciones puras `validarPresupuesto()`, `calcularGastoCategoriaMes()` y `sincronizarPresupuestosConTransacciones()`.
+  - Desarrollada la planilla interactiva modal `openBudgetModal()` en `assets/js/app.js` con selector de categoría, monto límite, mes de vigencia y vista previa en tiempo real del gasto detectado.
+  - Mejorado el renderizado en `renderBudgets()` con semáforo porcentual, saldo disponible / sobregiro, y botones de edición y eliminación reactivos.
+  - Conectado el botón `btn-modal-new-budget` y verificado en el navegador con Chrome DevTools (creación, cambio de semáforo a amarillo/rojo y eliminación limpia con 0 errores de consola).
 - **2026-11-09 — Spec 004: Movimientos Divididos (Split) con Afectación Multicuenta (SDD):**
   - Creada especificación formal `specs/004-movimientos-split/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
   - Diseñada e implementada la suite `tests/split-transactions.test.js` con metodología TDD Red-Green (9 pruebas unitarias, 25/25 pruebas totales en verde en el proyecto).

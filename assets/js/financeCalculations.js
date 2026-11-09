@@ -355,6 +355,77 @@
     });
   }
 
+  /**
+   * Valida los datos requeridos para un presupuesto mensual (Spec 005 / RF-2)
+   * @param {Object} datos 
+   * @returns {{ valida: boolean, error?: string }}
+   */
+  function validarPresupuesto(datos) {
+    if (!datos || typeof datos !== "object") {
+      return { valida: false, error: "Datos de presupuesto inválidos." };
+    }
+
+    if (!datos.category || typeof datos.category !== "string" || datos.category.trim() === "") {
+      return { valida: false, error: "Debes seleccionar una categoría válida." };
+    }
+
+    const limit = Number(datos.limitAmount);
+    if (isNaN(limit) || limit <= 0) {
+      return { valida: false, error: "El monto límite debe ser un número mayor a cero." };
+    }
+
+    return { valida: true };
+  }
+
+  /**
+   * Calcula el gasto acumulado de una categoría en un mes determinado (Spec 005 / RF-3)
+   * @param {Array} transactions 
+   * @param {string} category 
+   * @param {string} month YYYY-MM
+   * @returns {number}
+   */
+  function calcularGastoCategoriaMes(transactions, category, month) {
+    if (!Array.isArray(transactions) || !category) return 0;
+    const mesPrefijo = month ? String(month).slice(0, 7) : "";
+
+    let total = 0;
+    transactions.forEach(tx => {
+      if (tx.type !== "expense") return;
+      if (mesPrefijo && tx.date && !tx.date.startsWith(mesPrefijo)) return;
+
+      if (tx.isSplit && Array.isArray(tx.splitLines)) {
+        tx.splitLines.forEach(line => {
+          if (!line.targetAccountId && line.category === category) {
+            total += Number(line.amount) || 0;
+          }
+        });
+      } else {
+        if (tx.category === category) {
+          total += Number(tx.amount) || 0;
+        }
+      }
+    });
+
+    return total;
+  }
+
+  /**
+   * Sincroniza los montos gastados de una lista de presupuestos a partir de las transacciones (Spec 005 / RF-3)
+   * @param {Array} budgets 
+   * @param {Array} transactions 
+   * @returns {Array} Nueva lista de presupuestos con spentAmount actualizado
+   */
+  function sincronizarPresupuestosConTransacciones(budgets, transactions) {
+    if (!Array.isArray(budgets)) return [];
+    return budgets.map(b => {
+      const gasto = calcularGastoCategoriaMes(transactions, b.category, b.month);
+      return {
+        ...b,
+        spentAmount: gasto
+      };
+    });
+  }
+
   return {
     calcularPatrimonioNeto,
     calcularBalanceMes,
@@ -364,6 +435,9 @@
     validarNuevaCuenta,
     crearCuentaObjeto,
     validarMovimientoSplit,
-    aplicarMovimientoSplitEnCuentas
+    aplicarMovimientoSplitEnCuentas,
+    validarPresupuesto,
+    calcularGastoCategoriaMes,
+    sincronizarPresupuestosConTransacciones
   };
 });

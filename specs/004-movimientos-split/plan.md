@@ -103,3 +103,4 @@
   4. Rechaza split si una línea transfiere a la misma cuenta de origen.
   5. Aprueba split perfectamente cuadrado ($\Delta = 0$).
   6. Aplica correctamente el impacto: debita cuenta origen por el total y acredita cuentas destino por sus respectivos montos.
+
