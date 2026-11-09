@@ -39,3 +39,4 @@ function calcularEjecucionPresupuesto(spentAmount, limitAmount) {
   - **Test RF-4:** Cálculo correcto de ingresos del mes, gastos del mes, saldo neto y porcentaje de tasa de ahorro.
   - **Test RF-4 (Caso límite):** Cálculo de tasa de ahorro cuando los ingresos son cero o negativos (evitar división por cero).
   - **Test RF-1 / Presupuestos:** Cálculo de semáforo presupuestario: verde ($\le 75\%$), amarillo ($> 75\%$ y $\le 100\%$), rojo ($> 100\%$).
+

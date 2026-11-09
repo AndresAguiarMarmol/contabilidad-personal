@@ -23,3 +23,4 @@ Este documento establece la ley suprema y los límites arquitectónicos inviolab
 
 6. **Desarrollo Guiado por Especificaciones (SDD):**
    Ningún cambio de código de producción se realiza sin una especificación formal (`spec.md` en EARS), plan técnico (`plan.md`), tareas atómicas (`tasks.md`) y pruebas unitarias previas (TDD Red-Green).
+

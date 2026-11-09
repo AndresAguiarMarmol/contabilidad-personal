@@ -106,9 +106,81 @@
     };
   }
 
+  /**
+   * Valida los campos obligatorios de un movimiento financiero (RF-4)
+   * @param {Object} tx 
+   * @returns {{ valida: boolean, error?: string }}
+   */
+  function validarTransaccion(tx) {
+    if (!tx || typeof tx !== "object") {
+      return { valida: false, error: "Datos de transacción inválidos." };
+    }
+
+    const amount = Number(tx.amount);
+    if (isNaN(amount) || amount <= 0) {
+      return { valida: false, error: "El monto debe ser un número mayor a cero." };
+    }
+
+    if (!tx.description || typeof tx.description !== "string" || tx.description.trim() === "") {
+      return { valida: false, error: "La descripción del movimiento no puede estar vacía." };
+    }
+
+    if (!tx.accountId) {
+      return { valida: false, error: "Debes seleccionar una cuenta de origen." };
+    }
+
+    if (tx.type === "transfer") {
+      if (!tx.toAccountId) {
+        return { valida: false, error: "Debes seleccionar una cuenta de destino para la transferencia." };
+      }
+      if (tx.accountId === tx.toAccountId) {
+        return { valida: false, error: "La cuenta de destino debe ser distinta a la cuenta de origen." };
+      }
+    }
+
+    return { valida: true };
+  }
+
+  /**
+   * Aplica el impacto de un movimiento en las cuentas de forma atómica e inmutable (RF-5, RF-6, RF-7)
+   * @param {Array} accounts 
+   * @param {Object} tx 
+   * @returns {Array} Nueva lista de cuentas con saldos actualizados
+   */
+  function aplicarTransaccionEnCuentas(accounts, tx) {
+    if (!Array.isArray(accounts)) return [];
+    const amount = Number(tx.amount) || 0;
+
+    return accounts.map((acc) => {
+      // Clonar cuenta para garantizar inmutabilidad
+      const updated = { ...acc };
+
+      if (tx.type === "expense") {
+        if (updated.id === tx.accountId) {
+          updated.currentBalance = (Number(updated.currentBalance) || 0) - amount;
+        }
+      } else if (tx.type === "income") {
+        if (updated.id === tx.accountId) {
+          updated.currentBalance = (Number(updated.currentBalance) || 0) + amount;
+        }
+      } else if (tx.type === "transfer") {
+        if (updated.id === tx.accountId) {
+          updated.currentBalance = (Number(updated.currentBalance) || 0) - amount;
+        }
+        if (updated.id === tx.toAccountId) {
+          updated.currentBalance = (Number(updated.currentBalance) || 0) + amount;
+        }
+      }
+
+      return updated;
+    });
+  }
+
   return {
     calcularPatrimonioNeto,
     calcularBalanceMes,
-    calcularEjecucionPresupuesto
+    calcularEjecucionPresupuesto,
+    validarTransaccion,
+    aplicarTransaccionEnCuentas
   };
 });

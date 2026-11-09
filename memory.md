@@ -29,21 +29,21 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 2. Decisiones vigentes
 
-- **Arranque Universal sin CORS:** Se migró de ES Modules (`type="module"`) a scripts universales con namespace `window.ContaPersonal` y orden de carga secuencial en `index.html`. Esto permite abrir la app directamente con doble clic (`file:///`) sin congelamientos, además de funcionar en servidores HTTP.
-- **Lógica Pura Desacoplada (`assets/js/financeCalculations.js`):** Cálculos de patrimonio neto, balances y presupuestos aislados para verificación determinista con `node --test`.
-- **Carga Defensiva PWA:** Registro de Service Worker y manifiesto condicionados a `location.protocol.startsWith('http')` para evitar excepciones en entornos locales.
+- **Planilla Interactiva de Nuevos Movimientos:** Implementada dentro del `<dialog id="app-modal">` nativo. Permite conmutar reactivamente entre Gasto, Ingreso y Transferencia, adaptando dinámicamente los selectores de cuenta receptora y categorías.
+- **Validación e Impacto Atómico Puro (`financeCalculations.js`):** Funciones puras `validarTransaccion()` y `aplicarTransaccionEnCuentas()` que garantizan la integridad contable sin mutaciones destructivas, verificadas al 100% mediante `node --test`.
+- **Arranque Universal sin CORS:** Scripts universales con namespace `window.ContaPersonal` y orden de carga secuencial en `index.html` (compatible con `file:///` y HTTP).
 - **Enfoque Exclusivo:** Contabilidad y Finanzas Personales/Familiares (sin inventario comercial ni pedidos).
 
 ---
 
 ## 3. Historial de cambios
 
+- **2026-11-09 — Spec 002: Planilla de Registro de Nuevos Movimientos (SDD):**
+  - Creada especificación formal `specs/002-formulario-nuevo-movimiento/` (`spec.md` en EARS, `plan.md`, `tasks.md`).
+  - Implementadas en `assets/js/financeCalculations.js` las funciones puras `validarTransaccion()` y `aplicarTransaccionEnCuentas()`.
+  - Creada suite `tests/transactions.test.js` con 7 pruebas unitarias (11 pruebas totales en el proyecto pasando al 100% en verde).
+  - Diseñada e implementada la planilla interactiva completa en `assets/js/app.js` con selector de tipo (Gasto / Ingreso / Transferencia), cuentas dinámicas, categorías y persistencia atómica en `Storage`.
+  - Verificada en vivo con Chrome DevTools: apertura de modal, conmutación de pestañas, registro exitoso de gasto de \$25.000 con impacto inmediato en el Dashboard y tabla de transacciones.
 - **2026-11-09 — Spec 001: Corrección de Arranque Universal y Resiliencia (SDD):**
-  - Identificada causa raíz de congelamiento: bloqueo de CORS en Chromium para `<script type="module">` y llamadas al Service Worker bajo protocolo `file:///`.
-  - Creado `docs/constitution.md` con los 6 principios inviolables del proyecto.
-  - Creada especificación formal `specs/001-fix-arranque-app/` (`spec.md` en EARS, `plan.md`, `tasks.md`).
-  - Implementado `assets/js/financeCalculations.js` con suite de pruebas `tests/finance.test.js` (4/4 pruebas pasando en verde).
-  - Universalizados `mockData.js`, `storage.js`, `dbAdapter.js` y `app.js` bajo `window.ContaPersonal`.
-  - Validado en vivo mediante Chrome DevTools (0 errores en consola, renderizado inmediato de \$1.860.000 en patrimonio neto y navegación instantánea).
+  - Creado `docs/constitution.md` y resuelto problema de CORS en `file:///`.
 - **2026-11-09:** Refactor integral a Contabilidad Personal pura sin inventario.
-- **2026-11-09:** Limpieza inicial del workspace y definición de requerimientos técnicos.

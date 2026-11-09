@@ -213,7 +213,6 @@
   // RENDERIZADO 1: DASHBOARD PATRIMONIAL
   // ========================================================
   function renderDashboard() {
-    // 1. Patrimonio Neto usando lógica pura
     const netWorthData = Calculations
       ? Calculations.calcularPatrimonioNeto(state.accounts)
       : { assets: 0, liabilities: 0, netWorth: 0 };
@@ -223,7 +222,6 @@
     if (netWorthEl) netWorthEl.textContent = formatMoney(netWorthData.netWorth);
     if (assetsEl) assetsEl.textContent = `Activos: ${formatMoney(netWorthData.assets)} · Deudas: ${formatMoney(netWorthData.liabilities)}`;
 
-    // 2. Ingresos y Gastos del Mes usando lógica pura
     const balanceData = Calculations
       ? Calculations.calcularBalanceMes(state.transactions)
       : { income: 0, expense: 0, netSavings: 0, savingsRate: 0, categoryExpenses: {} };
@@ -238,7 +236,7 @@
     if (rateEl) rateEl.textContent = `${balanceData.savingsRate}%`;
     if (savingsAmtEl) savingsAmtEl.textContent = `Ahorro neto: ${formatMoney(balanceData.netSavings)}`;
 
-    // 3. Alertas de Presupuestos
+    // Alertas de Presupuestos
     let budgetAlertsCount = 0;
     const budgetListEl = document.getElementById("dash-budget-progress-list");
     if (budgetListEl) {
@@ -281,7 +279,6 @@
       }).join("");
     }
 
-    // Badge en sidebar
     const budgetBadge = document.getElementById("sidebar-budget-alert-badge");
     if (budgetBadge) {
       if (budgetAlertsCount > 0) {
@@ -292,7 +289,7 @@
       }
     }
 
-    // 4. Distribución de Gastos por Categoría
+    // Distribución de Gastos por Categoría
     const catDistEl = document.getElementById("dash-category-distribution");
     if (catDistEl) {
       const sortedCats = Object.entries(balanceData.categoryExpenses).sort((a, b) => b[1] - a[1]);
@@ -316,7 +313,7 @@
       }
     }
 
-    // 5. Últimos Movimientos
+    // Últimos Movimientos
     const recentTxEl = document.getElementById("dash-recent-transactions");
     if (recentTxEl) {
       const recent = state.transactions.slice(0, 5);
@@ -454,7 +451,6 @@
   // RENDERIZADO 4: PRESUPUESTOS & METAS
   // ========================================================
   function renderBudgets() {
-    // 1. Presupuestos Mensuales
     const budgetsContainer = document.getElementById("budgets-grid");
     if (budgetsContainer) {
       budgetsContainer.innerHTML = state.budgets.map((b) => {
@@ -495,7 +491,6 @@
       }).join("");
     }
 
-    // 2. Metas de Ahorro
     const goalsContainer = document.getElementById("goals-grid");
     if (goalsContainer) {
       goalsContainer.innerHTML = state.goals.map((g) => {
@@ -545,6 +540,264 @@
         dbStatusPill.textContent = "Local Storage";
       }
     }
+  }
+
+  // ========================================================
+  // PLANILLA INTERACTIVA: NUEVO MOVIMIENTO (SPEC 002)
+  // ========================================================
+  const EXPENSE_CATEGORIES = [
+    "Alimentación & Supermercado",
+    "Vivienda & Servicios",
+    "Transporte & Combustible",
+    "Salud & Bienestar",
+    "Ocio, Salidas & Restaurantes",
+    "Ropa & Cuidado Personal",
+    "Educación & Cursos",
+    "Otros Gastos"
+  ];
+
+  const INCOME_CATEGORIES = [
+    "Sueldo & Salario",
+    "Honorarios & Freelance",
+    "Rendimientos & Inversiones",
+    "Otros Ingresos / Reembolsos"
+  ];
+
+  function openTransactionModal(initialType = "expense") {
+    const modal = document.getElementById("app-modal");
+    const modalTitle = document.getElementById("modal-title");
+    const modalBody = document.getElementById("modal-body");
+    if (!modal || !modalTitle || !modalBody) return;
+
+    modalTitle.textContent = "Registrar Nuevo Movimiento";
+
+    const today = new Date().toISOString().slice(0, 10);
+    let selectedType = initialType;
+
+    // Generar opciones de cuenta origen
+    const accountOptions = state.accounts.map((acc) => {
+      return `<option value="${acc.id}">${acc.name} (${formatMoney(acc.currentBalance)})</option>`;
+    }).join("");
+
+    modalBody.innerHTML = `
+      <form id="form-new-tx" class="space-y-4">
+        <!-- Selector de Tipo -->
+        <div class="flex items-center p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+          <button type="button" id="btn-type-expense" data-type="expense" class="tx-type-tab flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5">
+            <i data-lucide="arrow-up-right" class="w-3.5 h-3.5"></i>
+            <span>Gasto</span>
+          </button>
+          <button type="button" id="btn-type-income" data-type="income" class="tx-type-tab flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5">
+            <i data-lucide="arrow-down-left" class="w-3.5 h-3.5"></i>
+            <span>Ingreso</span>
+          </button>
+          <button type="button" id="btn-type-transfer" data-type="transfer" class="tx-type-tab flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5">
+            <i data-lucide="arrow-left-right" class="w-3.5 h-3.5"></i>
+            <span>Transferencia</span>
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          <!-- Monto -->
+          <div class="space-y-1">
+            <label class="font-semibold text-slate-700 dark:text-slate-300">Monto ($) *</label>
+            <input type="number" id="tx-input-amount" min="1" step="any" placeholder="Ej. 25000" required class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-bold tabular-nums focus:outline-none focus:ring-2 focus:ring-emerald-500">
+          </div>
+
+          <!-- Fecha -->
+          <div class="space-y-1">
+            <label class="font-semibold text-slate-700 dark:text-slate-300">Fecha *</label>
+            <input type="date" id="tx-input-date" value="${today}" required class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+          </div>
+
+          <!-- Concepto / Descripción -->
+          <div class="sm:col-span-2 space-y-1">
+            <label class="font-semibold text-slate-700 dark:text-slate-300">Concepto / Detalle *</label>
+            <input type="text" id="tx-input-desc" placeholder="Ej. Compra supermercado, Pago alquiler..." required class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+          </div>
+
+          <!-- Cuenta Origen -->
+          <div id="col-source-account" class="space-y-1">
+            <label id="lbl-source-account" class="font-semibold text-slate-700 dark:text-slate-300">Cuenta de Pago *</label>
+            <select id="tx-input-account" required class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              ${accountOptions}
+            </select>
+          </div>
+
+          <!-- Cuenta Destino (solo transferencias) -->
+          <div id="col-dest-account" class="space-y-1 hidden">
+            <label class="font-semibold text-slate-700 dark:text-slate-300">Cuenta Receptora *</label>
+            <select id="tx-input-to-account" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            </select>
+          </div>
+
+          <!-- Categoría (para gasto / ingreso) -->
+          <div id="col-category" class="space-y-1">
+            <label class="font-semibold text-slate-700 dark:text-slate-300">Categoría *</label>
+            <select id="tx-input-category" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            </select>
+          </div>
+
+          <!-- Medio de Pago -->
+          <div id="col-method" class="sm:col-span-2 space-y-1">
+            <label class="font-semibold text-slate-700 dark:text-slate-300">Forma / Medio de Pago</label>
+            <select id="tx-input-method" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              <option value="debit">Tarjeta de Débito / Redcompra</option>
+              <option value="credit">Tarjeta de Crédito</option>
+              <option value="transfer">Transferencia Bancaria</option>
+              <option value="cash">Efectivo</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+          <button type="button" id="tx-form-cancel" class="px-4 py-2 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 transition-colors">
+            Cancelar
+          </button>
+          <button type="submit" id="tx-form-submit" class="px-5 py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all flex items-center gap-1.5 active:scale-95">
+            <i data-lucide="check" class="w-3.5 h-3.5"></i>
+            <span>Guardar Movimiento</span>
+          </button>
+        </div>
+      </form>
+    `;
+
+    safeRenderIcons();
+
+    // Referencias de elementos de la planilla
+    const colDest = document.getElementById("col-dest-account");
+    const colCat = document.getElementById("col-category");
+    const colMethod = document.getElementById("col-method");
+    const selAccount = document.getElementById("tx-input-account");
+    const selToAccount = document.getElementById("tx-input-to-account");
+    const selCategory = document.getElementById("tx-input-category");
+    const lblSource = document.getElementById("lbl-source-account");
+
+    // Función interna para refrescar categorías y cuentas destino
+    function updateFormTabs(type) {
+      selectedType = type;
+
+      const btnExpense = document.getElementById("btn-type-expense");
+      const btnIncome = document.getElementById("btn-type-income");
+      const btnTransfer = document.getElementById("btn-type-transfer");
+
+      // Resetear clases
+      const resetClass = "text-slate-600 dark:text-slate-400 hover:text-slate-900 bg-transparent";
+      btnExpense.className = `tx-type-tab flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${type === 'expense' ? 'bg-rose-600 text-white shadow-sm' : resetClass}`;
+      btnIncome.className = `tx-type-tab flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${type === 'income' ? 'bg-emerald-600 text-white shadow-sm' : resetClass}`;
+      btnTransfer.className = `tx-type-tab flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${type === 'transfer' ? 'bg-blue-600 text-white shadow-sm' : resetClass}`;
+
+      if (type === "expense") {
+        if (lblSource) lblSource.textContent = "Cuenta de Pago *";
+        if (colDest) colDest.classList.add("hidden");
+        if (colCat) colCat.classList.remove("hidden");
+        if (colMethod) colMethod.classList.remove("hidden");
+        if (selCategory) {
+          selCategory.innerHTML = EXPENSE_CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join("");
+        }
+      } else if (type === "income") {
+        if (lblSource) lblSource.textContent = "Cuenta Receptora *";
+        if (colDest) colDest.classList.add("hidden");
+        if (colCat) colCat.classList.remove("hidden");
+        if (colMethod) colMethod.classList.remove("hidden");
+        if (selCategory) {
+          selCategory.innerHTML = INCOME_CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join("");
+        }
+      } else if (type === "transfer") {
+        if (lblSource) lblSource.textContent = "Cuenta de Origen *";
+        if (colDest) colDest.classList.remove("hidden");
+        if (colCat) colCat.classList.add("hidden");
+        if (colMethod) colMethod.classList.add("hidden");
+        updateDestinationAccounts();
+      }
+      safeRenderIcons();
+    }
+
+    function updateDestinationAccounts() {
+      if (!selToAccount || !selAccount) return;
+      const currentOrigin = selAccount.value;
+      const destAccounts = state.accounts.filter(a => a.id !== currentOrigin);
+      selToAccount.innerHTML = destAccounts.map(a => `<option value="${a.id}">${a.name} (${formatMoney(a.currentBalance)})</option>`).join("");
+    }
+
+    selAccount?.addEventListener("change", () => {
+      if (selectedType === "transfer") updateDestinationAccounts();
+    });
+
+    document.getElementById("btn-type-expense")?.addEventListener("click", () => updateFormTabs("expense"));
+    document.getElementById("btn-type-income")?.addEventListener("click", () => updateFormTabs("income"));
+    document.getElementById("btn-type-transfer")?.addEventListener("click", () => updateFormTabs("transfer"));
+    document.getElementById("tx-form-cancel")?.addEventListener("click", () => modal.close());
+
+    // Inicializar estado del tab
+    updateFormTabs(selectedType);
+
+    // Manejo de envío del formulario (submit)
+    const form = document.getElementById("form-new-tx");
+    form?.addEventListener("submit", (e) => {
+      e.preventDefault();
+
+      const amountVal = Number(document.getElementById("tx-input-amount")?.value);
+      const dateVal = document.getElementById("tx-input-date")?.value;
+      const descVal = document.getElementById("tx-input-desc")?.value.trim();
+      const accountVal = document.getElementById("tx-input-account")?.value;
+      const toAccountVal = selectedType === "transfer" ? document.getElementById("tx-input-to-account")?.value : undefined;
+      const categoryVal = selectedType === "transfer" ? "Ahorro / Transferencia" : (document.getElementById("tx-input-category")?.value || "Otros");
+      const methodVal = document.getElementById("tx-input-method")?.value || "debit";
+
+      const tx = {
+        id: `TX-${Date.now()}`,
+        date: dateVal ? new Date(dateVal).toISOString() : new Date().toISOString(),
+        type: selectedType,
+        amount: amountVal,
+        description: descVal,
+        accountId: accountVal,
+        toAccountId: toAccountVal,
+        category: categoryVal,
+        paymentMethod: methodVal
+      };
+
+      // Validar con lógica pura desacoplada
+      const validacion = Calculations ? Calculations.validarTransaccion(tx) : { valida: true };
+      if (!validacion.valida) {
+        showToast(validacion.error || "Datos inválidos", "error");
+        return;
+      }
+
+      // Aplicar impacto atómico en cuentas usando lógica pura
+      if (Calculations && Calculations.aplicarTransaccionEnCuentas) {
+        state.accounts = Calculations.aplicarTransaccionEnCuentas(state.accounts, tx);
+      }
+
+      // Añadir movimiento al historial (al inicio)
+      state.transactions.unshift(tx);
+
+      // Si es un gasto, actualizar el gasto acumulado en el presupuesto correspondiente
+      if (tx.type === "expense") {
+        const matchingBudget = state.budgets.find(b => b.category === tx.category);
+        if (matchingBudget) {
+          matchingBudget.spentAmount = (Number(matchingBudget.spentAmount) || 0) + tx.amount;
+        }
+      }
+
+      // Persistir todo en Storage
+      if (Storage) {
+        Storage.saveAccounts(state.accounts);
+        Storage.saveTransactions(state.transactions);
+        Storage.saveBudgets(state.budgets);
+      }
+
+      // Cerrar modal y refrescar la vista
+      modal.close();
+      renderActiveView();
+
+      const typeWord = tx.type === "income" ? "Ingreso" : tx.type === "transfer" ? "Transferencia" : "Gasto";
+      showToast(`${typeWord} de ${formatMoney(tx.amount)} registrado con éxito.`, "success");
+    });
+
+    modal.showModal();
+    // Enfocar monto
+    setTimeout(() => document.getElementById("tx-input-amount")?.focus(), 50);
   }
 
   // ========================================================
@@ -662,25 +915,29 @@
     const modal = document.getElementById("app-modal");
     document.getElementById("modal-close-btn")?.addEventListener("click", () => modal?.close());
 
+    // BOTONES QUE ABREN LA PLANILLA DE NUEVO MOVIMIENTO
+    document.getElementById("btn-quick-new-tx")?.addEventListener("click", () => {
+      openTransactionModal("expense");
+    });
+
+    document.getElementById("btn-modal-new-tx")?.addEventListener("click", () => {
+      openTransactionModal("expense");
+    });
+
+    // Modales de otras entidades
     const showModalPlaceholder = (title, desc) => {
       document.getElementById("modal-title").textContent = title;
       document.getElementById("modal-body").innerHTML = `
         <div class="py-4 text-center space-y-3">
           <i data-lucide="sparkles" class="w-8 h-8 text-emerald-500 mx-auto"></i>
           <p class="text-xs text-slate-600 dark:text-slate-300">${desc}</p>
-          <p class="text-[11px] text-slate-400">El shell y la arquitectura de Contabilidad Personal están listos y operativos.</p>
+          <p class="text-[11px] text-slate-400">Esta sección se configurará en la siguiente fase.</p>
         </div>
       `;
       safeRenderIcons();
       modal?.showModal();
     };
 
-    document.getElementById("btn-quick-new-tx")?.addEventListener("click", () => {
-      showModalPlaceholder("Registrar Nuevo Movimiento", "Formulario para registrar un Ingreso, Gasto o Transferencia entre cuentas con categorías de vida.");
-    });
-    document.getElementById("btn-modal-new-tx")?.addEventListener("click", () => {
-      showModalPlaceholder("Registrar Nuevo Movimiento", "Formulario para registrar un Ingreso, Gasto o Transferencia entre cuentas con categorías de vida.");
-    });
     document.getElementById("btn-modal-new-account")?.addEventListener("click", () => {
       showModalPlaceholder("Crear Nueva Cuenta Financiera", "Formulario para añadir cuentas bancarias, billeteras o tarjetas de crédito.");
     });
@@ -704,7 +961,6 @@
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", startApp);
   } else {
-    // Si el DOM ya cargó, inicializar de inmediato
     startApp();
   }
 

@@ -69,3 +69,4 @@ test("Presupuestos: calcularEjecucionPresupuesto calcula porcentaje y estado de 
   assert.strictEqual(exc.percentage, 120);
   assert.strictEqual(exc.status, "exceeded");
 });
+
