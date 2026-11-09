@@ -65,3 +65,4 @@ Calcula el impacto neto para la cuenta en particular:
 - **RF-4:** Estado vacío amigable cuando no hay transacciones -> contenedor condicional con botón de acción rápida.
 - **RF-5:** Botón de cerrar y deselección -> `app.js`.
 - **RF-6:** Funciones puras desacopladas -> `financeCalculations.js` y `tests/account-details.test.js`.
+

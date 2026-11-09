@@ -102,3 +102,25 @@ test("RF-2 y RF-6: calcularResumenCuenta calcula abonos, cargos y balance neto c
   assert.strictEqual(resumenCard1.neto, -250000);
   assert.strictEqual(resumenCard1.cantidadMovimientos, 1);
 });
+
+test("RF-3: filtrarTransacciones filtra adecuadamente los movimientos de una cuenta", () => {
+  const { filtrarTransacciones } = require("../assets/js/financeCalculations.js");
+  
+  // Movimientos de Banco 1 filtrados solo por gastos
+  const gastosBanco = filtrarTransacciones(mockTransactions, {
+    accountId: "acc-bank-1",
+    type: "expense"
+  });
+  assert.strictEqual(gastosBanco.length, 1);
+  assert.strictEqual(gastosBanco[0].id, "tx-2");
+
+  // Movimientos de Banco 1 filtrados por búsqueda de texto
+  const busquedaSueldo = filtrarTransacciones(mockTransactions, {
+    accountId: "acc-bank-1",
+    search: "sueldo"
+  });
+  assert.strictEqual(busquedaSueldo.length, 1);
+  assert.strictEqual(busquedaSueldo[0].id, "tx-1");
+});
+
+

@@ -136,6 +136,10 @@
       title: "Cuentas & Billeteras",
       subtitle: "Gestión de cuentas bancarias, efectivo, tarjetas de crédito y ahorros"
     },
+    "account-detail": {
+      title: "Detalle de Cuenta",
+      subtitle: "Movimientos históricos, abonos, cargos y saldo consolidado de la cuenta"
+    },
     transactions: {
       title: "Libro de Movimientos",
       subtitle: "Historial completo de ingresos, gastos personales y transferencias"
@@ -156,10 +160,17 @@
 
     const titleEl = document.getElementById("page-title");
     const subEl = document.getElementById("page-subtitle");
-    if (titleEl) titleEl.textContent = VIEW_METADATA[viewName].title;
+    if (titleEl) {
+      if (viewName === "account-detail" && state.selectedAccountId) {
+        const acc = state.accounts.find(a => a.id === state.selectedAccountId);
+        titleEl.textContent = acc ? `Detalle de Cuenta: ${acc.name}` : VIEW_METADATA[viewName].title;
+      } else {
+        titleEl.textContent = VIEW_METADATA[viewName].title;
+      }
+    }
     if (subEl) subEl.textContent = VIEW_METADATA[viewName].subtitle;
 
-    const views = ["dashboard", "accounts", "transactions", "budgets", "settings"];
+    const views = ["dashboard", "accounts", "account-detail", "transactions", "budgets", "settings"];
     views.forEach((v) => {
       const el = document.getElementById(`view-${v}`);
       if (el) {
@@ -172,11 +183,12 @@
     });
 
     // Actualizar estilos activos de navegación
+    const activeNavView = viewName === "account-detail" ? "accounts" : viewName;
     document.querySelectorAll("[data-nav-view]").forEach((btn) => {
       const target = btn.getAttribute("data-nav-view");
       const isSidebarItem = btn.classList.contains("nav-item");
 
-      if (target === viewName) {
+      if (target === activeNavView) {
         if (isSidebarItem) {
           btn.className = "nav-item w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-semibold transition-all text-emerald-700 bg-emerald-50 dark:bg-emerald-950/50 dark:text-emerald-300";
         }
@@ -364,7 +376,6 @@
 
     container.innerHTML = accounts.map((acc) => {
       const isCredit = acc.type === "credit_card";
-      const isSelected = state.selectedAccountId === acc.id;
       const balanceColor = isCredit 
         ? (acc.currentBalance < 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-900 dark:text-white")
         : (acc.currentBalance >= 0 ? "text-slate-900 dark:text-white" : "text-rose-600 dark:text-rose-400");
@@ -377,74 +388,92 @@
         credit_card: "Tarjeta de Crédito"
       };
 
-      const selectionBorder = isSelected
-        ? "ring-2 ring-emerald-500 border-emerald-500 bg-emerald-50/30 dark:bg-emerald-950/30 shadow-md"
-        : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-md";
-
       return `
-        <div data-account-id="${acc.id}" class="account-card cursor-pointer bg-white dark:bg-slate-900 p-5 rounded-xl border ${selectionBorder} shadow-sm flex flex-col justify-between space-y-4 transition-all duration-200" title="Haz clic para ver movimientos de ${acc.name}">
+        <div data-account-id="${acc.id}" class="account-card cursor-pointer bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-emerald-500/60 hover:shadow-md shadow-sm flex flex-col justify-between space-y-4 transition-all duration-200 group" title="Haz clic para abrir la pantalla de movimientos de ${acc.name}">
           <div class="flex items-center justify-between">
             <div class="w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-sm" style="background-color: ${acc.color || '#10b981'}">
               <i data-lucide="${acc.icon || 'wallet'}" class="w-5 h-5"></i>
             </div>
-            <div class="flex items-center gap-1.5">
-              ${isSelected ? `
-                <span class="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 px-2 py-0.5 rounded-full flex items-center gap-1">
-                  <i data-lucide="check" class="w-3 h-3"></i> Activa
-                </span>
-              ` : ''}
-              <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-                ${typeLabels[acc.type] || acc.type}
-              </span>
-            </div>
+            <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+              ${typeLabels[acc.type] || acc.type}
+            </span>
           </div>
 
           <div>
-            <h3 class="text-sm font-bold text-slate-900 dark:text-white flex items-center justify-between">
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white flex items-center justify-between group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
               <span>${acc.name}</span>
-              <i data-lucide="chevron-right" class="w-4 h-4 text-slate-300 dark:text-slate-600 transition-transform ${isSelected ? 'rotate-90 text-emerald-600 dark:text-emerald-400' : ''}"></i>
+              <i data-lucide="arrow-right" class="w-4 h-4 text-slate-300 dark:text-slate-600 group-hover:translate-x-1 group-hover:text-emerald-500 transition-all"></i>
             </h3>
             <p class="text-xs text-slate-400">${acc.currency || 'CLP'}</p>
-            <div class="mt-2">
-              <span class="text-xs text-slate-500">${isCredit ? 'Saldo adeudado:' : 'Saldo disponible:'}</span>
-              <p class="text-xl font-bold tabular-nums ${balanceColor}">${formatMoney(acc.currentBalance)}</p>
+            <div class="mt-2 flex items-baseline justify-between">
+              <div>
+                <span class="text-xs text-slate-500">${isCredit ? 'Saldo adeudado:' : 'Saldo disponible:'}</span>
+                <p class="text-xl font-bold tabular-nums ${balanceColor}">${formatMoney(acc.currentBalance)}</p>
+              </div>
+              <span class="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                Ver detalle →
+              </span>
             </div>
           </div>
         </div>
       `;
     }).join("");
 
-    // Enlazar eventos de selección en las tarjetas
+    // Al hacer clic en una tarjeta de cuenta, se abre en la pantalla adicional
     container.querySelectorAll(".account-card").forEach((card) => {
       card.addEventListener("click", () => {
         const id = card.getAttribute("data-account-id");
-        state.selectedAccountId = state.selectedAccountId === id ? null : id;
-        renderAccounts();
+        openAccountDetail(id);
       });
     });
 
-    renderAccountDetail();
+    safeRenderIcons();
   }
 
-  function renderAccountDetail() {
-    const detailContainer = document.getElementById("account-detail-container");
-    if (!detailContainer) return;
+  // ========================================================
+  // PANTALLA ADICIONAL: DETALLE DE CUENTA & MOVIMIENTOS (SPEC 009)
+  // ========================================================
+  function openAccountDetail(accountId) {
+    state.selectedAccountId = accountId;
+    if (!state.accountDetailFilter) {
+      state.accountDetailFilter = { search: "", type: "all" };
+    } else {
+      state.accountDetailFilter.search = "";
+      state.accountDetailFilter.type = "all";
+    }
+    switchView("account-detail");
+  }
+
+  function renderAccountDetailView() {
+    const container = document.getElementById("view-account-detail");
+    if (!container) return;
 
     if (!state.selectedAccountId) {
-      detailContainer.classList.add("hidden");
-      detailContainer.innerHTML = "";
+      switchView("accounts");
       return;
     }
 
     const account = state.accounts.find((a) => a.id === state.selectedAccountId);
     if (!account) {
-      state.selectedAccountId = null;
-      detailContainer.classList.add("hidden");
-      detailContainer.innerHTML = "";
+      switchView("accounts");
       return;
     }
 
-    const movements = Calculations && Calculations.obtenerMovimientosDeCuenta
+    const isCredit = account.type === "credit_card";
+    const balanceColor = isCredit 
+      ? (account.currentBalance < 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-900 dark:text-white")
+      : (account.currentBalance >= 0 ? "text-slate-900 dark:text-white" : "text-rose-600 dark:text-rose-400");
+
+    const typeLabels = {
+      bank: "Cuenta Bancaria",
+      cash: "Efectivo",
+      wallet: "Billetera Digital",
+      savings: "Ahorro / Inversión",
+      credit_card: "Tarjeta de Crédito"
+    };
+
+    // Obtener todos los movimientos asociados a esta cuenta
+    const allAccountMovements = Calculations && Calculations.obtenerMovimientosDeCuenta
       ? Calculations.obtenerMovimientosDeCuenta(state.transactions, account.id)
       : [];
 
@@ -452,208 +481,268 @@
       ? Calculations.calcularResumenCuenta(state.transactions, account.id)
       : { totalAbonos: 0, totalCargos: 0, neto: 0, cantidadMovimientos: 0 };
 
-    detailContainer.classList.remove("hidden");
+    // Filtros internos de la pantalla
+    const searchVal = (state.accountDetailFilter?.search || "").toLowerCase().trim();
+    const typeVal = state.accountDetailFilter?.type || "all";
 
-    const isCredit = account.type === "credit_card";
-    const balanceColor = isCredit 
-      ? (account.currentBalance < 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-900 dark:text-white")
-      : (account.currentBalance >= 0 ? "text-slate-900 dark:text-white" : "text-rose-600 dark:text-rose-400");
+    const filteredMovements = allAccountMovements.filter((tx) => {
+      if (typeVal !== "all" && tx.type !== typeVal) return false;
+      if (searchVal) {
+        const matchDesc = (tx.description || "").toLowerCase().includes(searchVal);
+        const matchCat = (tx.category || "").toLowerCase().includes(searchVal);
+        if (!matchDesc && !matchCat) return false;
+      }
+      return true;
+    });
 
-    let movementsHtml = "";
-    if (movements.length === 0) {
-      movementsHtml = `
-        <div class="py-10 text-center space-y-3 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
-          <i data-lucide="receipt" class="w-8 h-8 text-slate-400 mx-auto"></i>
-          <p class="text-xs text-slate-500 dark:text-slate-400">Esta cuenta no tiene movimientos registrados todavía.</p>
-          <button type="button" id="btn-account-empty-new-tx" class="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors">
-            + Registrar movimiento en esta cuenta
+    let tableContent = "";
+    if (filteredMovements.length === 0) {
+      tableContent = `
+        <div class="py-12 text-center space-y-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-8 shadow-sm">
+          <i data-lucide="receipt" class="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto"></i>
+          <p class="text-sm font-semibold text-slate-700 dark:text-slate-300">
+            ${allAccountMovements.length === 0 ? 'Esta cuenta no registra movimientos todavía.' : 'No hay movimientos que coincidan con los filtros aplicados.'}
+          </p>
+          <p class="text-xs text-slate-400">
+            ${allAccountMovements.length === 0 ? 'Registra un primer movimiento para comenzar a visualizar su historial.' : 'Prueba cambiando el tipo o limpiando el texto de búsqueda.'}
+          </p>
+          <button type="button" id="btn-screen-empty-tx" class="mt-2 px-4 py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all inline-flex items-center gap-1.5">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            <span>Registrar Movimiento en ${account.name}</span>
           </button>
         </div>
       `;
     } else {
-      movementsHtml = `
-        <div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
-          <table class="w-full text-left text-xs">
-            <thead class="bg-slate-50 dark:bg-slate-800/60 text-slate-500 font-semibold border-b border-slate-200 dark:border-slate-800">
-              <tr>
-                <th class="py-2.5 px-3">Fecha</th>
-                <th class="py-2.5 px-3">Tipo</th>
-                <th class="py-2.5 px-3">Concepto / Detalle</th>
-                <th class="py-2.5 px-3">Categoría</th>
-                <th class="py-2.5 px-3 text-right">Monto</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-              ${movements.map((tx) => {
-                const isSplit = Boolean(tx.isSplit && Array.isArray(tx.splitLines) && tx.splitLines.length > 0);
-                
-                // Determinar si para esta cuenta es abono (+) o cargo (-)
-                let isAbono = false;
-                let displayAmount = tx.amount;
-                let relLabel = "";
+      tableContent = `
+        <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-50 dark:bg-slate-800/60 text-slate-500 font-semibold border-b border-slate-200 dark:border-slate-800">
+                <tr>
+                  <th class="py-3 px-4 whitespace-nowrap">Fecha</th>
+                  <th class="py-3 px-4 whitespace-nowrap">Tipo</th>
+                  <th class="py-3 px-4">Concepto / Detalle</th>
+                  <th class="py-3 px-4 whitespace-nowrap">Categoría</th>
+                  <th class="py-3 px-4 text-right whitespace-nowrap">Monto</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                ${filteredMovements.map((tx) => {
+                  const isSplit = Boolean(tx.isSplit && Array.isArray(tx.splitLines) && tx.splitLines.length > 0);
+                  
+                  let isAbono = false;
+                  let displayAmount = tx.amount;
+                  let relLabel = "";
 
-                if (isSplit) {
-                  if (tx.accountId === account.id) {
-                    isAbono = false;
-                    displayAmount = tx.amount;
-                    relLabel = "Cargo Pago Global";
-                  } else {
-                    const myLine = tx.splitLines.find(l => l.targetAccountId === account.id);
-                    if (myLine) {
-                      isAbono = true;
-                      displayAmount = myLine.amount;
-                      relLabel = "Partida recibida";
+                  if (isSplit) {
+                    if (tx.accountId === account.id) {
+                      isAbono = false;
+                      displayAmount = tx.amount;
+                      relLabel = "Cargo Pago Global (Split)";
+                    } else {
+                      const myLine = tx.splitLines.find(l => l.targetAccountId === account.id);
+                      if (myLine) {
+                        isAbono = true;
+                        displayAmount = myLine.amount;
+                        relLabel = "Partida recibida en esta cuenta";
+                      }
                     }
+                  } else if (tx.type === "income") {
+                    isAbono = true;
+                  } else if (tx.type === "expense") {
+                    isAbono = false;
+                  } else if (tx.type === "transfer") {
+                    isAbono = tx.toAccountId === account.id;
+                    relLabel = isAbono ? "Transferencia Recibida (+)" : "Transferencia Enviada (-)";
                   }
-                } else if (tx.type === "income") {
-                  isAbono = true;
-                } else if (tx.type === "expense") {
-                  isAbono = false;
-                } else if (tx.type === "transfer") {
-                  isAbono = tx.toAccountId === account.id;
-                  relLabel = isAbono ? "Transferencia Recibida" : "Transferencia Enviada";
-                }
 
-                const typeBadgeClass = isSplit
-                  ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/80 dark:text-indigo-300"
-                  : (tx.type === "income" 
-                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300" 
-                    : (tx.type === "transfer" ? "bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300" : "bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300"));
+                  const typeBadgeClass = isSplit
+                    ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/80 dark:text-indigo-300"
+                    : (tx.type === "income" 
+                      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300" 
+                      : (tx.type === "transfer" ? "bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300" : "bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300"));
 
-                const splitDetailsHtml = isSplit ? `
-                  <div class="mt-1.5 space-y-1 text-[11px] bg-slate-50 dark:bg-slate-800/60 p-2 rounded-lg border border-slate-100 dark:border-slate-800">
-                    <p class="font-bold text-slate-700 dark:text-slate-300 text-[10px] uppercase tracking-wider">Partidas (${tx.splitLines.length}):</p>
-                    ${tx.splitLines.map(l => {
-                      const isThisAcc = l.targetAccountId === account.id;
-                      return `
-                        <div class="flex items-center justify-between text-slate-600 dark:text-slate-300 ${isThisAcc ? 'font-bold text-emerald-600 dark:text-emerald-400' : ''}">
-                          <span>• ${l.description || 'Partida'} ${isThisAcc ? '(Asignado a esta cuenta)' : ''}</span>
-                          <span class="tabular-nums">${formatMoney(l.amount)}</span>
-                        </div>
-                      `;
-                    }).join("")}
-                  </div>
-                ` : "";
+                  const splitDetailsHtml = isSplit ? `
+                    <div class="mt-2 space-y-1 text-[11px] bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800">
+                      <p class="font-bold text-slate-700 dark:text-slate-300 text-[10px] uppercase tracking-wider">Desglose de Partidas (${tx.splitLines.length}):</p>
+                      ${tx.splitLines.map(l => {
+                        const isThisAcc = l.targetAccountId === account.id;
+                        return `
+                          <div class="flex items-center justify-between text-slate-600 dark:text-slate-300 ${isThisAcc ? 'font-bold text-emerald-600 dark:text-emerald-400' : ''}">
+                            <span>• ${l.description || 'Partida'} ${isThisAcc ? '⭐ (Asignado a esta cuenta)' : ''}</span>
+                            <span class="tabular-nums font-semibold">${formatMoney(l.amount)}</span>
+                          </div>
+                        `;
+                      }).join("")}
+                    </div>
+                  ` : "";
 
-                return `
-                  <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                    <td class="py-2.5 px-3 text-slate-500 whitespace-nowrap">${formatDate(tx.date)}</td>
-                    <td class="py-2.5 px-3">
-                      <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${typeBadgeClass}">
-                        ${isSplit ? 'Split' : (tx.type === 'income' ? 'Ingreso' : tx.type === 'transfer' ? 'Transfer' : 'Gasto')}
-                      </span>
-                    </td>
-                    <td class="py-2.5 px-3 font-semibold text-slate-800 dark:text-slate-200">
-                      <div>${tx.description}</div>
-                      ${relLabel ? `<span class="text-[10px] font-normal text-slate-400">${relLabel}</span>` : ''}
-                      ${splitDetailsHtml}
-                    </td>
-                    <td class="py-2.5 px-3 text-slate-500">${tx.category}</td>
-                    <td class="py-2.5 px-3 text-right font-bold tabular-nums ${isAbono ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'} whitespace-nowrap">
-                      ${isAbono ? '+' : '-'}${formatMoney(displayAmount)}
-                    </td>
-                  </tr>
-                `;
-              }).join("")}
-            </tbody>
-          </table>
+                  return `
+                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                      <td class="py-3 px-4 text-slate-500 whitespace-nowrap">${formatDate(tx.date)}</td>
+                      <td class="py-3 px-4 whitespace-nowrap">
+                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${typeBadgeClass}">
+                          ${isSplit ? 'Split' : (tx.type === 'income' ? 'Ingreso' : tx.type === 'transfer' ? 'Transfer' : 'Gasto')}
+                        </span>
+                      </td>
+                      <td class="py-3 px-4 font-semibold text-slate-800 dark:text-slate-200">
+                        <div>${tx.description}</div>
+                        ${relLabel ? `<span class="text-[10px] font-normal text-slate-400">${relLabel}</span>` : ''}
+                        ${splitDetailsHtml}
+                      </td>
+                      <td class="py-3 px-4 text-slate-500 whitespace-nowrap">${tx.category}</td>
+                      <td class="py-3 px-4 text-right font-bold tabular-nums ${isAbono ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'} whitespace-nowrap text-sm">
+                        ${isAbono ? '+' : '-'}${formatMoney(displayAmount)}
+                      </td>
+                    </tr>
+                  `;
+                }).join("")}
+              </tbody>
+            </table>
+          </div>
         </div>
       `;
     }
 
-    detailContainer.innerHTML = `
-      <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-        <!-- Encabezado del Detalle -->
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
-          <div class="flex items-center gap-3">
-            <div class="w-11 h-11 rounded-xl flex items-center justify-center text-white shadow-sm flex-shrink-0" style="background-color: ${account.color || '#10b981'}">
-              <i data-lucide="${account.icon || 'wallet'}" class="w-6 h-6"></i>
-            </div>
-            <div>
-              <div class="flex items-center gap-2">
-                <h3 class="text-base font-bold text-slate-900 dark:text-white">${account.name}</h3>
-                <span class="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-                  ${account.currency || 'CLP'}
-                </span>
-              </div>
-              <p class="text-xs text-slate-500 dark:text-slate-400">
-                Historial de movimientos asociados y métricas de cuenta
-              </p>
-            </div>
-          </div>
+    container.innerHTML = `
+      <!-- Barra Superior: Botón Volver y Acción Rápida -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <button type="button" id="btn-back-to-accounts" class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors self-start active:scale-95">
+          <i data-lucide="arrow-left" class="w-4 h-4 text-slate-500"></i>
+          <span>Volver a Cuentas & Billeteras</span>
+        </button>
 
-          <div class="flex items-center gap-2 self-end sm:self-auto">
-            <button type="button" id="btn-account-new-tx" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors">
-              <i data-lucide="plus" class="w-3.5 h-3.5"></i>
-              <span>Nuevo Movimiento</span>
-            </button>
-            <button type="button" id="btn-close-account-detail" class="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="Deseleccionar cuenta">
-              <i data-lucide="x" class="w-4 h-4"></i>
-              <span>Cerrar</span>
-            </button>
-          </div>
-        </div>
+        <button type="button" id="btn-account-screen-new-tx" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition-all self-start sm:self-auto active:scale-95">
+          <i data-lucide="plus" class="w-4 h-4"></i>
+          <span>Nuevo Movimiento en esta Cuenta</span>
+        </button>
+      </div>
 
-        <!-- 3 KPIs Rápidos de la Cuenta -->
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div class="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800 space-y-1">
-            <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1">
-              <i data-lucide="arrow-down-left" class="w-3.5 h-3.5 text-emerald-500"></i> Total Abonos / Ingresos
-            </span>
-            <p class="text-base font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">${formatMoney(resumen.totalAbonos)}</p>
+      <!-- Ficha de Cabecera de la Cuenta -->
+      <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="flex items-center gap-4">
+          <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-md flex-shrink-0" style="background-color: ${account.color || '#10b981'}">
+            <i data-lucide="${account.icon || 'wallet'}" class="w-7 h-7"></i>
           </div>
-
-          <div class="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800 space-y-1">
-            <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1">
-              <i data-lucide="arrow-up-right" class="w-3.5 h-3.5 text-rose-500"></i> Total Cargos / Gastos
-            </span>
-            <p class="text-base font-bold text-rose-600 dark:text-rose-400 tabular-nums">${formatMoney(resumen.totalCargos)}</p>
-          </div>
-
-          <div class="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800 space-y-1">
-            <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1">
-              <i data-lucide="wallet" class="w-3.5 h-3.5 text-blue-500"></i> Saldo Actual Contable
-            </span>
-            <p class="text-base font-bold ${balanceColor} tabular-nums">${formatMoney(account.currentBalance)}</p>
-          </div>
-        </div>
-
-        <!-- Lista de Movimientos -->
-        <div class="space-y-2 pt-2">
-          <div class="flex items-center justify-between">
-            <h4 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
-              <span>Movimientos de esta cuenta</span>
-              <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                ${movements.length}
+          <div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <h2 class="text-xl font-bold text-slate-900 dark:text-white">${account.name}</h2>
+              <span class="text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                ${typeLabels[account.type] || account.type}
               </span>
-            </h4>
+              <span class="text-[11px] font-semibold text-slate-400">
+                ${account.currency || 'CLP'}
+              </span>
+            </div>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Pantalla de consulta de balance, abonos, cargos y movimientos asociados
+            </p>
           </div>
-          ${movementsHtml}
+        </div>
+
+        <div class="text-left md:text-right border-t md:border-t-0 pt-3 md:pt-0 border-slate-100 dark:border-slate-800">
+          <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">
+            ${isCredit ? 'Saldo Adeudado Actual' : 'Saldo Disponible Contable'}
+          </span>
+          <p class="text-2xl md:text-3xl font-extrabold tabular-nums ${balanceColor}">
+            ${formatMoney(account.currentBalance)}
+          </p>
         </div>
       </div>
+
+      <!-- Tarjetas KPI Acumuladas -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">Total Abonos / Entradas</span>
+            <div class="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+              <i data-lucide="arrow-down-left" class="w-4 h-4"></i>
+            </div>
+          </div>
+          <p class="text-xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+            +${formatMoney(resumen.totalAbonos)}
+          </p>
+          <p class="text-[10px] text-slate-400">Ingresos directos y transferencias recibidas</p>
+        </div>
+
+        <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">Total Cargos / Salidas</span>
+            <div class="w-7 h-7 rounded-lg bg-rose-50 dark:bg-rose-950/70 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+              <i data-lucide="arrow-up-right" class="w-4 h-4"></i>
+            </div>
+          </div>
+          <p class="text-xl font-bold text-rose-600 dark:text-rose-400 tabular-nums">
+            -${formatMoney(resumen.totalCargos)}
+          </p>
+          <p class="text-[10px] text-slate-400">Gastos pagados y transferencias enviadas</p>
+        </div>
+
+        <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">Historial Registrado</span>
+            <div class="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-950/70 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+              <i data-lucide="file-text" class="w-4 h-4"></i>
+            </div>
+          </div>
+          <p class="text-xl font-bold text-slate-900 dark:text-white tabular-nums">
+            ${resumen.cantidadMovimientos}
+          </p>
+          <p class="text-[10px] text-slate-400">Movimientos totales asociados a esta cuenta</p>
+        </div>
+      </div>
+
+      <!-- Barra de Filtros Interna de la Cuenta -->
+      <div class="bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 text-xs">
+        <div class="relative flex-1">
+          <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+          <input type="text" id="account-detail-search" value="${state.accountDetailFilter?.search || ''}" placeholder="Buscar en movimientos de ${account.name}..." class="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+        </div>
+
+        <div class="flex items-center gap-2">
+          <select id="account-detail-type" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            <option value="all" ${typeVal === 'all' ? 'selected' : ''}>Todos los tipos</option>
+            <option value="expense" ${typeVal === 'expense' ? 'selected' : ''}>Gastos (-)</option>
+            <option value="income" ${typeVal === 'income' ? 'selected' : ''}>Ingresos (+)</option>
+            <option value="transfer" ${typeVal === 'transfer' ? 'selected' : ''}>Transferencias (↔)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Tabla de Movimientos de la Cuenta -->
+      ${tableContent}
     `;
 
-    // Eventos del panel de detalle
-    document.getElementById("btn-close-account-detail")?.addEventListener("click", () => {
-      state.selectedAccountId = null;
-      renderAccounts();
+    // Vincular botón Volver a Cuentas
+    document.getElementById("btn-back-to-accounts")?.addEventListener("click", () => {
+      switchView("accounts");
     });
 
-    document.getElementById("btn-account-new-tx")?.addEventListener("click", () => {
-      openTransactionModal("expense");
-      setTimeout(() => {
-        const sel = document.getElementById("tx-input-account");
-        if (sel) sel.value = account.id;
-      }, 50);
+    // Vincular búsqueda y tipo en la pantalla de la cuenta
+    document.getElementById("account-detail-search")?.addEventListener("input", (e) => {
+      if (!state.accountDetailFilter) state.accountDetailFilter = {};
+      state.accountDetailFilter.search = e.target.value;
+      renderAccountDetailView();
     });
 
-    document.getElementById("btn-account-empty-new-tx")?.addEventListener("click", () => {
-      openTransactionModal("expense");
-      setTimeout(() => {
-        const sel = document.getElementById("tx-input-account");
-        if (sel) sel.value = account.id;
-      }, 50);
+    document.getElementById("account-detail-type")?.addEventListener("change", (e) => {
+      if (!state.accountDetailFilter) state.accountDetailFilter = {};
+      state.accountDetailFilter.type = e.target.value;
+      renderAccountDetailView();
     });
+
+    // Vincular botones para crear nuevo movimiento en esta cuenta
+    const setupNewTxBtn = (btnId) => {
+      document.getElementById(btnId)?.addEventListener("click", () => {
+        openTransactionModal("expense");
+        setTimeout(() => {
+          const sel = document.getElementById("tx-input-account");
+          if (sel) sel.value = account.id;
+        }, 50);
+      });
+    };
+    setupNewTxBtn("btn-account-screen-new-tx");
+    setupNewTxBtn("btn-screen-empty-tx");
 
     safeRenderIcons();
   }
@@ -2076,6 +2165,9 @@
         break;
       case "accounts":
         renderAccounts();
+        break;
+      case "account-detail":
+        renderAccountDetailView();
         break;
       case "transactions":
         renderTransactions();
