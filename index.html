@@ -5,10 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ContaPersonal — Contabilidad y Finanzas Personales</title>
   
-  <!-- PWA Manifest & Theme Color -->
-  <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#10b981">
-  <link rel="apple-touch-icon" href="manifest.json">
 
   <!-- Tipografía Google Fonts: Inter -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -119,7 +116,7 @@
             <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             <span id="db-status-text">Local Storage</span>
           </span>
-          <span class="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-bold">PWA</span>
+          <span class="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-bold">Offline</span>
         </div>
       </div>
 
@@ -158,7 +155,7 @@
         </button>
         <div>
           <h1 id="page-title" class="text-base md:text-lg font-bold text-slate-900 dark:text-white leading-tight">Dashboard Patrimonial</h1>
-          <p id="page-subtitle" class="text-xs text-slate-500 dark:text-slate-400">Resumen de patrimonio neto, ingresos y gastos del mes</p>
+          <p id="page-subtitle" class="text-xs text-slate-500 dark:text-slate-400">Resumen de patrimonio neto, ingresos y gastos del mes en tiempo real</p>
         </div>
       </div>
 
@@ -490,15 +487,26 @@
   <!-- ======================================================== -->
   <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
-  <!-- SCRIPT PRINCIPAL MODULAR -->
-  <script type="module" src="assets/js/app.js"></script>
+  <!-- SCRIPTS EN ORDEN SECUENCIAL UNIVERSAL (COMPATIBLE CON file:/// Y HTTP) -->
+  <script src="assets/js/financeCalculations.js"></script>
+  <script src="assets/js/mockData.js"></script>
+  <script src="assets/js/storage.js"></script>
+  <script src="assets/js/dbAdapter.js"></script>
+  <script src="assets/js/app.js"></script>
 
-  <!-- Registro de Service Worker para PWA -->
+  <!-- REGISTRO DEFENSIVO DE PWA (SOLO BAJO HTTP / HTTPS) -->
   <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').catch(() => {});
-      });
+    if (window.location.protocol.startsWith('http')) {
+      const link = document.createElement('link');
+      link.rel = 'manifest';
+      link.href = 'manifest.json';
+      document.head.appendChild(link);
+
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js').catch(() => {});
+        });
+      }
     }
   </script>
 </body>

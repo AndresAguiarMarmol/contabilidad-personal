@@ -23,28 +23,27 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ### B. Base de Datos Real en la Nube (Supabase PostgreSQL)
 - **Script SQL:** `schema.sql` (tablas: `accounts`, `categories`, `transactions`, `budgets`, `savings_goals`).
-- **Adaptador:** `assets/js/dbAdapter.js` que permite verificar conectividad y sincronizar datos sin bloquear la UI.
+- **Adaptador:** `assets/js/dbAdapter.js` universal compatible con navegador y pruebas.
 
 ---
 
 ## 2. Decisiones vigentes
 
-- **Enfoque Exclusivo:** **Contabilidad y Finanzas Personales/Familiares**. Quedan eliminados todos los conceptos de catálogo comercial, inventario, insumos o pedidos a proveedores.
-- **PWA Instalable:** `manifest.json` y `sw.js` configurados para instalación directa en pantallas de inicio de Android/iOS/iPad.
-- **Stack:** Full-client SPA modular con Vanilla ES6 (`assets/js/`) y Tailwind CSS vía CDN, sin empaquetadores complejos.
-- **Reglas de Integridad Contable Personal:**
-  - `income`: Incrementa el saldo de la cuenta personal asociada.
-  - `expense`: Decrementa el saldo de la cuenta personal asociada.
-  - `transfer`: Decrementa la cuenta origen e incrementa la cuenta destino.
-  - $\text{Patrimonio Neto} = \sum(\text{Activos y Ahorros}) - \sum(\text{Deuda de Tarjetas de Crédito})$.
+- **Arranque Universal sin CORS:** Se migró de ES Modules (`type="module"`) a scripts universales con namespace `window.ContaPersonal` y orden de carga secuencial en `index.html`. Esto permite abrir la app directamente con doble clic (`file:///`) sin congelamientos, además de funcionar en servidores HTTP.
+- **Lógica Pura Desacoplada (`assets/js/financeCalculations.js`):** Cálculos de patrimonio neto, balances y presupuestos aislados para verificación determinista con `node --test`.
+- **Carga Defensiva PWA:** Registro de Service Worker y manifiesto condicionados a `location.protocol.startsWith('http')` para evitar excepciones en entornos locales.
+- **Enfoque Exclusivo:** Contabilidad y Finanzas Personales/Familiares (sin inventario comercial ni pedidos).
 
 ---
 
 ## 3. Historial de cambios
 
-- **2026-11-09:** **Corrección arquitectónica integral a Contabilidad Personal Pura:**
-  - Eliminados por completo los módulos y datos de inventario, stock e insumos.
-  - Reconstruido el Shell Visual con 5 vistas personales: Dashboard Patrimonial, Cuentas & Billeteras, Movimientos, Presupuestos & Metas, y Conexión Supabase/Ajustes.
-  - Sincronizados `SPEC.md`, `PROMPT_ANTIGRAVITY_FASE_1.md`, `AGENTS.md`, `index.html`, `mockData.js`, `storage.js`, `dbAdapter.js` y `app.js`.
-  - Añadido `manifest.json` y `sw.js` para PWA.
+- **2026-11-09 — Spec 001: Corrección de Arranque Universal y Resiliencia (SDD):**
+  - Identificada causa raíz de congelamiento: bloqueo de CORS en Chromium para `<script type="module">` y llamadas al Service Worker bajo protocolo `file:///`.
+  - Creado `docs/constitution.md` con los 6 principios inviolables del proyecto.
+  - Creada especificación formal `specs/001-fix-arranque-app/` (`spec.md` en EARS, `plan.md`, `tasks.md`).
+  - Implementado `assets/js/financeCalculations.js` con suite de pruebas `tests/finance.test.js` (4/4 pruebas pasando en verde).
+  - Universalizados `mockData.js`, `storage.js`, `dbAdapter.js` y `app.js` bajo `window.ContaPersonal`.
+  - Validado en vivo mediante Chrome DevTools (0 errores en consola, renderizado inmediato de \$1.860.000 en patrimonio neto y navegación instantánea).
+- **2026-11-09:** Refactor integral a Contabilidad Personal pura sin inventario.
 - **2026-11-09:** Limpieza inicial del workspace y definición de requerimientos técnicos.
