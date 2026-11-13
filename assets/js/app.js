@@ -847,20 +847,25 @@
           ? "text-rose-600 dark:text-rose-400 font-bold"
           : "text-slate-900 dark:text-white font-bold";
 
+      const isSub = Boolean(acc.isSubaccount || acc.parentCode || (acc.code && acc.code.split('.').length > 3));
+      const canHaveSubaccounts = Boolean(acc.isSystem || !acc.parentCode || (acc.code && acc.code.split('.').length <= 3));
+
       return `
-        <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors border-b border-slate-100 dark:border-slate-800/60 last:border-0">
-          <td class="px-4 py-3 font-mono text-xs font-bold text-slate-700 dark:text-slate-200 w-28">
-            ${escapeHtml(acc.code)}
+        <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors border-b border-slate-100 dark:border-slate-800/60 last:border-0 ${isSub ? 'bg-slate-50/40 dark:bg-slate-900/40' : ''}">
+          <td class="px-4 py-3 font-mono text-xs font-bold text-slate-700 dark:text-slate-200 w-32 ${isSub ? 'pl-8' : ''}">
+            ${isSub ? '<span class="text-indigo-400 font-bold mr-1">↳</span>' : ''}${escapeHtml(acc.code)}
           </td>
-          <td class="px-4 py-3">
+          <td class="px-4 py-3 ${isSub ? 'pl-8' : ''}">
             <div class="flex items-center gap-2.5">
-              <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                <i data-lucide="${acc.icon || 'file-text'}" class="w-3.5 h-3.5"></i>
+              <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${isSub ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}">
+                <i data-lucide="${acc.icon || (isSub ? 'corner-down-right' : 'file-text')}" class="w-3.5 h-3.5"></i>
               </div>
               <div class="min-w-0">
                 <span class="font-semibold text-slate-800 dark:text-slate-100 block truncate">${escapeHtml(acc.name)}</span>
                 <div class="flex items-center gap-1.5 mt-0.5">
-                  ${acc.isSystem ? '<span class="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-500">Base Sistema</span>' : (acc.financialAccountId ? '<span class="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.2 rounded bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400">Billetera / Banco</span>' : '<span class="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.2 rounded bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400">Personalizada</span>')}
+                  ${isSub 
+                    ? `<span class="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400">Subcuenta ${acc.parentCode ? `de ${acc.parentCode}` : ''}</span>`
+                    : (acc.isSystem ? '<span class="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-500">Cuenta Base</span>' : (acc.financialAccountId ? '<span class="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.2 rounded bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400">Billetera / Banco</span>' : '<span class="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.2 rounded bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400">Personalizada</span>'))}
                 </div>
               </div>
             </div>
@@ -876,8 +881,13 @@
           <td class="px-4 py-3 text-right text-xs font-mono tabular-nums ${amountColor} w-36">
             ${displayAmount}
           </td>
-          <td class="px-4 py-3 text-right w-24">
+          <td class="px-4 py-3 text-right w-28">
             <div class="flex items-center justify-end gap-1">
+              ${canHaveSubaccounts ? `
+                <button data-parent-code="${acc.code}" class="btn-add-subaccount p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors" title="Crear Subcuenta para ${acc.code} (${escapeHtml(acc.name)})">
+                  <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                </button>
+              ` : ''}
               <button data-plan-id="${acc.id}" class="btn-edit-plan-account p-1.5 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors" title="Editar Cuenta Contable">
                 <i data-lucide="pencil" class="w-4 h-4"></i>
               </button>
@@ -1073,6 +1083,16 @@
     groupSelect?.addEventListener("change", (e) => {
       state.chartOfAccountsFilter.group = e.target.value;
       renderChartOfAccounts();
+    });
+
+    // Eventos de botones Añadir Subcuenta (Spec 013)
+    container.querySelectorAll(".btn-add-subaccount").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const parentCode = btn.getAttribute("data-parent-code");
+        if (parentCode) {
+          openPlanAccountModal(null, parentCode);
+        }
+      });
     });
 
     // Eventos de botones Editar
@@ -2444,31 +2464,68 @@
   }
 
   // ========================================================
-  // PLANILLA INTERACTIVA: NUEVA / EDITAR CUENTA CONTABLE (SPEC 011)
+  // PLANILLA INTERACTIVA: NUEVA / EDITAR CUENTA CONTABLE (SPEC 011 & 013)
   // ========================================================
-  function openPlanAccountModal(planAccountId = null) {
+  function openPlanAccountModal(planAccountId = null, preselectedParentCode = null) {
     const fullCatalog = Calculations && Calculations.obtenerCatalogoPlanCuentas
       ? Calculations.obtenerCatalogoPlanCuentas(state.planAccounts, state.accounts, state.transactions)
       : [];
 
     const existing = planAccountId ? fullCatalog.find(c => c.id === planAccountId) : null;
+    const initialParentCode = existing ? (existing.parentCode || "") : (preselectedParentCode || "");
+    const parentAccount = initialParentCode ? fullCatalog.find(c => c.code === initialParentCode) : null;
 
     const modal = document.getElementById("app-modal");
     const modalTitle = document.getElementById("modal-title");
     const modalBody = document.getElementById("modal-body");
     if (!modal || !modalTitle || !modalBody) return;
 
-    modalTitle.textContent = existing ? `Editar Cuenta Contable: ${existing.code}` : "Nueva Cuenta Contable Personal";
+    modalTitle.textContent = existing 
+      ? `Editar Cuenta Contable: ${existing.code}` 
+      : (initialParentCode ? `Nueva Subcuenta de ${initialParentCode}` : "Nueva Cuenta Contable Personal");
 
-    const defaultClass = existing ? existing.classNumber : (state.chartOfAccountsFilter.group !== "all" ? Number(state.chartOfAccountsFilter.group) : 1);
+    const defaultClass = existing 
+      ? existing.classNumber 
+      : (parentAccount ? parentAccount.classNumber : (state.chartOfAccountsFilter.group !== "all" ? Number(state.chartOfAccountsFilter.group) : 1));
+
+    const defaultGroup = existing
+      ? existing.groupName
+      : (parentAccount ? parentAccount.groupName : "");
+
+    const defaultNature = existing
+      ? existing.nature
+      : (parentAccount ? parentAccount.nature : ([1, 5].includes(defaultClass) ? "debit" : "credit"));
+
+    const initialCode = existing 
+      ? existing.code 
+      : (initialParentCode && Calculations && Calculations.generarSiguienteCodigoSubcuenta 
+        ? Calculations.generarSiguienteCodigoSubcuenta(initialParentCode, fullCatalog) 
+        : "");
+
+    // Cuentas elegibles como padres (cuentas base o de nivel <= 3)
+    const baseParentAccounts = fullCatalog.filter(c => !c.parentCode && (!c.code || c.code.split('.').length <= 3));
 
     modalBody.innerHTML = `
       <form id="form-plan-account" class="space-y-4">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          <!-- Cuenta Base Padre (Spec 013) -->
+          <div class="sm:col-span-2 space-y-1">
+            <label class="font-semibold text-slate-700 dark:text-slate-300">Cuenta Base Padre (Opcional / Crear como Subcuenta)</label>
+            <select id="plan-input-parent" ${existing && existing.isSystem ? 'disabled' : ''} class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <option value="">— Ninguna (Cuenta Principal / Base Independiente) —</option>
+              ${baseParentAccounts.map(b => `
+                <option value="${b.code}" ${initialParentCode === b.code ? 'selected' : ''}>
+                  ${b.code} · ${b.name} (${b.groupName || 'Clase ' + b.classNumber})
+                </option>
+              `).join("")}
+            </select>
+            <p class="text-[10px] text-slate-400">Al seleccionar una Cuenta Base, la subcuenta hereda su clase, rubro contable y se genera el siguiente código correlativo automáticamente.</p>
+          </div>
+
           <!-- Clase Contable -->
           <div class="sm:col-span-2 space-y-1">
             <label class="font-semibold text-slate-700 dark:text-slate-300">Clase Contable *</label>
-            <select id="plan-input-class" required ${existing && existing.isSystem ? 'disabled' : ''} class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            <select id="plan-input-class" required ${(existing && existing.isSystem) || Boolean(initialParentCode) ? 'disabled' : ''} class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
               <option value="1" ${defaultClass === 1 ? 'selected' : ''}>1. ACTIVOS (Disponible, Inversiones, Bienes)</option>
               <option value="2" ${defaultClass === 2 ? 'selected' : ''}>2. PASIVOS (Tarjetas, Deudas, Compromisos)</option>
               <option value="3" ${defaultClass === 3 ? 'selected' : ''}>3. PATRIMONIO NETO (Capital y Ahorro Acumulado)</option>
@@ -2480,29 +2537,29 @@
           <!-- Código Contable -->
           <div class="space-y-1">
             <label class="font-semibold text-slate-700 dark:text-slate-300">Código Contable *</label>
-            <input type="text" id="plan-input-code" value="${escapeHtml(existing ? existing.code : '')}" placeholder="Ej. 1.3.05 o 5.2.05" required ${existing && existing.isSystem ? 'readonly' : ''} class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-mono font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500">
-            <p class="text-[10px] text-slate-400">Jerarquía contable recomendada (ej. 1.x.xx).</p>
+            <input type="text" id="plan-input-code" value="${escapeHtml(initialCode)}" placeholder="Ej. 1.3.05 o 5.2.01.01" required ${existing && existing.isSystem ? 'readonly' : ''} class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-mono font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            <p id="plan-code-hint" class="text-[10px] text-slate-400">Jerarquía contable sugerida.</p>
           </div>
 
           <!-- Naturaleza Habitual -->
           <div class="space-y-1">
             <label class="font-semibold text-slate-700 dark:text-slate-300">Naturaleza Contable *</label>
             <select id="plan-input-nature" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
-              <option value="debit" ${(existing ? existing.nature === "debit" : [1, 5].includes(defaultClass)) ? 'selected' : ''}>Deudora (Aumenta al Débito / Disminuye al Crédito)</option>
-              <option value="credit" ${(existing ? existing.nature === "credit" : [2, 3, 4].includes(defaultClass)) ? 'selected' : ''}>Acreedora (Aumenta al Crédito / Disminuye al Débito)</option>
+              <option value="debit" ${defaultNature === "debit" ? 'selected' : ''}>Deudora (Aumenta al Débito / Disminuye al Crédito)</option>
+              <option value="credit" ${defaultNature === "credit" ? 'selected' : ''}>Acreedora (Aumenta al Crédito / Disminuye al Débito)</option>
             </select>
           </div>
 
           <!-- Nombre de la Cuenta -->
           <div class="sm:col-span-2 space-y-1">
-            <label class="font-semibold text-slate-700 dark:text-slate-300">Nombre de la Cuenta *</label>
-            <input type="text" id="plan-input-name" value="${escapeHtml(existing ? existing.name : '')}" placeholder="Ej. Computación y Estudio, Bicicletas, Supermercado..." required class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            <label class="font-semibold text-slate-700 dark:text-slate-300">Nombre de la Cuenta / Subcuenta *</label>
+            <input type="text" id="plan-input-name" value="${escapeHtml(existing ? existing.name : '')}" placeholder="Ej. Alquiler Depto, Gasto Común, Panadería, Luz..." required class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
           </div>
 
           <!-- Rubro / Subgrupo -->
           <div class="sm:col-span-2 space-y-1">
             <label class="font-semibold text-slate-700 dark:text-slate-300">Rubro o Subgrupo Contable</label>
-            <input type="text" id="plan-input-group" value="${escapeHtml(existing ? existing.groupName : '')}" placeholder="Ej. 1.3 Bienes y Activos Fijos Personales" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            <input type="text" id="plan-input-group" value="${escapeHtml(defaultGroup)}" placeholder="Ej. 5.1 Vivienda y Hogar" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
             <p class="text-[10px] text-slate-400">Grupo contable superior para organizar el catálogo.</p>
           </div>
         </div>
@@ -2521,13 +2578,49 @@
 
     safeRenderIcons();
 
+    // Eventos reactivos de cambio de Cuenta Base Padre
+    const parentSelect = document.getElementById("plan-input-parent");
+    const classSelect = document.getElementById("plan-input-class");
+    const codeInput = document.getElementById("plan-input-code");
+    const groupInput = document.getElementById("plan-input-group");
+    const natureSelect = document.getElementById("plan-input-nature");
+
+    parentSelect?.addEventListener("change", (e) => {
+      const selectedParentCode = e.target.value;
+      if (selectedParentCode) {
+        const pAcc = fullCatalog.find(c => c.code === selectedParentCode);
+        if (pAcc) {
+          if (classSelect) {
+            classSelect.value = String(pAcc.classNumber);
+            classSelect.disabled = true;
+          }
+          if (groupInput) groupInput.value = pAcc.groupName || "";
+          if (natureSelect) natureSelect.value = pAcc.nature || ([1, 5].includes(pAcc.classNumber) ? "debit" : "credit");
+          if (codeInput && (!existing || existing.parentCode !== selectedParentCode)) {
+            const nextCode = Calculations && Calculations.generarSiguienteCodigoSubcuenta
+              ? Calculations.generarSiguienteCodigoSubcuenta(selectedParentCode, fullCatalog)
+              : `${selectedParentCode}.01`;
+            codeInput.value = nextCode;
+          }
+        }
+      } else {
+        if (classSelect) classSelect.disabled = false;
+      }
+    });
+
     document.getElementById("plan-form-cancel")?.addEventListener("click", () => modal.close());
 
     const form = document.getElementById("form-plan-account");
     form?.addEventListener("submit", (e) => {
       e.preventDefault();
 
-      const classNum = Number(document.getElementById("plan-input-class")?.value || defaultClass);
+      const parentCodeVal = document.getElementById("plan-input-parent")?.value.trim() || null;
+      let classNum = Number(document.getElementById("plan-input-class")?.value || defaultClass);
+      if (parentCodeVal) {
+        const pAcc = fullCatalog.find(c => c.code === parentCodeVal);
+        if (pAcc) classNum = pAcc.classNumber;
+      }
+
       const codeVal = document.getElementById("plan-input-code")?.value.trim();
       const nameVal = document.getElementById("plan-input-name")?.value.trim();
       const groupVal = document.getElementById("plan-input-group")?.value.trim() || `Clase ${classNum}`;
@@ -2538,6 +2631,8 @@
       const accountData = {
         code: codeVal,
         name: nameVal,
+        parentCode: parentCodeVal,
+        isSubaccount: Boolean(parentCodeVal),
         classNumber: classNum,
         classType: classTypeMap[classNum] || "asset",
         groupName: groupVal,
@@ -2558,6 +2653,8 @@
         if (targetIdx >= 0) {
           state.planAccounts[targetIdx].code = codeVal;
           state.planAccounts[targetIdx].name = nameVal;
+          state.planAccounts[targetIdx].parentCode = parentCodeVal;
+          state.planAccounts[targetIdx].isSubaccount = Boolean(parentCodeVal);
           state.planAccounts[targetIdx].groupName = groupVal;
           state.planAccounts[targetIdx].nature = natureVal;
         } else {
@@ -2565,6 +2662,8 @@
             id: existing.id || `PLAN-${Date.now()}`,
             code: codeVal,
             name: nameVal,
+            parentCode: parentCodeVal,
+            isSubaccount: Boolean(parentCodeVal),
             classNumber: classNum,
             classType: classTypeMap[classNum] || "asset",
             groupName: groupVal,
@@ -2579,6 +2678,8 @@
           id: `PLAN-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
           code: codeVal,
           name: nameVal,
+          parentCode: parentCodeVal,
+          isSubaccount: Boolean(parentCodeVal),
           classNumber: classNum,
           classType: classTypeMap[classNum] || "asset",
           groupName: groupVal,
@@ -2586,7 +2687,7 @@
           balance: 0,
           periodMovement: 0,
           isSystem: false,
-          icon: classNum === 1 ? "box" : classNum === 2 ? "credit-card" : classNum === 3 ? "shield" : classNum === 4 ? "plus-circle" : "tag"
+          icon: parentCodeVal ? "corner-down-right" : (classNum === 1 ? "box" : classNum === 2 ? "credit-card" : classNum === 3 ? "shield" : classNum === 4 ? "plus-circle" : "tag")
         });
       }
 
@@ -2596,7 +2697,10 @@
 
       modal.close();
       renderActiveView();
-      showToast(`Cuenta contable "${nameVal}" guardada con éxito.`, "success");
+      const successMsg = parentCodeVal 
+        ? `Subcuenta "${nameVal}" (${codeVal}) creada exitosamente bajo ${parentCodeVal}.`
+        : `Cuenta contable "${nameVal}" guardada con éxito.`;
+      showToast(successMsg, "success");
     });
 
     modal.showModal();

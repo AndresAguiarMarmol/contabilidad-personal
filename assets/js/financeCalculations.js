@@ -1067,6 +1067,9 @@
     // Ordenar jerárquicamente por código contable
     catalogo.sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
 
+    // Ordenar jerárquicamente por código contable
+    catalogo.sort((a, b) => String(a.code || "").localeCompare(String(b.code || ""), undefined, { numeric: true, sensitivity: 'base' }));
+
     return catalogo;
   }
 
@@ -1119,6 +1122,18 @@
       return { valida: false, error: "La clase contable debe ser un número del 1 al 5." };
     }
 
+    // Validación jerárquica de Subcuenta (Spec 013 / RF-4)
+    if (datos.parentCode && typeof datos.parentCode === "string" && datos.parentCode.trim()) {
+      const parentCode = datos.parentCode.trim();
+      const prefix = `${parentCode}.`;
+      if (!code.startsWith(prefix) || code === prefix) {
+        return {
+          valida: false,
+          error: `El código de la subcuenta debe comenzar con el prefijo de la cuenta padre "${parentCode}." (ej. ${parentCode}.01).`
+        };
+      }
+    }
+
     if (Array.isArray(catalogoExistente)) {
       const codeLower = code.toLowerCase();
       const nameLower = name.toLowerCase();
@@ -1135,6 +1150,36 @@
     }
 
     return { valida: true };
+  }
+
+  /**
+   * Genera y sugiere el siguiente código numérico correlativo disponible para una subcuenta
+   * @param {string} parentCode Código de la cuenta base padre (ej. "5.1.01")
+   * @param {Array} catalogoExistente 
+   * @returns {string} Código sugerido (ej. "5.1.01.01")
+   */
+  function generarSiguienteCodigoSubcuenta(parentCode = "", catalogoExistente = []) {
+    if (!parentCode || typeof parentCode !== "string") return "";
+    const pCode = parentCode.trim();
+    const prefix = `${pCode}.`;
+    const catalogo = Array.isArray(catalogoExistente) && catalogoExistente.length > 0
+      ? catalogoExistente
+      : CATALOGO_PLAN_CUENTAS_PERSONAL_BASE;
+
+    let maxCorrelativo = 0;
+    catalogo.forEach(item => {
+      const c = String(item.code || "").trim();
+      if (c.startsWith(prefix) || (item.parentCode && String(item.parentCode).trim() === pCode)) {
+        const suffix = c.slice(prefix.length);
+        const num = parseInt(suffix, 10);
+        if (!isNaN(num) && num > maxCorrelativo) {
+          maxCorrelativo = num;
+        }
+      }
+    });
+
+    const nextNum = maxCorrelativo + 1;
+    return `${prefix}${String(nextNum).padStart(2, "0")}`;
   }
 
   function puedeEliminarCuentaPlan(cuenta) {
@@ -1330,6 +1375,7 @@
     validarCuentaPlan,
     puedeEliminarCuentaPlan,
     obtenerCategoriasDesdePlan,
-    resolverCategoriaPlan
+    resolverCategoriaPlan,
+    generarSiguienteCodigoSubcuenta
   };
 });
