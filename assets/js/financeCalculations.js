@@ -1156,6 +1156,150 @@
     return { puede: true };
   }
 
+  // ========================================================
+  // ENLACE DE CATEGORÍAS CON EL PLAN DE CUENTAS (SPEC 012)
+  // ========================================================
+
+  /**
+   * Obtiene las categorías disponibles a partir del catálogo del Plan de Cuentas Contable
+   * @param {Array} catalogoPlan 
+   * @param {string} tipo "expense" | "income" | "split" | "all"
+   * @returns {Array<{ id, code, name, label, classNumber, classType, groupName, icon }>}
+   */
+  function obtenerCategoriasDesdePlan(catalogoPlan = [], tipo = "all") {
+    const catalogo = (Array.isArray(catalogoPlan) && catalogoPlan.length > 0)
+      ? catalogoPlan
+      : CATALOGO_PLAN_CUENTAS_PERSONAL_BASE;
+
+    const tipoNorm = String(tipo || "all").toLowerCase().trim();
+
+    const filtradas = catalogo.filter((cuenta) => {
+      const clsNum = Number(cuenta.classNumber) || 0;
+      const code = String(cuenta.code || "");
+
+      if (tipoNorm === "expense") {
+        return clsNum === 5 || cuenta.classType === "expense";
+      }
+
+      if (tipoNorm === "income") {
+        return clsNum === 4 || cuenta.classType === "income";
+      }
+
+      if (tipoNorm === "split") {
+        // En un split se pueden asignar líneas a Gastos (Clase 5)
+        // o a Bienes / Activos fijos personales adquiridos (Clase 1.3: Mobiliario, Tecnología, Inmuebles, Vehículos)
+        if (clsNum === 5 || cuenta.classType === "expense") return true;
+        if (clsNum === 1 && code.startsWith("1.3")) return true;
+        return false;
+      }
+
+      // "all" o cualquier otro: incluir todas las cuentas de resultados (4 y 5) y activos amortizables/bienes (1.3)
+      return clsNum === 5 || clsNum === 4 || (clsNum === 1 && code.startsWith("1.3"));
+    });
+
+    // Ordenar por código contable
+    const ordenadas = [...filtradas].sort((a, b) => String(a.code || "").localeCompare(String(b.code || "")));
+
+    return ordenadas.map((c) => ({
+      id: c.id,
+      code: c.code,
+      name: c.name,
+      label: `${c.code} · ${c.name}`,
+      classNumber: c.classNumber,
+      classType: c.classType,
+      groupName: c.groupName,
+      icon: c.icon || "tag"
+    }));
+  }
+
+  /**
+   * Resuelve y valida una categoría contra el catálogo del Plan de Cuentas Contable
+   * @param {string} valor Código (ej: "5.1.01"), nombre (ej: "Alimentación") o label combinado
+   * @param {Array} catalogoPlan 
+   * @returns {Object|null} { code, name, label, classNumber, classType }
+   */
+  function resolverCategoriaPlan(valor = "", catalogoPlan = []) {
+    if (!valor || typeof valor !== "string" || !valor.trim()) {
+      return null;
+    }
+
+    const catalogo = (Array.isArray(catalogoPlan) && catalogoPlan.length > 0)
+      ? catalogoPlan
+      : CATALOGO_PLAN_CUENTAS_PERSONAL_BASE;
+
+    const texto = valor.trim().toLowerCase();
+
+    // 1. Coincidencia exacta por código
+    const porCodigo = catalogo.find(c => String(c.code || "").trim().toLowerCase() === texto);
+    if (porCodigo) {
+      return {
+        code: porCodigo.code,
+        name: porCodigo.name,
+        label: `${porCodigo.code} · ${porCodigo.name}`,
+        classNumber: porCodigo.classNumber,
+        classType: porCodigo.classType
+      };
+    }
+
+    // Normalizador de texto para comparar nombres flexibles
+    const normalizar = (str) =>
+      String(str || "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/&/g, "y")
+        .replace(/[^a-z0-9]/g, "");
+
+    const normBuscado = normalizar(texto);
+
+    // 2. Coincidencia por nombre normalizado
+    const porNombre = catalogo.find(c => {
+      const normItem = normalizar(c.name);
+      return normItem === normBuscado;
+    });
+    if (porNombre) {
+      return {
+        code: porNombre.code,
+        name: porNombre.name,
+        label: `${porNombre.code} · ${porNombre.name}`,
+        classNumber: porNombre.classNumber,
+        classType: porNombre.classType
+      };
+    }
+
+    // 3. Coincidencia si el texto contiene el código contable (ej: "5.1.01 · Vivienda")
+    const porContenidoCodigo = catalogo.find(c => {
+      const code = String(c.code || "").trim().toLowerCase();
+      return code && texto.includes(code);
+    });
+    if (porContenidoCodigo) {
+      return {
+        code: porContenidoCodigo.code,
+        name: porContenidoCodigo.name,
+        label: `${porContenidoCodigo.code} · ${porContenidoCodigo.name}`,
+        classNumber: porContenidoCodigo.classNumber,
+        classType: porContenidoCodigo.classType
+      };
+    }
+
+    // 4. Coincidencia parcial si el nombre de la cuenta contiene el texto buscado
+    const porParcial = catalogo.find(c => {
+      const normItem = normalizar(c.name);
+      return normItem.includes(normBuscado) || normBuscado.includes(normItem);
+    });
+    if (porParcial) {
+      return {
+        code: porParcial.code,
+        name: porParcial.name,
+        label: `${porParcial.code} · ${porParcial.name}`,
+        classNumber: porParcial.classNumber,
+        classType: porParcial.classType
+      };
+    }
+
+    return null;
+  }
+
   return {
     calcularPatrimonioNeto,
     calcularBalanceMes,
@@ -1184,6 +1328,8 @@
     obtenerCatalogoPlanCuentas,
     calcularResumenPlanCuentas,
     validarCuentaPlan,
-    puedeEliminarCuentaPlan
+    puedeEliminarCuentaPlan,
+    obtenerCategoriasDesdePlan,
+    resolverCategoriaPlan
   };
 });

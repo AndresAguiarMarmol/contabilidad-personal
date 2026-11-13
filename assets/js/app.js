@@ -1140,24 +1140,41 @@
       accountFilterEl.innerHTML = opts.join("");
     }
 
-    // Actualizar selector de categorías en filtros
+    // Actualizar selector de categorías en filtros (Spec 012)
     const categoryFilterEl = document.getElementById("tx-category-filter");
     if (categoryFilterEl) {
       const currentVal = state.filters.txCategory || "all";
-      const categorySet = new Set([...EXPENSE_CATEGORIES, ...INCOME_CATEGORIES]);
+      const catalog = getPlanCatalog();
+      const planCats = Calculations && Calculations.obtenerCategoriasDesdePlan
+        ? Calculations.obtenerCategoriasDesdePlan(catalog, "all")
+        : [];
+      
+      const categoryMap = new Map(); // name -> code
+      planCats.forEach(c => categoryMap.set(c.name, c.code));
+
       (state.transactions || []).forEach(tx => {
-        if (tx.category) categorySet.add(tx.category);
+        if (tx.category && !categoryMap.has(tx.category)) {
+          categoryMap.set(tx.category, tx.categoryCode || "");
+        }
         if (Array.isArray(tx.splitLines)) {
           tx.splitLines.forEach(l => {
-            if (l.category) categorySet.add(l.category);
+            if (l.category && !categoryMap.has(l.category)) {
+              categoryMap.set(l.category, l.categoryCode || "");
+            }
           });
         }
       });
-      const sortedCategories = Array.from(categorySet).sort();
+
       const opts = ['<option value="all">Todas las categorías</option>'];
-      sortedCategories.forEach(cat => {
-        opts.push(`<option value="${cat}" ${currentVal === cat ? 'selected' : ''}>${cat}</option>`);
-      });
+      Array.from(categoryMap.entries())
+        .sort((a, b) => {
+          if (a[1] && b[1]) return a[1].localeCompare(b[1]);
+          return a[0].localeCompare(b[0]);
+        })
+        .forEach(([catName, catCode]) => {
+          const label = catCode ? `${catCode} · ${catName}` : catName;
+          opts.push(`<option value="${catName}" ${currentVal === catName ? 'selected' : ''}>${label}</option>`);
+        });
       categoryFilterEl.innerHTML = opts.join("");
     }
 
@@ -1169,6 +1186,8 @@
       tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-slate-400">No hay movimientos que coincidan con los filtros aplicados.</td></tr>`;
       return;
     }
+
+    const catalog = getPlanCatalog();
 
     tbody.innerHTML = filtered.map((tx) => {
       const isIncome = tx.type === "income";
@@ -1184,12 +1203,25 @@
       const account = state.accounts.find(a => a.id === tx.accountId);
       const accountName = account ? account.name : "Cuenta";
 
+      // Resolver código contable para mostrar badge elegante
+      let displayCode = tx.categoryCode;
+      if (!displayCode && !isSplit && !isTransfer && tx.category && Calculations && Calculations.resolverCategoriaPlan) {
+        const resolved = Calculations.resolverCategoriaPlan(tx.category, catalog);
+        if (resolved) displayCode = resolved.code;
+      }
+
       const splitDetailsHtml = isSplit ? `
         <div class="mt-2 space-y-1 text-[11px] bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800">
           <p class="font-bold text-slate-700 dark:text-slate-300 text-[10px] uppercase tracking-wider mb-1">Desglose de Partidas (${tx.splitLines.length}):</p>
           ${tx.splitLines.map(l => {
             const destAcc = l.targetAccountId ? state.accounts.find(a => a.id === l.targetAccountId) : null;
-            const destLabel = destAcc ? `→ Cuenta: ${destAcc.name}` : `(${l.category})`;
+            let lineCatCode = l.categoryCode;
+            if (!lineCatCode && l.category && !destAcc && Calculations && Calculations.resolverCategoriaPlan) {
+              const res = Calculations.resolverCategoriaPlan(l.category, catalog);
+              if (res) lineCatCode = res.code;
+            }
+            const catBadge = lineCatCode ? `[${lineCatCode}] ${l.category}` : l.category;
+            const destLabel = destAcc ? `→ Cuenta: ${destAcc.name}` : `(${catBadge})`;
             return `
               <div class="flex items-center justify-between text-slate-600 dark:text-slate-300">
                 <span>• <strong class="text-slate-700 dark:text-slate-200">${l.description || 'Partida'}</strong> <span class="text-slate-400 font-normal">${destLabel}</span></span>
@@ -1199,6 +1231,20 @@
           }).join("")}
         </div>
       ` : '';
+
+      const categoryCellHtml = isTransfer ? `
+        <span class="text-slate-400 dark:text-slate-500 italic text-xs">Transferencia</span>
+      ` : isSplit ? `
+        <div class="flex flex-col">
+          <span class="font-medium text-slate-700 dark:text-slate-200">${tx.category}</span>
+          <span class="text-[10px] text-indigo-500 font-mono font-semibold">Desglose múltiple</span>
+        </div>
+      ` : `
+        <div class="flex flex-col">
+          <span class="font-medium text-slate-700 dark:text-slate-200">${tx.category}</span>
+          ${displayCode ? `<span class="text-[10px] text-slate-400 font-mono font-semibold">${displayCode}</span>` : ''}
+        </div>
+      `;
 
       return `
         <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
@@ -1212,7 +1258,7 @@
             <div>${tx.description}</div>
             ${splitDetailsHtml}
           </td>
-          <td class="py-3 px-4 text-slate-500">${tx.category}</td>
+          <td class="py-3 px-4">${categoryCellHtml}</td>
           <td class="py-3 px-4 text-slate-500">${accountName}</td>
           <td class="py-3 px-4 text-right font-bold tabular-nums ${isIncome ? 'text-emerald-600 dark:text-emerald-400' : isTransfer ? 'text-blue-600 dark:text-blue-400' : 'text-rose-600 dark:text-rose-400'}">
             ${isIncome ? '+' : isTransfer ? '↔' : '-'}${formatMoney(tx.amount)}
@@ -1469,7 +1515,7 @@
   }
 
   // ========================================================
-  // PLANILLA INTERACTIVA: NUEVO MOVIMIENTO (SPEC 002)
+  // PLANILLA INTERACTIVA: NUEVO MOVIMIENTO (SPEC 002 & 012)
   // ========================================================
   const EXPENSE_CATEGORIES = [
     "Alimentación & Supermercado",
@@ -1488,6 +1534,21 @@
     "Rendimientos & Inversiones",
     "Otros Ingresos / Reembolsos"
   ];
+
+  function getPlanCatalog() {
+    if (Calculations && Calculations.obtenerCatalogoPlanCuentas) {
+      return Calculations.obtenerCatalogoPlanCuentas(state.planAccounts, state.accounts, state.transactions);
+    }
+    return Calculations?.CATALOGO_PLAN_CUENTAS_PERSONAL_BASE || [];
+  }
+
+  function getCategoriesForType(tipo = "all") {
+    if (Calculations && Calculations.obtenerCategoriasDesdePlan) {
+      return Calculations.obtenerCategoriasDesdePlan(getPlanCatalog(), tipo);
+    }
+    if (tipo === "income") return INCOME_CATEGORIES.map(c => ({ code: "", name: c, label: c, classNumber: 4 }));
+    return EXPENSE_CATEGORIES.map(c => ({ code: "", name: c, label: c, classNumber: 5 }));
+  }
 
   function openTransactionModal(initialType = "expense") {
     const modal = document.getElementById("app-modal");
@@ -1668,7 +1729,8 @@
         if (colMethod) colMethod.classList.remove("hidden");
         if (!isSplitActive && colCat) colCat.classList.remove("hidden");
         if (selCategory) {
-          selCategory.innerHTML = EXPENSE_CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join("");
+          const expenseCats = getCategoriesForType("expense");
+          selCategory.innerHTML = expenseCats.map(c => `<option value="${c.code || c.name}">${c.label || c.name}</option>`).join("");
         }
       } else if (type === "income") {
         if (lblSource) lblSource.textContent = "Cuenta Receptora *";
@@ -1677,7 +1739,8 @@
         if (colMethod) colMethod.classList.remove("hidden");
         if (!isSplitActive && colCat) colCat.classList.remove("hidden");
         if (selCategory) {
-          selCategory.innerHTML = INCOME_CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join("");
+          const incomeCats = getCategoriesForType("income");
+          selCategory.innerHTML = incomeCats.map(c => `<option value="${c.code || c.name}">${c.label || c.name}</option>`).join("");
         }
       } else if (type === "transfer") {
         if (lblSource) lblSource.textContent = "Cuenta de Origen *";
@@ -1697,7 +1760,7 @@
       selToAccount.innerHTML = destAccounts.map(a => `<option value="${a.id}">${a.name} (${formatMoney(a.currentBalance)})</option>`).join("");
     }
 
-    // Generador de opciones para el selector de destino en cada línea Split
+    // Generador de opciones para el selector de destino en cada línea Split (Spec 004 & 012)
     function getSplitTargetOptionsHtml(selectedTarget, currentOriginId) {
       const destAccounts = state.accounts.filter(a => a.id !== currentOriginId);
       const accOptions = destAccounts.map(a => {
@@ -1706,18 +1769,29 @@
         return `<option value="${val}" ${sel}>🏦 Cuenta: ${a.name} (${formatMoney(a.currentBalance)})</option>`;
       }).join("");
 
-      const catOptions = EXPENSE_CATEGORIES.map(c => {
-        const val = `cat:${c}`;
-        const sel = val === selectedTarget ? "selected" : "";
-        return `<option value="${val}" ${sel}>📁 ${c}</option>`;
+      const splitItems = getCategoriesForType("split");
+      const assetItems = splitItems.filter(c => c.classNumber === 1 || String(c.code).startsWith("1.3"));
+      const expenseItems = splitItems.filter(c => c.classNumber === 5 || !String(c.code).startsWith("1.3"));
+
+      const assetOptions = assetItems.map(c => {
+        const val = `plan:${c.code}`;
+        const sel = (val === selectedTarget || c.code === selectedTarget || c.name === selectedTarget) ? "selected" : "";
+        return `<option value="${val}" ${sel}>📦 Bien/Activo: ${c.label}</option>`;
+      }).join("");
+
+      const expenseOptions = expenseItems.map(c => {
+        const val = `plan:${c.code}`;
+        const sel = (val === selectedTarget || c.code === selectedTarget || c.name === selectedTarget || `cat:${c.name}` === selectedTarget) ? "selected" : "";
+        return `<option value="${val}" ${sel}>📁 Gasto: ${c.label}</option>`;
       }).join("");
 
       return `
-        <optgroup label="Cuentas Receptores / Activos">
+        <optgroup label="Cuentas Receptores / Tesorería">
           ${accOptions}
         </optgroup>
-        <optgroup label="Categorías de Gasto">
-          ${catOptions}
+        ${assetOptions ? `<optgroup label="Bienes & Activos Fijos del Hogar (Clase 1.3)">${assetOptions}</optgroup>` : ''}
+        <optgroup label="Cuentas de Gastos (Clase 5)">
+          ${expenseOptions}
         </optgroup>
       `;
     }
@@ -1829,10 +1903,12 @@
         colCat?.classList.add("hidden");
         // Establecer opciones iniciales por defecto si están vacías
         const defaultOrigin = selAccount ? selAccount.value : "";
+        const defaultSplitCats = getCategoriesForType("split");
+        const defaultTargetCat = defaultSplitCats[0] ? `plan:${defaultSplitCats[0].code}` : `cat:${EXPENSE_CATEGORIES[0]}`;
         splitLines.forEach((l) => {
           if (!l.target) {
             const firstDest = state.accounts.find(a => a.id !== defaultOrigin);
-            l.target = firstDest ? `acc:${firstDest.id}` : `cat:${EXPENSE_CATEGORIES[0]}`;
+            l.target = firstDest ? `acc:${firstDest.id}` : defaultTargetCat;
           }
         });
         renderSplitLines();
@@ -1846,11 +1922,13 @@
     document.getElementById("btn-add-split-line")?.addEventListener("click", () => {
       const originId = selAccount ? selAccount.value : "";
       const defaultDest = state.accounts.find(a => a.id !== originId);
+      const defaultSplitCats = getCategoriesForType("split");
+      const defaultTargetCat = defaultSplitCats[0] ? `plan:${defaultSplitCats[0].code}` : `cat:${EXPENSE_CATEGORIES[0]}`;
       splitLines.push({
         id: `spl-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         description: "",
         amount: "",
-        target: defaultDest ? `acc:${defaultDest.id}` : `cat:${EXPENSE_CATEGORIES[0]}`
+        target: defaultDest ? `acc:${defaultDest.id}` : defaultTargetCat
       });
       renderSplitLines();
     });
@@ -1883,8 +1961,10 @@
       const descVal = document.getElementById("tx-input-desc")?.value.trim();
       const accountVal = document.getElementById("tx-input-account")?.value;
       const toAccountVal = selectedType === "transfer" ? document.getElementById("tx-input-to-account")?.value : undefined;
-      const categoryVal = selectedType === "transfer" ? "Ahorro / Transferencia" : (document.getElementById("tx-input-category")?.value || "Otros");
+      const rawCategoryVal = selectedType === "transfer" ? "Ahorro / Transferencia" : (document.getElementById("tx-input-category")?.value || "Otros");
       const methodVal = document.getElementById("tx-input-method")?.value || "credit";
+
+      const catalog = getPlanCatalog();
 
       if (isSplitActive) {
         // Parsear líneas split desde el array reactivo
@@ -1899,12 +1979,31 @@
 
           let targetAccountId = null;
           let cat = "Varios";
+          let catCode = null;
+
           if (targetVal.startsWith("acc:")) {
             targetAccountId = targetVal.replace("acc:", "");
             const targetAcc = state.accounts.find(a => a.id === targetAccountId);
             cat = targetAcc ? targetAcc.name : "Activos";
+          } else if (targetVal.startsWith("plan:")) {
+            const planCode = targetVal.replace("plan:", "");
+            const resolvedPlan = Calculations ? Calculations.resolverCategoriaPlan(planCode, catalog) : null;
+            if (resolvedPlan) {
+              cat = resolvedPlan.name;
+              catCode = resolvedPlan.code;
+            } else {
+              cat = planCode;
+              catCode = planCode;
+            }
           } else if (targetVal.startsWith("cat:")) {
-            cat = targetVal.replace("cat:", "");
+            const rawCat = targetVal.replace("cat:", "");
+            const resolvedPlan = Calculations ? Calculations.resolverCategoriaPlan(rawCat, catalog) : null;
+            if (resolvedPlan) {
+              cat = resolvedPlan.name;
+              catCode = resolvedPlan.code;
+            } else {
+              cat = rawCat;
+            }
           }
 
           return {
@@ -1912,6 +2011,7 @@
             description: desc || `Partida #${idx + 1}`,
             amount: amt,
             category: cat,
+            categoryCode: catCode,
             targetAccountId: targetAccountId
           };
         });
@@ -1924,6 +2024,7 @@
           description: descVal,
           accountId: accountVal,
           category: "Varios (Split)",
+          categoryCode: null,
           paymentMethod: methodVal,
           isSplit: true,
           splitLines: parsedSplitLines
@@ -1944,7 +2045,7 @@
         // Si alguna línea es gasto puro de consumo, actualizar presupuesto de categoría
         parsedSplitLines.forEach(l => {
           if (!l.targetAccountId && l.category) {
-            const matchingBudget = state.budgets.find(b => b.category === l.category);
+            const matchingBudget = state.budgets.find(b => b.category === l.category || (l.categoryCode && b.categoryCode === l.categoryCode));
             if (matchingBudget) {
               matchingBudget.spentAmount = (Number(matchingBudget.spentAmount) || 0) + l.amount;
             }
@@ -1966,6 +2067,17 @@
       }
 
       // Transacción estándar (no split)
+      let resolvedCategoryName = rawCategoryVal;
+      let resolvedCategoryCode = null;
+
+      if (selectedType !== "transfer") {
+        const resolvedPlan = Calculations ? Calculations.resolverCategoriaPlan(rawCategoryVal, catalog) : null;
+        if (resolvedPlan) {
+          resolvedCategoryName = resolvedPlan.name;
+          resolvedCategoryCode = resolvedPlan.code;
+        }
+      }
+
       const tx = {
         id: `TX-${Date.now()}`,
         date: dateVal ? new Date(dateVal).toISOString() : new Date().toISOString(),
@@ -1974,7 +2086,8 @@
         description: descVal,
         accountId: accountVal,
         toAccountId: toAccountVal,
-        category: categoryVal,
+        category: resolvedCategoryName,
+        categoryCode: resolvedCategoryCode,
         paymentMethod: methodVal
       };
 
@@ -2502,7 +2615,8 @@
     const existing = budgetIdToEdit ? state.budgets.find(b => b.id === budgetIdToEdit) : null;
     const currentMonth = new Date().toISOString().slice(0, 7); // "YYYY-MM"
     const selectedMonth = existing ? existing.month : currentMonth;
-    const initialCategory = existing ? existing.category : EXPENSE_CATEGORIES[0];
+    const expenseCats = getCategoriesForType("expense");
+    const initialCategory = existing ? existing.category : (expenseCats[0]?.name || EXPENSE_CATEGORIES[0]);
 
     modalTitle.textContent = existing ? "Editar Presupuesto Mensual" : "Nuevo Presupuesto Mensual";
 
@@ -2511,10 +2625,10 @@
         <div class="space-y-3 text-xs">
           <!-- Categoría -->
           <div class="space-y-1">
-            <label class="font-semibold text-slate-700 dark:text-slate-300">Categoría de Gasto *</label>
+            <label class="font-semibold text-slate-700 dark:text-slate-300">Cuenta de Gasto / Categoría (Clase 5) *</label>
             <select id="budget-input-category" required class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
-              ${EXPENSE_CATEGORIES.map(c => `
-                <option value="${c}" ${(existing ? existing.category === c : c === initialCategory) ? 'selected' : ''}>${c}</option>
+              ${expenseCats.map(c => `
+                <option value="${c.name}" data-code="${c.code}" ${(existing ? (existing.category === c.name || existing.categoryCode === c.code) : c.name === initialCategory) ? 'selected' : ''}>${c.label}</option>
               `).join("")}
             </select>
           </div>
@@ -2579,10 +2693,12 @@
       e.preventDefault();
 
       const category = selCat?.value;
+      const selectedOption = selCat?.options ? selCat.options[selCat.selectedIndex] : null;
+      const categoryCode = selectedOption ? selectedOption.getAttribute("data-code") : null;
       const limitAmount = Number(document.getElementById("budget-input-limit")?.value);
       const month = inputMonth?.value || currentMonth;
 
-      const budgetData = { category, limitAmount, month };
+      const budgetData = { category, categoryCode, limitAmount, month };
 
       const validacion = Calculations ? Calculations.validarPresupuesto(budgetData) : { valida: true };
       if (!validacion.valida) {
@@ -2595,6 +2711,7 @@
       if (existing) {
         // Edición de presupuesto existente
         existing.category = category;
+        existing.categoryCode = categoryCode;
         existing.limitAmount = limitAmount;
         existing.month = month;
         existing.spentAmount = spentAmount;
@@ -2604,12 +2721,14 @@
         const alreadyExists = state.budgets.find(b => b.category === category && b.month === month);
         if (alreadyExists) {
           alreadyExists.limitAmount = limitAmount;
+          alreadyExists.categoryCode = categoryCode;
           alreadyExists.spentAmount = spentAmount;
           showToast(`Presupuesto de "${category}" actualizado al nuevo límite.`, "success");
         } else {
           const newBudget = {
             id: `BUD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
             category,
+            categoryCode,
             limitAmount,
             spentAmount,
             month
