@@ -20,6 +20,7 @@
     TRANSACTIONS: "finance_transactions_data",
     BUDGETS: "finance_budgets_data",
     GOALS: "finance_goals_data",
+    PLAN_ACCOUNTS: "finance_plan_accounts_data",
     THEME: "finance_theme",
     DB_CONFIG: "finance_remote_db_config"
   };
@@ -140,6 +141,27 @@
       }
     },
 
+    // --- CUENTAS PLAN DE CUENTAS PERSONAL ---
+    getPlanAccounts() {
+      const ls = getLocalStorage();
+      try {
+        const raw = ls ? ls.getItem(STORAGE_KEYS.PLAN_ACCOUNTS) : null;
+        return raw ? JSON.parse(raw) : [];
+      } catch (e) {
+        console.warn("Error leyendo cuentas del plan contable:", e);
+        return [];
+      }
+    },
+
+    savePlanAccounts(planAccounts) {
+      const ls = getLocalStorage();
+      if (ls) {
+        try {
+          ls.setItem(STORAGE_KEYS.PLAN_ACCOUNTS, JSON.stringify(planAccounts));
+        } catch (e) {}
+      }
+    },
+
     // --- CONFIGURACIÓN BASE DE DATOS (SUPABASE) ---
     getDbConfig() {
       const ls = getLocalStorage();
@@ -199,7 +221,8 @@
         accounts: this.getAccounts(),
         transactions: this.getTransactions(),
         budgets: this.getBudgets(),
-        goals: this.getGoals()
+        goals: this.getGoals(),
+        planAccounts: this.getPlanAccounts()
       };
       if (typeof window !== "undefined") {
         const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
@@ -221,6 +244,7 @@
           this.saveTransactions(data.transactions);
           if (Array.isArray(data.budgets)) this.saveBudgets(data.budgets);
           if (Array.isArray(data.goals)) this.saveGoals(data.goals);
+          if (Array.isArray(data.planAccounts)) this.savePlanAccounts(data.planAccounts);
           return true;
         }
         return false;

@@ -910,6 +910,252 @@
     };
   }
 
+  // ========================================================
+  // PLAN DE CUENTAS ORIENTADO A CONTABILIDAD PERSONAL (SPEC 011)
+  // ========================================================
+  const CATALOGO_PLAN_CUENTAS_PERSONAL_BASE = [
+    // CLASE 1: ACTIVOS
+    { id: "P-1-1-01", code: "1.1.01", name: "Efectivo y Caja", classNumber: 1, classType: "asset", groupName: "1.1 Activo Circulante / Disponible", nature: "debit", isSystem: true, icon: "banknote" },
+    { id: "P-1-1-02", code: "1.1.02", name: "Cuentas Bancarias Corrientes y Vista", classNumber: 1, classType: "asset", groupName: "1.1 Activo Circulante / Disponible", nature: "debit", isSystem: true, icon: "landmark" },
+    { id: "P-1-1-03", code: "1.1.03", name: "Billeteras Digitales (Apps)", classNumber: 1, classType: "asset", groupName: "1.1 Activo Circulante / Disponible", nature: "debit", isSystem: true, icon: "wallet" },
+    { id: "P-1-2-01", code: "1.2.01", name: "Fondos de Ahorro y Depósitos a Plazo", classNumber: 1, classType: "asset", groupName: "1.2 Inversiones y Ahorro Líquido", nature: "debit", isSystem: true, icon: "trending-up" },
+    { id: "P-1-2-02", code: "1.2.02", name: "Inversiones Financieras y Fondos Mutuos", classNumber: 1, classType: "asset", groupName: "1.2 Inversiones y Ahorro Líquido", nature: "debit", isSystem: true, icon: "line-chart" },
+    { id: "P-1-3-01", code: "1.3.01", name: "Inmuebles y Vivienda Propia", classNumber: 1, classType: "asset", groupName: "1.3 Bienes y Activos Fijos Personales", nature: "debit", isSystem: true, icon: "home" },
+    { id: "P-1-3-02", code: "1.3.02", name: "Vehículos y Movilidad Personal", classNumber: 1, classType: "asset", groupName: "1.3 Bienes y Activos Fijos Personales", nature: "debit", isSystem: true, icon: "car" },
+    { id: "P-1-3-03", code: "1.3.03", name: "Tecnología, Computación y Equipamiento", classNumber: 1, classType: "asset", groupName: "1.3 Bienes y Activos Fijos Personales", nature: "debit", isSystem: true, icon: "laptop" },
+    { id: "P-1-3-04", code: "1.3.04", name: "Mobiliario y Enseres del Hogar", classNumber: 1, classType: "asset", groupName: "1.3 Bienes y Activos Fijos Personales", nature: "debit", isSystem: true, icon: "armchair" },
+
+    // CLASE 2: PASIVOS
+    { id: "P-2-1-01", code: "2.1.01", name: "Tarjetas de Crédito", classNumber: 2, classType: "liability", groupName: "2.1 Pasivo Circulante / Corto Plazo", nature: "credit", isSystem: true, icon: "credit-card" },
+    { id: "P-2-1-02", code: "2.1.02", name: "Líneas de Sobregiro y Créditos Rotativos", classNumber: 2, classType: "liability", groupName: "2.1 Pasivo Circulante / Corto Plazo", nature: "credit", isSystem: true, icon: "alert-circle" },
+    { id: "P-2-1-03", code: "2.1.03", name: "Préstamos Familiares y de Terceros", classNumber: 2, classType: "liability", groupName: "2.1 Pasivo Circulante / Corto Plazo", nature: "credit", isSystem: true, icon: "users" },
+    { id: "P-2-2-01", code: "2.2.01", name: "Créditos Hipotecarios", classNumber: 2, classType: "liability", groupName: "2.2 Pasivo a Largo Plazo", nature: "credit", isSystem: true, icon: "building" },
+    { id: "P-2-2-02", code: "2.2.02", name: "Créditos Automotrices y de Consumo", classNumber: 2, classType: "liability", groupName: "2.2 Pasivo a Largo Plazo", nature: "credit", isSystem: true, icon: "file-text" },
+
+    // CLASE 3: PATRIMONIO NETO
+    { id: "P-3-1-01", code: "3.1.01", name: "Patrimonio Neto Inicial", classNumber: 3, classType: "equity", groupName: "3.1 Capital y Fondos Propios", nature: "credit", isSystem: true, icon: "shield" },
+    { id: "P-3-2-01", code: "3.2.01", name: "Ahorros y Excedentes Acumulados", classNumber: 3, classType: "equity", groupName: "3.2 Resultados y Ahorro Histórico", nature: "credit", isSystem: true, icon: "piggy-bank" },
+    { id: "P-3-2-02", code: "3.2.02", name: "Resultado Operativo del Ejercicio", classNumber: 3, classType: "equity", groupName: "3.2 Resultados y Ahorro Histórico", nature: "credit", isSystem: true, icon: "award" },
+
+    // CLASE 4: INGRESOS
+    { id: "P-4-1-01", code: "4.1.01", name: "Sueldo y Salario", classNumber: 4, classType: "income", groupName: "4.1 Ingresos Laborales y Profesionales", nature: "credit", isSystem: true, icon: "briefcase" },
+    { id: "P-4-1-02", code: "4.1.02", name: "Honorarios y Trabajos Freelance", classNumber: 4, classType: "income", groupName: "4.1 Ingresos Laborales y Profesionales", nature: "credit", isSystem: true, icon: "cpu" },
+    { id: "P-4-1-03", code: "4.1.03", name: "Bonos, Gratificaciones y Comisiones", classNumber: 4, classType: "income", groupName: "4.1 Ingresos Laborales y Profesionales", nature: "credit", isSystem: true, icon: "sparkles" },
+    { id: "P-4-2-01", code: "4.2.01", name: "Rendimientos e Inversiones Financieras", classNumber: 4, classType: "income", groupName: "4.2 Rendimientos de Capital", nature: "credit", isSystem: true, icon: "trending-up" },
+    { id: "P-4-2-02", code: "4.2.02", name: "Rentas y Alquileres Cobrados", classNumber: 4, classType: "income", groupName: "4.2 Rendimientos de Capital", nature: "credit", isSystem: true, icon: "key" },
+    { id: "P-4-3-01", code: "4.3.01", name: "Otros Ingresos / Reembolsos y Devoluciones", classNumber: 4, classType: "income", groupName: "4.3 Otros Ingresos", nature: "credit", isSystem: true, icon: "plus-circle" },
+
+    // CLASE 5: GASTOS
+    { id: "P-5-1-01", code: "5.1.01", name: "Vivienda & Servicios (Alquiler, Luz, Agua, Gas)", classNumber: 5, classType: "expense", groupName: "5.1 Vivienda y Hogar", nature: "debit", isSystem: true, icon: "home" },
+    { id: "P-5-2-01", code: "5.2.01", name: "Alimentación & Supermercado", classNumber: 5, classType: "expense", groupName: "5.2 Alimentación y Consumo", nature: "debit", isSystem: true, icon: "shopping-cart" },
+    { id: "P-5-3-01", code: "5.3.01", name: "Transporte & Combustible", classNumber: 5, classType: "expense", groupName: "5.3 Transporte y Movilidad", nature: "debit", isSystem: true, icon: "car" },
+    { id: "P-5-4-01", code: "5.4.01", name: "Salud & Bienestar (Seguro, Farmacia, Deporte)", classNumber: 5, classType: "expense", groupName: "5.4 Salud y Bienestar", nature: "debit", isSystem: true, icon: "heart-pulse" },
+    { id: "P-5-5-01", code: "5.5.01", name: "Educación & Cursos", classNumber: 5, classType: "expense", groupName: "5.5 Educación y Desarrollo", nature: "debit", isSystem: true, icon: "book-open" },
+    { id: "P-5-6-01", code: "5.6.01", name: "Ocio, Salidas & Restaurantes", classNumber: 5, classType: "expense", groupName: "5.6 Ocio y Estilo de Vida", nature: "debit", isSystem: true, icon: "utensils" },
+    { id: "P-5-6-02", code: "5.6.02", name: "Ropa & Cuidado Personal", classNumber: 5, classType: "expense", groupName: "5.6 Ocio y Estilo de Vida", nature: "debit", isSystem: true, icon: "shirt" },
+    { id: "P-5-7-01", code: "5.7.01", name: "Gastos Financieros, Comisiones e Intereses", classNumber: 5, classType: "expense", groupName: "5.7 Financieros e Imprevistos", nature: "debit", isSystem: true, icon: "credit-card" }
+  ];
+
+  function obtenerCatalogoPlanCuentas(cuentasPersonalizadas = [], cuentasFinancieras = [], transacciones = []) {
+    // Clonar catálogo base
+    const catalogo = CATALOGO_PLAN_CUENTAS_PERSONAL_BASE.map(item => ({ ...item, balance: 0, periodMovement: 0 }));
+
+    // Integrar cuentas personalizadas del usuario
+    if (Array.isArray(cuentasPersonalizadas)) {
+      cuentasPersonalizadas.forEach(p => {
+        if (!catalogo.some(c => c.id === p.id || c.code === p.code)) {
+          catalogo.push({ ...p, balance: Number(p.balance) || 0, periodMovement: Number(p.periodMovement) || 0 });
+        }
+      });
+    }
+
+    // Integrar cuentas financieras reales vinculadas
+    if (Array.isArray(cuentasFinancieras)) {
+      cuentasFinancieras.forEach((acc, idx) => {
+        const isCredit = acc.type === "credit_card";
+        const isSavings = acc.type === "savings";
+        const isWallet = acc.type === "wallet";
+        const isCash = acc.type === "cash";
+
+        const parentCode = isCredit ? "2.1.01" : isSavings ? "1.2.01" : isWallet ? "1.1.03" : isCash ? "1.1.01" : "1.1.02";
+        const classNum = isCredit ? 2 : 1;
+        const classType = isCredit ? "liability" : "asset";
+        const groupName = isCredit ? "2.1 Pasivo Circulante / Corto Plazo" : (isSavings ? "1.2 Inversiones y Ahorro Líquido" : "1.1 Activo Circulante / Disponible");
+        const balance = isCredit ? Math.abs(Number(acc.currentBalance) || 0) : (Number(acc.currentBalance) || 0);
+
+        // Verificar si ya existe en catálogo
+        const existingIdx = catalogo.findIndex(c => c.financialAccountId === acc.id || c.name.toLowerCase() === acc.name.toLowerCase());
+        if (existingIdx >= 0) {
+          catalogo[existingIdx].balance = balance;
+          catalogo[existingIdx].financialAccountId = acc.id;
+          catalogo[existingIdx].color = acc.color || catalogo[existingIdx].color;
+          catalogo[existingIdx].icon = acc.icon || catalogo[existingIdx].icon;
+        } else {
+          const subCode = `${parentCode}.${String(idx + 1).padStart(2, "0")}`;
+          catalogo.push({
+            id: `PLAN-ACC-${acc.id}`,
+            code: subCode,
+            name: acc.name,
+            classNumber: classNum,
+            classType: classType,
+            groupName: groupName,
+            nature: isCredit ? "credit" : "debit",
+            balance: balance,
+            periodMovement: 0,
+            financialAccountId: acc.id,
+            isSystem: false,
+            color: acc.color,
+            icon: acc.icon
+          });
+        }
+      });
+    }
+
+    // Acumular movimientos de transacciones
+    if (Array.isArray(transacciones)) {
+      const matchCategory = (accName, catStr) => {
+        const cleanA = (accName || "").toLowerCase().replace(/&/g, "y").replace(/[^a-záéíóúüñ0-9]/g, " ").replace(/\s+/g, " ").trim();
+        const cleanC = (catStr || "").toLowerCase().replace(/&/g, "y").replace(/[^a-záéíóúüñ0-9]/g, " ").replace(/\s+/g, " ").trim();
+        if (!cleanA || !cleanC) return false;
+        if (cleanA.includes(cleanC) || cleanC.includes(cleanA)) return true;
+        const wordsA = cleanA.split(" ").filter(w => w.length > 3);
+        const wordsC = cleanC.split(" ").filter(w => w.length > 3);
+        return wordsA.some(w => wordsC.includes(w));
+      };
+
+      transacciones.forEach(tx => {
+        const amount = Number(tx.amount) || 0;
+        if (amount <= 0) return;
+
+        if (tx.type === "income") {
+          const catName = tx.category || "";
+          const target = catalogo.find(c => c.classNumber === 4 && matchCategory(c.name, catName));
+          if (target) {
+            target.periodMovement = (Number(target.periodMovement) || 0) + amount;
+          } else {
+            const genericIncome = catalogo.find(c => c.code === "4.3.01");
+            if (genericIncome) genericIncome.periodMovement = (Number(genericIncome.periodMovement) || 0) + amount;
+          }
+        } else if (tx.type === "expense") {
+          if (Boolean(tx.isSplit && Array.isArray(tx.splitLines))) {
+            tx.splitLines.forEach(l => {
+              const lineAmt = Number(l.amount) || 0;
+              if (lineAmt <= 0) return;
+              const catName = l.category || "";
+              const target = catalogo.find(c => (c.classNumber === 5 || c.classNumber === 1) && matchCategory(c.name, catName));
+              if (target) {
+                target.periodMovement = (Number(target.periodMovement) || 0) + lineAmt;
+              } else {
+                const genericExpense = catalogo.find(c => c.code === "5.7.01");
+                if (genericExpense) genericExpense.periodMovement = (Number(genericExpense.periodMovement) || 0) + lineAmt;
+              }
+            });
+          } else {
+            const catName = tx.category || "";
+            const target = catalogo.find(c => c.classNumber === 5 && matchCategory(c.name, catName));
+            if (target) {
+              target.periodMovement = (Number(target.periodMovement) || 0) + amount;
+            } else {
+              const genericExpense = catalogo.find(c => c.code === "5.7.01");
+              if (genericExpense) genericExpense.periodMovement = (Number(genericExpense.periodMovement) || 0) + amount;
+            }
+          }
+        }
+      });
+    }
+
+    // Ordenar jerárquicamente por código contable
+    catalogo.sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+
+    return catalogo;
+  }
+
+  function calcularResumenPlanCuentas(catalogo = []) {
+    if (!Array.isArray(catalogo)) {
+      return { totalAssets: 0, totalLiabilities: 0, netWorth: 0, totalIncome: 0, totalExpenses: 0, netResult: 0 };
+    }
+
+    let totalAssets = 0;
+    let totalLiabilities = 0;
+    let totalIncome = 0;
+    let totalExpenses = 0;
+
+    catalogo.forEach((c) => {
+      const bal = Number(c.balance) || 0;
+      const mov = Number(c.periodMovement) || 0;
+      if (c.classNumber === 1) totalAssets += bal;
+      else if (c.classNumber === 2) totalLiabilities += bal;
+      else if (c.classNumber === 4) totalIncome += mov;
+      else if (c.classNumber === 5) totalExpenses += mov;
+    });
+
+    return {
+      totalAssets,
+      totalLiabilities,
+      netWorth: totalAssets - totalLiabilities,
+      totalIncome,
+      totalExpenses,
+      netResult: totalIncome - totalExpenses
+    };
+  }
+
+  function validarCuentaPlan(datos, catalogoExistente = [], idActual = null) {
+    if (!datos || typeof datos !== "object") {
+      return { valida: false, error: "Datos de cuenta contable inválidos." };
+    }
+
+    const code = (datos.code || "").trim();
+    if (!code) {
+      return { valida: false, error: "El código contable es obligatorio (ej. 1.1.04 o 5.2.05)." };
+    }
+
+    const name = (datos.name || "").trim();
+    if (!name) {
+      return { valida: false, error: "El nombre de la cuenta contable es obligatorio." };
+    }
+
+    const classNum = Number(datos.classNumber);
+    if (![1, 2, 3, 4, 5].includes(classNum)) {
+      return { valida: false, error: "La clase contable debe ser un número del 1 al 5." };
+    }
+
+    if (Array.isArray(catalogoExistente)) {
+      const codeLower = code.toLowerCase();
+      const nameLower = name.toLowerCase();
+
+      const dupCode = catalogoExistente.some(c => (idActual ? c.id !== idActual : true) && (c.code || "").toLowerCase() === codeLower);
+      if (dupCode) {
+        return { valida: false, error: `Ya existe una cuenta con el código "${code}".` };
+      }
+
+      const dupName = catalogoExistente.some(c => (idActual ? c.id !== idActual : true) && (c.name || "").toLowerCase() === nameLower && c.classNumber === classNum);
+      if (dupName) {
+        return { valida: false, error: `Ya existe una cuenta con el nombre "${name}" en esta clase contable.` };
+      }
+    }
+
+    return { valida: true };
+  }
+
+  function puedeEliminarCuentaPlan(cuenta) {
+    if (!cuenta || typeof cuenta !== "object") {
+      return { puede: false, motivo: "Cuenta no especificada." };
+    }
+    if (cuenta.isSystem) {
+      return { puede: false, motivo: "Es una cuenta base del sistema y no puede eliminarse." };
+    }
+    if (cuenta.financialAccountId) {
+      return { puede: false, motivo: "Esta cuenta está enlazada a una cuenta financiera activa." };
+    }
+    if ((Number(cuenta.balance) || 0) !== 0) {
+      return { puede: false, motivo: "La cuenta posee saldo contable pendiente." };
+    }
+    if ((Number(cuenta.periodMovement) || 0) > 0) {
+      return { puede: false, motivo: "La cuenta posee movimientos acumulados en el período." };
+    }
+    return { puede: true };
+  }
+
   return {
     calcularPatrimonioNeto,
     calcularBalanceMes,
@@ -933,6 +1179,11 @@
     calcularResumenCuenta,
     clasificarPlanDeCuentas,
     validarEdicionCuenta,
-    puedeEliminarCuenta
+    puedeEliminarCuenta,
+    CATALOGO_PLAN_CUENTAS_PERSONAL_BASE,
+    obtenerCatalogoPlanCuentas,
+    calcularResumenPlanCuentas,
+    validarCuentaPlan,
+    puedeEliminarCuentaPlan
   };
 });
