@@ -31,6 +31,7 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 2. Decisiones vigentes
 
+- **Repositorio Oficial en GitHub:** Alojado y sincronizado en `https://github.com/AndresAguiarMarmol/contabilidad-personal` en la rama `main`, con tracking remoto activo y sincronización de todas las especificaciones implementadas.
 - **Plan de Cuentas Contable Personal Integral (5 Clases Contables: Activos, Pasivos, Patrimonio, Ingresos y Gastos):** Acceso directo desde el botón "Plan de Cuentas" (`folder-tree`, insignia `CRUD`) en `#sidebar nav`. Implementa la estructura contable completa orientada a finanzas personales y familiares: Clase 1 (Activos: disponible, inversiones y bienes patrimoniales), Clase 2 (Pasivos: tarjetas y deudas a corto y largo plazo), Clase 3 (Patrimonio Neto: capital inicial y ahorro acumulado), Clase 4 (Ingresos: laborales, inversiones y reembolsos) y Clase 5 (Gastos: vivienda, alimentación, transporte, salud, educación, ocio y financieros). Tablero de 6 KPIs consolidados (Total Activos, Total Pasivos, Patrimonio Neto, Ingresos Período, Gastos Período, Resultado Operativo), selector reactivo de clase, buscador en vivo, y modales interactivos para alta y edición de cuentas contables con validación de unicidad y preservación de cuentas del sistema.
 - **Pantalla Adicional de Detalle y Movimientos de Cuenta (`view-account-detail`):** La selección de cualquier cuenta en "Cuentas & Billeteras" navega a una pantalla adicional dedicada dentro del enrutador SPA. La pantalla presenta cabecera completa con identidad de la cuenta (icono, color, tipo, moneda y saldo contable destacado), botón de retorno directo "← Volver a Cuentas & Billeteras", 3 tarjetas KPI acumuladas (Total Abonos, Total Cargos y Conteo de Movimientos), buscador textual y filtro de tipo interno, tabla cronológica con soporte de partidas split e impacto relativo (`+` / `-`), y botón para crear un movimiento preseleccionando dicha cuenta.
 - **Respaldo y Restauración Integral JSON:** Permite descargar un backup completo de toda la información contable (cuentas, transacciones split, presupuestos y metas) con versión y timestamp. Validación de integridad mediante la función pura `validarBackupJSON()` antes de sobreescribir `localStorage`, con diálogo de confirmación informando la cantidad exacta de registros a restaurar.
@@ -48,6 +49,10 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 3. Historial de cambios
 
+- **2026-11-12 — Infraestructura: Creación y Sincronización del Repositorio en GitHub:**
+  - Creado repositorio público `contabilidad-personal` en GitHub bajo la cuenta del usuario (`AndresAguiarMarmol`).
+  - Configurado el origen remoto hacia `https://github.com/AndresAguiarMarmol/contabilidad-personal.git`.
+  - Publicada y sincronizada la rama `main` con todo el historial de desarrollo y las 11 especificaciones SDD (52/52 pruebas unitarias en verde).
 - **2026-11-12 — Spec 011: Plan de Cuentas Orientado a Contabilidad Personal (SDD):**
   - Creada especificación formal `specs/011-plan-de-cuentas-personal/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
   - Diseñada e implementada la suite `tests/personal-chart-of-accounts.test.js` con metodología TDD Red-Green (5 pruebas unitarias exhaustivas, 52/52 pruebas totales en verde en el proyecto).
