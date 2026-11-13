@@ -761,6 +761,155 @@
     };
   }
 
+  /**
+   * Clasifica las cuentas en grupos contables (Activos y Pasivos), asigna códigos y calcula subtotales (Spec 010 / RF-2, RF-3)
+   * @param {Array} accounts 
+   * @returns {Object} { activos, pasivos, totalActivos, totalPasivos, patrimonioNeto }
+   */
+  function clasificarPlanDeCuentas(accounts) {
+    if (!Array.isArray(accounts)) {
+      return {
+        activos: { grupo: "1. ACTIVOS", cuentas: [], subtotal: 0 },
+        pasivos: { grupo: "2. PASIVOS", cuentas: [], subtotal: 0 },
+        totalActivos: 0,
+        totalPasivos: 0,
+        patrimonioNeto: 0
+      };
+    }
+
+    const activosList = [];
+    const pasivosList = [];
+    let totalActivos = 0;
+    let totalPasivos = 0;
+
+    let idxCash = 1;
+    let idxBank = 1;
+    let idxWallet = 1;
+    let idxSavings = 1;
+    let idxCredit = 1;
+    let idxOther = 1;
+
+    accounts.forEach((acc) => {
+      const isCredit = acc.type === "credit_card";
+      let codigo = acc.codigoContable;
+
+      if (!codigo) {
+        if (acc.type === "cash") {
+          codigo = `1.1.01.${String(idxCash++).padStart(2, "0")}`;
+        } else if (acc.type === "bank") {
+          codigo = `1.1.02.${String(idxBank++).padStart(2, "0")}`;
+        } else if (acc.type === "wallet") {
+          codigo = `1.1.03.${String(idxWallet++).padStart(2, "0")}`;
+        } else if (acc.type === "savings") {
+          codigo = `1.2.01.${String(idxSavings++).padStart(2, "0")}`;
+        } else if (acc.type === "credit_card") {
+          codigo = `2.1.01.${String(idxCredit++).padStart(2, "0")}`;
+        } else {
+          codigo = `1.3.01.${String(idxOther++).padStart(2, "0")}`;
+        }
+      }
+
+      const balance = Number(acc.currentBalance) || 0;
+      const cuentaEnriquecida = {
+        ...acc,
+        codigoContable: codigo,
+        grupoContable: isCredit ? "2. Pasivos" : "1. Activos"
+      };
+
+      if (isCredit) {
+        pasivosList.push(cuentaEnriquecida);
+        if (!acc.isExcludedFromTotal) {
+          totalPasivos += Math.abs(balance);
+        }
+      } else {
+        activosList.push(cuentaEnriquecida);
+        if (!acc.isExcludedFromTotal) {
+          totalActivos += balance;
+        }
+      }
+    });
+
+    activosList.sort((a, b) => (a.codigoContable || "").localeCompare(b.codigoContable || ""));
+    pasivosList.sort((a, b) => (a.codigoContable || "").localeCompare(b.codigoContable || ""));
+
+    return {
+      activos: {
+        grupo: "1. ACTIVOS (Disponibles e Inversiones)",
+        cuentas: activosList,
+        subtotal: totalActivos
+      },
+      pasivos: {
+        grupo: "2. PASIVOS (Obligaciones y Tarjetas de Crédito)",
+        cuentas: pasivosList,
+        subtotal: totalPasivos
+      },
+      totalActivos,
+      totalPasivos,
+      patrimonioNeto: totalActivos - totalPasivos
+    };
+  }
+
+  /**
+   * Valida los datos modificados de una cuenta bancaria/billetera (Spec 010 / RF-5)
+   * @param {Object} datosCuenta 
+   * @param {Array} cuentasExistentes 
+   * @param {string} cuentaIdActual 
+   * @returns {Object} { valida, error }
+   */
+  function validarEdicionCuenta(datosCuenta, cuentasExistentes = [], cuentaIdActual = "") {
+    if (!datosCuenta || typeof datosCuenta !== "object") {
+      return { valida: false, error: "Datos de cuenta inválidos." };
+    }
+
+    const { name, type } = datosCuenta;
+
+    if (!name || typeof name !== "string" || name.trim().length === 0) {
+      return { valida: false, error: "El nombre de la cuenta es obligatorio." };
+    }
+
+    const tiposValidos = ["bank", "cash", "wallet", "savings", "credit_card"];
+    if (!tiposValidos.includes(type)) {
+      return { valida: false, error: "Tipo de cuenta no soportado." };
+    }
+
+    const nombreNormalizado = name.trim().toLowerCase();
+    const nombreDuplicado = cuentasExistentes.some((acc) => {
+      if (cuentaIdActual && acc.id === cuentaIdActual) return false;
+      return (acc.name || "").trim().toLowerCase() === nombreNormalizado;
+    });
+
+    if (nombreDuplicado) {
+      return { valida: false, error: `Ya existe otra cuenta registrada con el nombre "${name.trim()}".` };
+    }
+
+    return { valida: true };
+  }
+
+  /**
+   * Determina si una cuenta tiene transacciones asociadas y cuántas (Spec 010 / RF-6)
+   * @param {string} cuentaId 
+   * @param {Array} transactions 
+   * @returns {Object} { tieneMovimientos, cantidadMovimientos }
+   */
+  function puedeEliminarCuenta(cuentaId, transactions = []) {
+    if (!cuentaId || !Array.isArray(transactions)) {
+      return { tieneMovimientos: false, cantidadMovimientos: 0 };
+    }
+
+    const conteo = transactions.filter((tx) => {
+      if (tx.accountId === cuentaId || tx.toAccountId === cuentaId) return true;
+      if (Boolean(tx.isSplit && Array.isArray(tx.splitLines))) {
+        return tx.splitLines.some((l) => l.targetAccountId === cuentaId);
+      }
+      return false;
+    }).length;
+
+    return {
+      tieneMovimientos: conteo > 0,
+      cantidadMovimientos: conteo
+    };
+  }
+
   return {
     calcularPatrimonioNeto,
     calcularBalanceMes,
@@ -781,6 +930,9 @@
     filtrarTransacciones,
     generarTransaccionesCSV,
     obtenerMovimientosDeCuenta,
-    calcularResumenCuenta
+    calcularResumenCuenta,
+    clasificarPlanDeCuentas,
+    validarEdicionCuenta,
+    puedeEliminarCuenta
   };
 });

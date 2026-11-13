@@ -16,6 +16,10 @@
     budgets: [],
     goals: [],
     selectedAccountId: null,
+    chartOfAccountsFilter: {
+      search: "",
+      group: "all"
+    },
     filters: {
       txSearch: "",
       txType: "all",
@@ -45,6 +49,16 @@
       month: "short",
       year: "numeric"
     });
+  };
+
+  const escapeHtml = (str) => {
+    if (!str) return "";
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
   };
 
   // Renderizado defensivo de iconos Lucide
@@ -136,6 +150,10 @@
       title: "Cuentas & Billeteras",
       subtitle: "Gestión de cuentas bancarias, efectivo, tarjetas de crédito y ahorros"
     },
+    "chart-of-accounts": {
+      title: "Plan de Cuentas (CRUD)",
+      subtitle: "Catálogo maestro y estructura contable de cuentas patrimoniales"
+    },
     "account-detail": {
       title: "Detalle de Cuenta",
       subtitle: "Movimientos históricos, abonos, cargos y saldo consolidado de la cuenta"
@@ -170,7 +188,7 @@
     }
     if (subEl) subEl.textContent = VIEW_METADATA[viewName].subtitle;
 
-    const views = ["dashboard", "accounts", "account-detail", "transactions", "budgets", "settings"];
+    const views = ["dashboard", "accounts", "chart-of-accounts", "account-detail", "transactions", "budgets", "settings"];
     views.forEach((v) => {
       const el = document.getElementById(`view-${v}`);
       if (el) {
@@ -745,6 +763,295 @@
     setupNewTxBtn("btn-screen-empty-tx");
 
     safeRenderIcons();
+  }
+
+  // ========================================================
+  // RENDERIZADO: PLAN DE CUENTAS (CRUD) - SPEC 010
+  // ========================================================
+  function renderChartOfAccounts() {
+    const container = document.getElementById("view-chart-of-accounts");
+    if (!container) return;
+
+    const classified = Calculations && Calculations.clasificarPlanDeCuentas
+      ? Calculations.clasificarPlanDeCuentas(state.accounts)
+      : {
+          activos: state.accounts.filter(a => a.type !== "credit_card"),
+          pasivos: state.accounts.filter(a => a.type === "credit_card"),
+          totalActivos: 0,
+          totalPasivos: 0,
+          patrimonioNeto: 0
+        };
+
+    const search = (state.chartOfAccountsFilter.search || "").toLowerCase().trim();
+    const groupFilter = state.chartOfAccountsFilter.group || "all";
+
+    const filterAcc = (acc) => {
+      if (!search) return true;
+      const matchName = (acc.name || "").toLowerCase().includes(search);
+      const matchCode = (acc.codigoContable || "").toLowerCase().includes(search);
+      const matchType = (acc.type || "").toLowerCase().includes(search);
+      return matchName || matchCode || matchType;
+    };
+
+    const filteredActivos = classified.activos.filter(filterAcc);
+    const filteredPasivos = classified.pasivos.filter(filterAcc);
+
+    const typeLabels = {
+      bank: "Banco / Cuenta Corriente",
+      cash: "Efectivo / Caja",
+      wallet: "Billetera Digital",
+      savings: "Ahorro / Inversión",
+      credit_card: "Tarjeta de Crédito"
+    };
+
+    const renderAccountRow = (acc, isPasivo = false) => {
+      const txCount = state.transactions.filter(t => t.accountId === acc.id || t.destinationAccountId === acc.id).length;
+      const displayBalance = formatMoney(acc.currentBalance);
+      const balanceClass = isPasivo
+        ? (acc.currentBalance < 0 ? "text-rose-600 dark:text-rose-400 font-bold" : "text-slate-900 dark:text-white font-bold")
+        : (acc.currentBalance >= 0 ? "text-slate-900 dark:text-white font-bold" : "text-rose-600 dark:text-rose-400 font-bold");
+
+      return `
+        <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors border-b border-slate-100 dark:border-slate-800/60 last:border-0">
+          <td class="px-4 py-3 font-mono text-xs font-semibold text-slate-500 dark:text-slate-400">
+            ${escapeHtml(acc.codigoContable || "—")}
+          </td>
+          <td class="px-4 py-3">
+            <div class="flex items-center gap-2.5">
+              <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background-color: ${acc.color || '#10b981'};"></span>
+              <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                <i data-lucide="${acc.icon || 'wallet'}" class="w-3.5 h-3.5"></i>
+              </div>
+              <div class="min-w-0">
+                <span class="font-medium text-slate-800 dark:text-slate-100 block truncate">${escapeHtml(acc.name)}</span>
+                ${acc.isExcludedFromTotal ? '<span class="text-[10px] text-amber-600 dark:text-amber-400 font-normal">Excluida de Patrimonio</span>' : ''}
+              </div>
+            </div>
+          </td>
+          <td class="px-4 py-3 text-xs text-slate-600 dark:text-slate-400">
+            <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium ${isPasivo ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}">
+              ${typeLabels[acc.type] || acc.type}
+            </span>
+          </td>
+          <td class="px-4 py-3 text-xs text-slate-500 dark:text-slate-400 font-mono">
+            ${escapeHtml(acc.currency || "CLP")}
+          </td>
+          <td class="px-4 py-3 text-right text-xs font-mono tabular-nums ${balanceClass}">
+            ${displayBalance}
+          </td>
+          <td class="px-4 py-3 text-center text-xs text-slate-500 dark:text-slate-400 font-mono">
+            ${txCount}
+          </td>
+          <td class="px-4 py-3 text-right">
+            <div class="flex items-center justify-end gap-1">
+              <button data-account-id="${acc.id}" class="btn-edit-account-chart p-1.5 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors" title="Editar Cuenta">
+                <i data-lucide="pencil" class="w-4 h-4"></i>
+              </button>
+              <button data-account-id="${acc.id}" class="btn-delete-account-chart p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors" title="Eliminar Cuenta">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+      `;
+    };
+
+    container.innerHTML = `
+      <!-- Toolbar y KPIs Contables -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+          <div>
+            <p class="text-xs font-medium text-slate-500 dark:text-slate-400">1. Total Activos</p>
+            <p class="text-xl font-bold text-emerald-600 dark:text-emerald-400 font-mono mt-0.5">${formatMoney(classified.totalActivos)}</p>
+            <p class="text-[11px] text-slate-400 mt-0.5">${classified.activos.length} cuenta(s) registradas</p>
+          </div>
+          <div class="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+            <i data-lucide="trending-up" class="w-5 h-5"></i>
+          </div>
+        </div>
+
+        <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+          <div>
+            <p class="text-xs font-medium text-slate-500 dark:text-slate-400">2. Total Pasivos</p>
+            <p class="text-xl font-bold text-rose-600 dark:text-rose-400 font-mono mt-0.5">${formatMoney(classified.totalPasivos)}</p>
+            <p class="text-[11px] text-slate-400 mt-0.5">${classified.pasivos.length} tarjeta(s) / deuda(s)</p>
+          </div>
+          <div class="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-950/50 flex items-center justify-center text-rose-600 dark:text-rose-400">
+            <i data-lucide="credit-card" class="w-5 h-5"></i>
+          </div>
+        </div>
+
+        <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+          <div>
+            <p class="text-xs font-medium text-slate-500 dark:text-slate-400">Patrimonio Neto Contable</p>
+            <p class="text-xl font-bold text-slate-900 dark:text-white font-mono mt-0.5">${formatMoney(classified.patrimonioNeto)}</p>
+            <p class="text-[11px] text-slate-400 mt-0.5">Activos - Pasivos</p>
+          </div>
+          <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+            <i data-lucide="landmark" class="w-5 h-5"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- Barra de Filtros y Botón de Creación -->
+      <div class="bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+        <div class="flex flex-1 flex-col sm:flex-row gap-2.5 items-stretch sm:items-center">
+          <!-- Buscador -->
+          <div class="relative flex-1">
+            <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+            <input type="text" id="chart-search-input" value="${escapeHtml(state.chartOfAccountsFilter.search || '')}" placeholder="Buscar por código, nombre o tipo de cuenta..." class="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+          </div>
+
+          <!-- Filtro de Grupo -->
+          <select id="chart-group-filter-select" class="px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            <option value="all" ${groupFilter === "all" ? "selected" : ""}>Todos los Rubros Contables</option>
+            <option value="assets" ${groupFilter === "assets" ? "selected" : ""}>1. Solo Activos</option>
+            <option value="liabilities" ${groupFilter === "liabilities" ? "selected" : ""}>2. Solo Pasivos</option>
+          </select>
+        </div>
+
+        <!-- Botón Nueva Cuenta Contable -->
+        <button id="btn-chart-new-account" class="flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all whitespace-nowrap active:scale-95">
+          <i data-lucide="plus" class="w-4 h-4"></i>
+          <span>Nueva Cuenta Contable</span>
+        </button>
+      </div>
+
+      <!-- Tablas por Rubro Contable -->
+      <div class="space-y-6">
+        <!-- Rubro 1: Activos -->
+        ${(groupFilter === "all" || groupFilter === "assets") ? `
+          <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div class="px-4 py-3 bg-slate-50/70 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-mono text-[11px] font-bold">1</span>
+                <h3 class="font-bold text-sm text-slate-800 dark:text-slate-100">ACTIVOS (Disponibilidades, Bancos e Inversiones)</h3>
+              </div>
+              <span class="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                Subtotal: ${formatMoney(classified.totalActivos)}
+              </span>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr class="border-b border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-800/20 text-slate-500 dark:text-slate-400 uppercase tracking-wider font-semibold text-[10px]">
+                    <th class="px-4 py-2.5 w-24">Código</th>
+                    <th class="px-4 py-2.5">Cuenta</th>
+                    <th class="px-4 py-2.5 w-44">Rubro / Tipo</th>
+                    <th class="px-4 py-2.5 w-20">Moneda</th>
+                    <th class="px-4 py-2.5 text-right w-36">Saldo Contable</th>
+                    <th class="px-4 py-2.5 text-center w-24">Movimientos</th>
+                    <th class="px-4 py-2.5 text-right w-24">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${filteredActivos.length > 0
+                    ? filteredActivos.map(acc => renderAccountRow(acc, false)).join("")
+                    : `<tr><td colspan="7" class="px-4 py-8 text-center text-slate-400 text-xs">No hay cuentas de Activo que coincidan con la búsqueda.</td></tr>`}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- Rubro 2: Pasivos -->
+        ${(groupFilter === "all" || groupFilter === "liabilities") ? `
+          <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div class="px-4 py-3 bg-slate-50/70 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 font-mono text-[11px] font-bold">2</span>
+                <h3 class="font-bold text-sm text-slate-800 dark:text-slate-100">PASIVOS (Tarjetas de Crédito y Compromisos Financieros)</h3>
+              </div>
+              <span class="text-xs font-mono font-bold text-rose-600 dark:text-rose-400">
+                Subtotal: ${formatMoney(classified.totalPasivos)}
+              </span>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr class="border-b border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-800/20 text-slate-500 dark:text-slate-400 uppercase tracking-wider font-semibold text-[10px]">
+                    <th class="px-4 py-2.5 w-24">Código</th>
+                    <th class="px-4 py-2.5">Cuenta</th>
+                    <th class="px-4 py-2.5 w-44">Rubro / Tipo</th>
+                    <th class="px-4 py-2.5 w-20">Moneda</th>
+                    <th class="px-4 py-2.5 text-right w-36">Saldo Adeudado</th>
+                    <th class="px-4 py-2.5 text-center w-24">Movimientos</th>
+                    <th class="px-4 py-2.5 text-right w-24">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${filteredPasivos.length > 0
+                    ? filteredPasivos.map(acc => renderAccountRow(acc, true)).join("")
+                    : `<tr><td colspan="7" class="px-4 py-8 text-center text-slate-400 text-xs">No hay cuentas de Pasivo que coincidan con la búsqueda.</td></tr>`}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ` : ''}
+      </div>
+    `;
+
+    safeRenderIcons();
+
+    // Eventos de Toolbar
+    document.getElementById("btn-chart-new-account")?.addEventListener("click", () => {
+      openAccountModal();
+    });
+
+    const searchInput = document.getElementById("chart-search-input");
+    searchInput?.addEventListener("input", (e) => {
+      state.chartOfAccountsFilter.search = e.target.value;
+      renderChartOfAccounts();
+      const el = document.getElementById("chart-search-input");
+      if (el) {
+        el.focus();
+        el.setSelectionRange(el.value.length, el.value.length);
+      }
+    });
+
+    const groupSelect = document.getElementById("chart-group-filter-select");
+    groupSelect?.addEventListener("change", (e) => {
+      state.chartOfAccountsFilter.group = e.target.value;
+      renderChartOfAccounts();
+    });
+
+    // Eventos de botones Editar
+    container.querySelectorAll(".btn-edit-account-chart").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const accId = btn.getAttribute("data-account-id");
+        if (accId) openAccountEditModal(accId);
+      });
+    });
+
+    // Eventos de botones Eliminar
+    container.querySelectorAll(".btn-delete-account-chart").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const accId = btn.getAttribute("data-account-id");
+        if (!accId) return;
+        const targetAcc = state.accounts.find(a => a.id === accId);
+        if (!targetAcc) return;
+
+        const check = Calculations && Calculations.puedeEliminarCuenta
+          ? Calculations.puedeEliminarCuenta(accId, state.transactions)
+          : { puede: false, motivo: "Validación no disponible." };
+
+        if (!check.puede) {
+          showToast(`No se puede eliminar la cuenta: ${check.motivo}`, "error");
+          return;
+        }
+
+        const confirmacion = window.confirm(`¿Estás seguro de que deseas eliminar permanentemente la cuenta "${targetAcc.name}"? Esta acción no se puede deshacer.`);
+        if (!confirmacion) return;
+
+        state.accounts = state.accounts.filter(a => a.id !== accId);
+        if (Storage) {
+          Storage.saveAccounts(state.accounts);
+        }
+
+        renderActiveView();
+        showToast(`Cuenta "${targetAcc.name}" eliminada del catálogo.`, "success");
+      });
+    });
   }
 
   // ========================================================
@@ -1804,6 +2111,158 @@
   }
 
   // ========================================================
+  // PLANILLA INTERACTIVA: EDITAR CUENTA (SPEC 010)
+  // ========================================================
+  function openAccountEditModal(accountId) {
+    const account = state.accounts.find(a => a.id === accountId);
+    if (!account) {
+      showToast("No se encontró la cuenta seleccionada.", "error");
+      return;
+    }
+
+    const modal = document.getElementById("app-modal");
+    const modalTitle = document.getElementById("modal-title");
+    const modalBody = document.getElementById("modal-body");
+    if (!modal || !modalTitle || !modalBody) return;
+
+    modalTitle.textContent = `Editar Cuenta Contable: ${account.name}`;
+
+    modalBody.innerHTML = `
+      <form id="form-edit-account" class="space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          <!-- Código Contable -->
+          <div class="sm:col-span-2 space-y-1">
+            <label class="font-semibold text-slate-700 dark:text-slate-300">Código Contable (Opcional / Sugerido)</label>
+            <input type="text" id="acc-edit-input-code" value="${escapeHtml(account.codigoContable || '')}" placeholder="Ej. 1.1.02.01" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            <p class="text-[10px] text-slate-400">Identificador contable dentro del catálogo patrimonial.</p>
+          </div>
+
+          <!-- Nombre de la cuenta -->
+          <div class="sm:col-span-2 space-y-1">
+            <label class="font-semibold text-slate-700 dark:text-slate-300">Nombre de la Cuenta *</label>
+            <input type="text" id="acc-edit-input-name" value="${escapeHtml(account.name)}" required class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+          </div>
+
+          <!-- Tipo de Cuenta -->
+          <div class="sm:col-span-2 space-y-1">
+            <label class="font-semibold text-slate-700 dark:text-slate-300">Tipo de Cuenta / Rubro *</label>
+            <select id="acc-edit-input-type" required class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              <option value="bank" ${account.type === "bank" ? "selected" : ""}>🏦 Cuenta Bancaria (1.1.02 - Activo)</option>
+              <option value="cash" ${account.type === "cash" ? "selected" : ""}>💵 Efectivo (1.1.01 - Activo)</option>
+              <option value="wallet" ${account.type === "wallet" ? "selected" : ""}>📱 Billetera Digital (1.1.03 - Activo)</option>
+              <option value="savings" ${account.type === "savings" ? "selected" : ""}>📈 Ahorro / Inversión (1.2.01 - Activo)</option>
+              <option value="credit_card" ${account.type === "credit_card" ? "selected" : ""}>💳 Tarjeta de Crédito (2.1.01 - Pasivo)</option>
+            </select>
+          </div>
+
+          <!-- Moneda -->
+          <div class="space-y-1">
+            <label class="font-semibold text-slate-700 dark:text-slate-300">Moneda *</label>
+            <select id="acc-edit-input-currency" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              <option value="CLP" ${account.currency === "CLP" ? "selected" : ""}>CLP ($ - Peso Chileno)</option>
+              <option value="ARS" ${account.currency === "ARS" ? "selected" : ""}>ARS ($ - Peso Argentino)</option>
+              <option value="USD" ${account.currency === "USD" ? "selected" : ""}>USD ($ - Dólar)</option>
+              <option value="EUR" ${account.currency === "EUR" ? "selected" : ""}>EUR (€ - Euro)</option>
+            </select>
+          </div>
+
+          <!-- Color Identificador -->
+          <div class="space-y-1">
+            <label class="font-semibold text-slate-700 dark:text-slate-300">Color Identificador</label>
+            <div class="flex items-center gap-3">
+              <input type="color" id="acc-edit-input-color" value="${account.color || '#2563eb'}" class="w-10 h-9 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer bg-transparent">
+              <span class="text-xs text-slate-500 dark:text-slate-400">Color distintivo</span>
+            </div>
+          </div>
+
+          <!-- Excluir del total -->
+          <div class="sm:col-span-2 pt-1 flex items-start gap-2">
+            <input type="checkbox" id="acc-edit-input-exclude" ${account.isExcludedFromTotal ? "checked" : ""} class="mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
+            <label for="acc-edit-input-exclude" class="text-xs text-slate-600 dark:text-slate-300 cursor-pointer">
+              Excluir del cálculo del Patrimonio Neto <span class="text-[10px] text-slate-400 block">(fondos de terceros o garantías no computables)</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+          <button type="button" id="acc-edit-form-cancel" class="px-4 py-2 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 transition-colors">
+            Cancelar
+          </button>
+          <button type="submit" id="acc-edit-form-submit" class="px-5 py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all flex items-center gap-1.5 active:scale-95">
+            <i data-lucide="check" class="w-3.5 h-3.5"></i>
+            <span>Guardar Cambios</span>
+          </button>
+        </div>
+      </form>
+    `;
+
+    safeRenderIcons();
+
+    document.getElementById("acc-edit-form-cancel")?.addEventListener("click", () => modal.close());
+
+    const form = document.getElementById("form-edit-account");
+    form?.addEventListener("submit", (e) => {
+      e.preventDefault();
+
+      const nameVal = document.getElementById("acc-edit-input-name")?.value.trim();
+      const codeVal = document.getElementById("acc-edit-input-code")?.value.trim();
+      const typeVal = document.getElementById("acc-edit-input-type")?.value;
+      const currencyVal = document.getElementById("acc-edit-input-currency")?.value || "CLP";
+      const colorVal = document.getElementById("acc-edit-input-color")?.value || account.color;
+      const excludeVal = Boolean(document.getElementById("acc-edit-input-exclude")?.checked);
+
+      const editData = {
+        name: nameVal,
+        type: typeVal,
+        codigoContable: codeVal,
+        currency: currencyVal,
+        color: colorVal,
+        isExcludedFromTotal: excludeVal
+      };
+
+      const validacion = Calculations
+        ? Calculations.validarEdicionCuenta(editData, state.accounts, account.id)
+        : { valida: true };
+
+      if (!validacion.valida) {
+        showToast(validacion.error || "Datos inválidos para actualizar la cuenta.", "error");
+        return;
+      }
+
+      // Actualizar campos
+      account.name = nameVal;
+      account.type = typeVal;
+      account.currency = currencyVal;
+      account.color = colorVal;
+      account.isExcludedFromTotal = excludeVal;
+      if (codeVal) {
+        account.codigoContable = codeVal;
+      }
+
+      // Actualizar icono según tipo
+      const iconMap = {
+        bank: "landmark",
+        cash: "banknote",
+        wallet: "wallet",
+        savings: "trending-up",
+        credit_card: "credit-card"
+      };
+      account.icon = iconMap[typeVal] || account.icon || "wallet";
+
+      if (Storage) {
+        Storage.saveAccounts(state.accounts);
+      }
+
+      modal.close();
+      renderActiveView();
+      showToast(`Cuenta "${account.name}" actualizada con éxito.`, "success");
+    });
+
+    modal.showModal();
+    setTimeout(() => document.getElementById("acc-edit-input-name")?.focus(), 50);
+  }
+
+  // ========================================================
   // PLANILLA INTERACTIVA: NUEVO/EDITAR PRESUPUESTO (SPEC 005)
   // ========================================================
   function openBudgetModal(budgetIdToEdit = null) {
@@ -2165,6 +2624,9 @@
         break;
       case "accounts":
         renderAccounts();
+        break;
+      case "chart-of-accounts":
+        renderChartOfAccounts();
         break;
       case "account-detail":
         renderAccountDetailView();
