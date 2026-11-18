@@ -1519,17 +1519,44 @@
     const urlInput = document.getElementById("supabase-url");
     const keyInput = document.getElementById("supabase-key");
 
+    const firebaseProjectInput = document.getElementById("firebase-project-id");
+    const firebaseKeyInput = document.getElementById("firebase-api-key");
+    const firebaseAuthDomainInput = document.getElementById("firebase-auth-domain");
+    const firebaseStorageBucketInput = document.getElementById("firebase-storage-bucket");
+
     if (config) {
       if (urlInput) urlInput.value = config.url || "";
       if (keyInput) keyInput.value = config.anonKey || "";
+
+      if (firebaseProjectInput && config.projectId) firebaseProjectInput.value = config.projectId;
+      if (firebaseKeyInput && config.apiKey) firebaseKeyInput.value = config.apiKey;
+      if (firebaseAuthDomainInput && config.authDomain) firebaseAuthDomainInput.value = config.authDomain;
+      if (firebaseStorageBucketInput && config.storageBucket) firebaseStorageBucketInput.value = config.storageBucket;
     }
 
     const dbStatusPill = document.getElementById("db-status-text");
+    const firebaseStatusBadge = document.getElementById("firebase-status-badge");
+
+    const isFirebase = config && config.provider === "firebase" && config.projectId && config.apiKey;
+    const isSupabase = config && config.provider === "supabase" && config.url;
+
     if (dbStatusPill) {
-      if (config && config.provider === "supabase" && config.url) {
+      if (isFirebase) {
+        dbStatusPill.textContent = "Firebase Firestore";
+      } else if (isSupabase) {
         dbStatusPill.textContent = "Supabase Conectado";
       } else {
         dbStatusPill.textContent = "Local Storage";
+      }
+    }
+
+    if (firebaseStatusBadge) {
+      if (isFirebase) {
+        firebaseStatusBadge.textContent = "Configurado";
+        firebaseStatusBadge.className = "px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300";
+      } else {
+        firebaseStatusBadge.textContent = "Listo para conectar";
+        firebaseStatusBadge.className = "px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300";
       }
     }
   }
@@ -3235,16 +3262,18 @@
     document.getElementById("btn-save-db")?.addEventListener("click", () => {
       const url = document.getElementById("supabase-url")?.value.trim() || "";
       const key = document.getElementById("supabase-key")?.value.trim() || "";
+      const currentConfig = Storage ? Storage.getDbConfig() : {};
 
       if (Storage) {
         Storage.saveDbConfig({
-          provider: url && key ? "supabase" : "none",
+          ...currentConfig,
+          provider: url && key ? "supabase" : (currentConfig.projectId && currentConfig.apiKey ? "firebase" : "none"),
           url,
           anonKey: key
         });
       }
       renderSettings();
-      showToast("Configuración de base de datos guardada.", "success");
+      showToast("Configuración de Supabase guardada.", "success");
     });
 
     document.getElementById("btn-test-db")?.addEventListener("click", async () => {
@@ -3258,6 +3287,102 @@
           showToast(result.message, "success");
         } else {
           showToast(result.message, "error");
+        }
+      }
+    });
+
+    // LISTENERS DE FIREBASE CLOUD FIRESTORE (SPEC 014)
+    document.getElementById("btn-save-firebase")?.addEventListener("click", () => {
+      const projectId = document.getElementById("firebase-project-id")?.value.trim() || "";
+      const apiKey = document.getElementById("firebase-api-key")?.value.trim() || "";
+      const authDomain = document.getElementById("firebase-auth-domain")?.value.trim() || "";
+      const storageBucket = document.getElementById("firebase-storage-bucket")?.value.trim() || "";
+      const currentConfig = Storage ? Storage.getDbConfig() : {};
+
+      if (Storage) {
+        Storage.saveDbConfig({
+          ...currentConfig,
+          provider: (projectId && apiKey) ? "firebase" : (currentConfig.url && currentConfig.anonKey ? "supabase" : "none"),
+          projectId,
+          apiKey,
+          authDomain,
+          storageBucket
+        });
+      }
+      renderSettings();
+      showToast("Configuración de Firebase guardada con éxito.", "success");
+    });
+
+    document.getElementById("btn-test-firebase")?.addEventListener("click", async () => {
+      const projectId = document.getElementById("firebase-project-id")?.value.trim() || "";
+      const apiKey = document.getElementById("firebase-api-key")?.value.trim() || "";
+      const authDomain = document.getElementById("firebase-auth-domain")?.value.trim() || "";
+      const storageBucket = document.getElementById("firebase-storage-bucket")?.value.trim() || "";
+
+      if (!projectId || !apiKey) {
+        showToast("Ingresa Project ID y API Key de Firebase.", "warning");
+        return;
+      }
+
+      showToast("Verificando conexión con Firebase Firestore...", "info");
+      const feedbackEl = document.getElementById("firebase-connection-feedback");
+
+      if (DbAdapter) {
+        const result = await DbAdapter.testFirebaseConnection({ projectId, apiKey, authDomain, storageBucket });
+        if (feedbackEl) {
+          feedbackEl.className = "p-3 rounded-lg text-xs border";
+          if (result.success) {
+            feedbackEl.classList.add("bg-emerald-50", "text-emerald-800", "border-emerald-200", "dark:bg-emerald-950/50", "dark:text-emerald-300", "dark:border-emerald-800");
+            feedbackEl.innerHTML = `<span class="font-bold flex items-center gap-1.5"><i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-600 dark:text-emerald-400"></i> ${result.message}</span>`;
+            showToast(result.message, "success");
+          } else if (result.needsConsoleActivation) {
+            feedbackEl.classList.add("bg-amber-50", "text-amber-900", "border-amber-200", "dark:bg-amber-950/50", "dark:text-amber-200", "dark:border-amber-800");
+            feedbackEl.innerHTML = `<strong>Paso necesario:</strong> ${result.message}<br><a href="${result.consoleUrl}" target="_blank" rel="noopener noreferrer" class="underline font-bold text-amber-800 dark:text-amber-300 mt-1.5 inline-flex items-center gap-1">Abrir Firebase Console <i data-lucide="external-link" class="w-3.5 h-3.5"></i></a>`;
+            showToast("Acción requerida: Inicializar Firestore en Firebase Console.", "warning");
+          } else {
+            feedbackEl.classList.add("bg-rose-50", "text-rose-800", "border-rose-200", "dark:bg-rose-950/50", "dark:text-rose-300", "dark:border-rose-800");
+            feedbackEl.innerHTML = `<span class="font-bold flex items-center gap-1.5"><i data-lucide="alert-circle" class="w-4 h-4 text-rose-600 dark:text-rose-400"></i> ${result.message}</span>`;
+            showToast(result.message, "error");
+          }
+          safeRenderIcons();
+        }
+      }
+    });
+
+    document.getElementById("btn-firebase-backup")?.addEventListener("click", async () => {
+      const config = Storage ? Storage.getDbConfig() : null;
+      if (!config || !config.projectId || !config.apiKey) {
+        showToast("Guarda primero la configuración de Firebase.", "warning");
+        return;
+      }
+
+      showToast("Subiendo respaldo de datos a Cloud Firestore...", "info");
+      const fullBackup = {
+        accounts: state.accounts || [],
+        transactions: state.transactions || [],
+        budgets: state.budgets || [],
+        goals: state.goals || [],
+        planAccounts: state.planAccounts || []
+      };
+
+      if (DbAdapter) {
+        const result = await DbAdapter.saveBackupToFirebase(fullBackup, config);
+        if (result.success) {
+          showToast(result.message, "success");
+        } else {
+          showToast(result.message, "error");
+        }
+      }
+    });
+
+    document.getElementById("btn-firebase-sync")?.addEventListener("click", async () => {
+      showToast("Sincronizando con base de datos remota...", "info");
+      if (DbAdapter) {
+        const result = await DbAdapter.syncAll();
+        if (result.synced) {
+          showToast(result.message, "success");
+        } else {
+          showToast(result.message, "info");
         }
       }
     });

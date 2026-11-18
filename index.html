@@ -463,7 +463,74 @@
       <!-- ==================================================== -->
       <section id="view-settings" class="hidden space-y-6">
         
-        <!-- Conexión a Base de Datos Real (Supabase) -->
+        <!-- Conexión a Base de Datos en la Nube (Firebase Cloud Firestore) -->
+        <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                <i data-lucide="flame" class="w-5 h-5"></i>
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h2 class="text-sm font-bold text-slate-900 dark:text-white">Base de Datos en la Nube (Firebase Cloud Firestore)</h2>
+                  <span id="firebase-status-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300">
+                    Firebase Activo
+                  </span>
+                </div>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Aloja y sincroniza tus cuentas, movimientos y archivos de respaldo en Firestore</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-[11px] text-slate-400 font-mono">Proyecto: mi-propia-contabilidad</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            <div class="space-y-1.5">
+              <label class="font-semibold text-slate-700 dark:text-slate-300">Firebase Project ID *</label>
+              <input type="text" id="firebase-project-id" value="mi-propia-contabilidad" placeholder="mi-propia-contabilidad" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-amber-500">
+            </div>
+
+            <div class="space-y-1.5">
+              <label class="font-semibold text-slate-700 dark:text-slate-300">Firebase Web API Key *</label>
+              <input type="password" id="firebase-api-key" value="AIzaSyCjcppkAHLLNTZRomuGqz_Q96nMdnEnqtU" placeholder="AIzaSy..." class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-amber-500">
+            </div>
+
+            <div class="space-y-1.5">
+              <label class="font-semibold text-slate-700 dark:text-slate-300">Auth Domain</label>
+              <input type="text" id="firebase-auth-domain" value="mi-propia-contabilidad.firebaseapp.com" placeholder="mi-propia-contabilidad.firebaseapp.com" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-amber-500">
+            </div>
+
+            <div class="space-y-1.5">
+              <label class="font-semibold text-slate-700 dark:text-slate-300">Storage Bucket</label>
+              <input type="text" id="firebase-storage-bucket" value="mi-propia-contabilidad.firebasestorage.app" placeholder="mi-propia-contabilidad.firebasestorage.app" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-amber-500">
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2.5 pt-2">
+            <button id="btn-save-firebase" class="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs shadow-sm transition-all flex items-center gap-2 active:scale-95">
+              <i data-lucide="save" class="w-3.5 h-3.5"></i>
+              <span>Guardar Configuración Firebase</span>
+            </button>
+            <button id="btn-test-firebase" class="px-4 py-2 rounded-lg border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 font-semibold text-xs transition-all flex items-center gap-2">
+              <i data-lucide="activity" class="w-3.5 h-3.5"></i>
+              <span>Probar Conexión Firestore</span>
+            </button>
+            <button id="btn-firebase-backup" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-semibold text-xs shadow-sm transition-all flex items-center gap-2 active:scale-95">
+              <i data-lucide="cloud-upload" class="w-3.5 h-3.5"></i>
+              <span>Subir Copia de Respaldo a Firebase</span>
+            </button>
+            <button id="btn-firebase-sync" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold text-xs transition-all flex items-center gap-2">
+              <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+              <span>Sincronizar Datos</span>
+            </button>
+          </div>
+
+          <!-- Mensaje de feedback de conexión Firestore -->
+          <div id="firebase-connection-feedback" class="hidden p-3 rounded-lg text-xs"></div>
+        </div>
+
+        <!-- Conexión a Base de Datos Alternativa (Supabase) -->
         <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm space-y-4">
           <div class="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
             <div class="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">

@@ -1,7 +1,7 @@
 Actúa como un Lead Software Architect y Product Manager especializado en agentes autónomos de desarrollo (como Google Antigravity, Devin o Cursor Composer).
 
 Mi objetivo es preparar la documentación y el prompt de inicialización para construir una nueva aplicación:
-["Una aplicación Integrada de Contabilidad y gestión de inventario y pedidos para un negocio de Ventas de Insumos con alertas de stock y catálogo visual"].
+["Una aplicación Integrada de Contabilidad Personal"].
 
 Para asegurar que Antigravity trabaje de forma incremental y sin alucinaciones, NO generes el código todavía. Sigue este procedimiento en dos fases:
 

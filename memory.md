@@ -21,16 +21,23 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 - **Clave:** `finance_theme`
   - Valores: `"dark"` | `"light"`. Gestiona el modo de color persistido en `<html>`.
 - **Clave:** `finance_remote_db_config`
-  - Objeto con `provider` (`"supabase"` | `"none"`), `url`, `anonKey`.
+  - Objeto con `provider` (`"firebase"` | `"supabase"` | `"none"`), `projectId`, `apiKey`, `authDomain`, `storageBucket`, `url`, `anonKey`.
 
 ### B. Base de Datos Real en la Nube (Supabase PostgreSQL)
 - **Script SQL:** `schema.sql` (tablas: `accounts`, `categories`, `transactions`, `budgets`, `savings_goals`).
 - **Adaptador:** `assets/js/dbAdapter.js` universal compatible con navegador y pruebas.
 
+### C. Base de Datos en la Nube y Alojamiento con Firebase (Cloud Firestore & Hosting)
+- **Proyecto:** `mi-propia-contabilidad`
+- **Servicios:** Cloud Firestore (colecciones: `accounts`, `transactions`, `budgets`, `goals`, `planAccounts`, `backups`) y Firebase Hosting (`mi-propia-contabilidad.web.app`).
+- **Reglas de Seguridad:** `firestore.rules` con esquema estricto, aislamiento por usuario (`uid`) y validación declarativa profunda generada por el especialista de reglas.
+- **Adaptador:** `assets/js/dbAdapter.js` REST API con serialización pura `toFirestoreFields`/`fromFirestoreFields`, prueba de conexión, sincronización y almacenamiento de respaldos completos en Firestore.
+
 ---
 
 ## 2. Decisiones vigentes
 
+- **Integración con Firebase Cloud Firestore y Hosting (Spec 014):** Soporte para base de datos en la nube y alojamiento en Firebase (`mi-propia-contabilidad`). La arquitectura implementa un adaptador desacoplado en `assets/js/dbAdapter.js` vía API REST de Google Firestore v1, lo cual garantiza compatibilidad directa tanto en navegador web (HTTP/HTTPS y `file:///`) como en pruebas automatizadas con Node.js, sin añadir dependencias externas pesadas ni exigir bundlers de compilación. Incluye validadores y serializadores de tipos nativos Firestore (`toFirestoreFields`, `fromFirestoreFields`), prueba de conectividad en vivo con diagnóstico inteligente (detecta si Firestore requiere inicialización en Firebase Console y provee enlace directo), sincronización de las 5 entidades contables (`accounts`, `transactions`, `budgets`, `goals`, `planAccounts`) y persistencia de copias de respaldo completas JSON en la colección `backups` con metadata y estadísticas. La seguridad está blindada con `firestore.rules` declarativas y compiladas con éxito vía dry-run.
 - **Cuentas Secundarias (Subcuentas) en el Plan de Cuentas (Spec 013):** Permite crear subcuentas secundarias dependientes de cualquier Cuenta Base del catálogo contable (`parentCode`). Al seleccionar una cuenta base en la planilla modal o mediante el botón de acción rápida `+ Subcuenta` (`btn-add-subaccount`) en las filas del Plan de Cuentas, el sistema calcula de forma determinista el siguiente código numérico correlativo mediante la función pura `Calculations.generarSiguienteCodigoSubcuenta` (ej. `5.1.01.01`, `5.1.01.02`), heredando automáticamente la clase contable, el rubro y la naturaleza deudora/acreedora del padre. En la tabla del Plan de Cuentas, las subcuentas se presentan indentadas jerárquicamente con conector visual `↳` y badge `Subcuenta de [parentCode]`, e integradas de inmediato a las categorías de movimientos y presupuestos.
 - **Enlace de Categorías con el Plan de Cuentas Contable (Spec 012):** El campo "Categorías" de nuevos movimientos, filtros del Libro de Movimientos y el formulario de Presupuestos Mensuales emana de forma 100% reactiva y dinámica del catálogo maestro del Plan de Cuentas (`Calculations.obtenerCategoriasDesdePlan`). Para movimientos de gasto se ofrecen las cuentas de la Clase 5 (Gastos); para ingresos, las cuentas de la Clase 4 (Ingresos); y para movimientos divididos (Split), se permite imputar partidas a cuentas de gasto (Clase 5) o a bienes personales/activos fijos del hogar (Clase 1.3: Mobiliario, Computación, Inmuebles, Vehículos), además de cuentas financieras de tesorería. Toda transacción guarda tanto el nombre amigable de la categoría como su código contable normalizado (`categoryCode`), el cual se visualiza en la tabla de movimientos.
 - **Repositorio Oficial en GitHub:** Alojado y sincronizado en `https://github.com/AndresAguiarMarmol/contabilidad-personal` en la rama `main`, con tracking remoto activo y sincronización de todas las especificaciones implementadas.
@@ -51,6 +58,14 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 3. Historial de cambios
 
+- **2026-11-17 — Spec 014: Integración de Base de Datos y Alojamiento con Firebase (Cloud Firestore & Hosting) (SDD):**
+  - Creada especificación formal `specs/014-integracion-firebase-firestore/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
+  - Verificado e instalado Firebase CLI (`firebase-tools@15.36.0`) y configurados `.firebaserc` y `firebase.json` asociados al proyecto `mi-propia-contabilidad`.
+  - Invocado el subagente especialista `firestore-rules-author` para generar `firestore.rules` declarativas de nivel de producción, con compilación dry-run validada con 0 advertencias y 0 errores.
+  - Diseñada e implementada la suite `tests/firebase-db.test.js` con metodología TDD Red-Green (5 pruebas unitarias exhaustivas, elevando la suite a 67/67 pruebas totales en verde en el proyecto).
+  - Implementadas en `assets/js/dbAdapter.js` las funciones puras y asíncronas: `toFirestoreFields()`, `fromFirestoreFields()`, `prepareBackupDocument()`, `isFirebaseConfigured()`, `testFirebaseConnection()`, `saveBackupToFirebase()` y `syncAll()`.
+  - Integrado en `index.html` y `assets/js/app.js` el panel interactivo de Firebase en la sección de Configuración (`#view-settings`), permitiendo guardar credenciales, probar conectividad en vivo, subir respaldos completos a Firestore y sincronizar datos con feedback visual y toasts.
+  - Sincronizado y publicado en el repositorio de GitHub (`main`).
 - **2026-11-12 — Spec 013: Creación de Cuentas Secundarias (Subcuentas) a Cuentas Base (SDD):**
   - Creada especificación formal `specs/013-cuentas-secundarias-plan/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
   - Diseñada e implementada la suite `tests/subaccounts-plan.test.js` con metodología TDD Red-Green (5 pruebas unitarias exhaustivas, 62/62 pruebas totales en verde en el proyecto).

@@ -104,3 +104,4 @@ test('RF-5 y RF-6: obtenerCatalogoPlanCuentas y obtenerCategoriasDesdePlan integ
   const categoriasIngreso = Calculations.obtenerCategoriasDesdePlan(catalogo, 'income');
   assert.ok(categoriasIngreso.some(c => c.code === '4.1.01.01' && c.name === 'Empleador Tech Corp'));
 });
+

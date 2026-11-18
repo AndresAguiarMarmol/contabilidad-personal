@@ -78,3 +78,4 @@ Una cuenta contable en el Plan de Cuentas puede ser de dos niveles:
   3. `validarCuentaPlan` valida que el código de la subcuenta coincida con el prefijo de la cuenta padre.
   4. `validarCuentaPlan` rechaza subcuenta duplicada o con nombre repetido bajo el mismo padre.
   5. `obtenerCatalogoPlanCuentas` integra y clasifica subcuentas personalizadas manteniendo la jerarquía contable.
+
