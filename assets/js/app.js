@@ -3153,6 +3153,56 @@
   }
 
   // ========================================================
+  // AUTO-SINCRONIZACIÓN BIDIRECCIONAL CON FIREBASE (SPEC 015)
+  // Declarada en ámbito superior para acceso desde cualquier modal
+  // ========================================================
+  let isSyncing = false;
+  async function triggerAutoSync(options = {}) {
+    if (isSyncing) return;
+    if (!DbAdapter || DbAdapter.getProvider() !== "firebase") return;
+
+    const quickIcon = document.getElementById("quick-sync-icon");
+    const quickText = document.getElementById("quick-sync-text");
+
+    try {
+      isSyncing = true;
+      if (quickIcon) quickIcon.classList.add("animate-spin");
+      if (quickText && options.manual) quickText.textContent = "Sincronizando...";
+
+      const res = await DbAdapter.syncBidirectional();
+      if (res && res.synced) {
+        if (res.mergedState) {
+          state.accounts = res.mergedState.accounts;
+          state.transactions = res.mergedState.transactions;
+          state.budgets = res.mergedState.budgets;
+          state.goals = res.mergedState.goals;
+          state.planAccounts = res.mergedState.planAccounts;
+        } else {
+          loadStateFromStorage();
+        }
+
+        renderActiveView();
+
+        if (res.hasChangesFromRemote || res.newTransactionsFromRemote > 0) {
+          if (options.notify !== false) {
+            showToast(res.message, "success");
+          }
+        } else if (options.manual) {
+          showToast("Datos al día con la nube.", "info");
+        }
+      }
+    } catch (err) {
+      if (options.manual) {
+        showToast("Error de sincronización con la nube.", "error");
+      }
+    } finally {
+      isSyncing = false;
+      if (quickIcon) quickIcon.classList.remove("animate-spin");
+      if (quickText) quickText.textContent = "Sincronizar";
+    }
+  }
+
+  // ========================================================
   // FILTROS Y EVENTOS GLOBALES
   // ========================================================
   function initFiltersAndEvents() {
@@ -3395,53 +3445,6 @@
       }
     });
 
-    // ========================================================
-    // AUTO-SINCRONIZACIÓN BIDIRECCIONAL CON FIREBASE (SPEC 015)
-    // ========================================================
-    let isSyncing = false;
-    async function triggerAutoSync(options = {}) {
-      if (isSyncing) return;
-      if (!DbAdapter || DbAdapter.getProvider() !== "firebase") return;
-
-      const quickIcon = document.getElementById("quick-sync-icon");
-      const quickText = document.getElementById("quick-sync-text");
-
-      try {
-        isSyncing = true;
-        if (quickIcon) {
-          quickIcon.classList.add("animate-spin");
-        }
-        if (quickText && options.manual) {
-          quickText.textContent = "Sincronizando...";
-        }
-
-        const res = await DbAdapter.syncBidirectional();
-        if (res && res.synced) {
-          if (res.hasChangesFromRemote) {
-            loadStateFromStorage();
-            renderActiveView();
-            if (options.notify !== false) {
-              showToast(res.message, "success");
-            }
-          } else if (options.manual) {
-            showToast("Datos al día con la nube.", "info");
-          }
-        }
-      } catch (err) {
-        if (options.manual) {
-          showToast("Error de sincronización con la nube.", "error");
-        }
-      } finally {
-        isSyncing = false;
-        if (quickIcon) {
-          quickIcon.classList.remove("animate-spin");
-        }
-        if (quickText) {
-          quickText.textContent = "Sincronizar";
-        }
-      }
-    }
-
     // Botón rápido en la cabecera superior
     document.getElementById("btn-quick-sync")?.addEventListener("click", async () => {
       showToast("Sincronizando con Cloud Firestore...", "info");
@@ -3511,10 +3514,7 @@
     renderActiveView();
     // Auto-sincronización multi-dispositivo en segundo plano al abrir la app
     if (typeof DbAdapter !== "undefined" && DbAdapter && DbAdapter.getProvider() === "firebase") {
-      setTimeout(() => {
-        const syncBtn = document.getElementById("btn-quick-sync");
-        if (syncBtn) syncBtn.click();
-      }, 500);
+      triggerAutoSync({ notify: false });
     }
   }
 

@@ -162,14 +162,33 @@
       }
     },
 
-    // --- CONFIGURACIÓN BASE DE DATOS (SUPABASE) ---
+    // --- CONFIGURACIÓN BASE DE DATOS (FIREBASE / SUPABASE) ---
     getDbConfig() {
       const ls = getLocalStorage();
+      const defaultFirebase = {
+        provider: "firebase",
+        projectId: "mi-propia-contabilidad",
+        apiKey: "AIzaSyCjcppkAHLLNTZRomuGqz_Q96nMdnEnqtU",
+        authDomain: "mi-propia-contabilidad.firebaseapp.com",
+        storageBucket: "mi-propia-contabilidad.firebasestorage.app"
+      };
+
       try {
         const raw = ls ? ls.getItem(STORAGE_KEYS.DB_CONFIG) : null;
-        return raw ? JSON.parse(raw) : { provider: "none", url: "", anonKey: "" };
+        if (!raw) return defaultFirebase;
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.provider) {
+          if (parsed.provider === "firebase") {
+            return {
+              ...defaultFirebase,
+              ...parsed
+            };
+          }
+          return parsed;
+        }
+        return defaultFirebase;
       } catch (e) {
-        return { provider: "none", url: "", anonKey: "" };
+        return defaultFirebase;
       }
     },
 
