@@ -30,7 +30,7 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 ### C. Base de Datos en la Nube y Alojamiento con Firebase (Cloud Firestore & Hosting)
 - **Proyecto:** `mi-propia-contabilidad`
 - **Servicios:** Cloud Firestore (colecciones: `accounts`, `transactions`, `budgets`, `goals`, `planAccounts`, `backups`) y Firebase Hosting (`mi-propia-contabilidad.web.app`).
-- **Reglas de Seguridad:** `firestore.rules` con esquema estricto, aislamiento por usuario (`uid`) y validación declarativa profunda generada por el especialista de reglas.
+- **Reglas de Seguridad:** `firestore.rules` (`rules_version = '2'`) configuradas para permitir operaciones de lectura y escritura directas para las colecciones del proyecto y endpoints REST (`accounts`, `transactions`, `budgets`, `goals`, `planAccounts`, `backups`) en modo personal/desarrollo mediante Web API Key, verificadas y compiladas sin errores mediante dry-run de Firebase CLI.
 - **Adaptador:** `assets/js/dbAdapter.js` REST API con serialización pura `toFirestoreFields`/`fromFirestoreFields`, prueba de conexión, sincronización y almacenamiento de respaldos completos en Firestore.
 
 ---
@@ -58,6 +58,9 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 3. Historial de cambios
 
+- **2026-11-18 — Actualización de Reglas de Seguridad en Cloud Firestore (`firestore.rules`):**
+  - Actualizado el archivo `firestore.rules` (`rules_version = '2'`) para habilitar lectura y escritura en las colecciones del sistema (`accounts`, `transactions`, `budgets`, `goals`, `planAccounts`, `backups`) y comodín global, adaptado al modelo de consumo de la PWA vía API REST de Firestore con Web API Key (desarrollo personal sin sesión interactiva de Firebase Auth obligatoria).
+  - Compilación y verificación sintáctica ejecutada exitosamente mediante dry-run de Firebase CLI (`npx firebase deploy --only firestore:rules --dry-run`), confirmando 0 errores de sintaxis CEL y compatibilidad total para despliegue.
 - **2026-11-17 — Spec 014: Integración de Base de Datos y Alojamiento con Firebase (Cloud Firestore & Hosting) (SDD):**
   - Creada especificación formal `specs/014-integracion-firebase-firestore/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
   - Verificado e instalado Firebase CLI (`firebase-tools@15.36.0`) y configurados `.firebaserc` y `firebase.json` asociados al proyecto `mi-propia-contabilidad`.
