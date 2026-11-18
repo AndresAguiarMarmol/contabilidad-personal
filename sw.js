@@ -1,5 +1,5 @@
-// sw.js — Service Worker básico para soporte offline PWA
-const CACHE_NAME = "contapersonal-v1";
+// sw.js — Service Worker con estrategia Network-First para soporte offline PWA
+const CACHE_NAME = "contapersonal-v2";
 const ASSETS_TO_CACHE = [
   "./",
   "./index.html",
@@ -7,6 +7,7 @@ const ASSETS_TO_CACHE = [
   "./assets/js/app.js",
   "./assets/js/mockData.js",
   "./assets/js/storage.js",
+  "./assets/js/financeCalculations.js",
   "./assets/js/dbAdapter.js",
   "./manifest.json"
 ];
@@ -35,15 +36,23 @@ self.addEventListener("activate", (e) => {
   self.clients.claim();
 });
 
+// Estrategia Network-First: intenta cargar siempre la última versión de la red.
+// Si no hay conexión o falla la red, recurre a la copia offline en caché.
 self.addEventListener("fetch", (e) => {
-  // Solo interceptar peticiones GET del mismo origen
   if (e.request.method !== "GET" || !e.request.url.startsWith(self.location.origin)) {
     return;
   }
+
   e.respondWith(
-    caches.match(e.request).then((cached) => {
-      return cached || fetch(e.request).catch(() => cached);
-    })
+    fetch(e.request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const clone = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(e.request, clone));
+        }
+        return networkResponse;
+      })
+      .catch(() => caches.match(e.request))
   );
 });
 
