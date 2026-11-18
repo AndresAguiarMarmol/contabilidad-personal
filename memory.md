@@ -64,6 +64,7 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
   - Invocado el subagente especialista `firestore-rules-author` para generar `firestore.rules` declarativas de nivel de producción, con compilación dry-run validada con 0 advertencias y 0 errores.
   - Diseñada e implementada la suite `tests/firebase-db.test.js` con metodología TDD Red-Green (5 pruebas unitarias exhaustivas, elevando la suite a 67/67 pruebas totales en verde en el proyecto).
   - Implementadas en `assets/js/dbAdapter.js` las funciones puras y asíncronas: `toFirestoreFields()`, `fromFirestoreFields()`, `prepareBackupDocument()`, `isFirebaseConfigured()`, `testFirebaseConnection()`, `saveBackupToFirebase()` y `syncAll()`.
+  - Corregido endpoint de diagnóstico en `DbAdapter.testFirebaseConnection` para consultar la colección estructurada `/documents/accounts` con soporte nativo de CORS (resolviendo error de navegador `Failed to fetch`).
   - Integrado en `index.html` y `assets/js/app.js` el panel interactivo de Firebase en la sección de Configuración (`#view-settings`), permitiendo guardar credenciales, probar conectividad en vivo, subir respaldos completos a Firestore y sincronizar datos con feedback visual y toasts.
   - Sincronizado y publicado en el repositorio de GitHub (`main`).
 - **2026-11-12 — Spec 013: Creación de Cuentas Secundarias (Subcuentas) a Cuentas Base (SDD):**

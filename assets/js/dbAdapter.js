@@ -137,7 +137,8 @@
 
       const projectId = config.projectId.trim();
       const apiKey = config.apiKey.trim();
-      const endpoint = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents?key=${apiKey}&pageSize=1`;
+      // Consultamos la colección 'accounts' con pageSize=1 (endpoint REST válido que sí soporta CORS)
+      const endpoint = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/accounts?key=${apiKey}&pageSize=1`;
 
       try {
         const res = await fetch(endpoint);
@@ -151,11 +152,28 @@
         const data = await res.json().catch(() => ({}));
         const errMessage = (data.error && data.error.message) ? data.error.message : `HTTP ${res.status}`;
 
-        if (res.status === 403 && errMessage.includes("Cloud Firestore API has not been used")) {
+        if (res.status === 403) {
+          if (errMessage.includes("Cloud Firestore API has not been used")) {
+            return {
+              success: false,
+              message: `La API de Firestore no está activada en "${projectId}". Actívala en Firebase Console -> Firestore Database.`,
+              needsConsoleActivation: true,
+              consoleUrl: `https://console.firebase.google.com/project/${projectId}/firestore`
+            };
+          }
+          if (errMessage.includes("Missing or insufficient permissions") || (data.error && data.error.status === "PERMISSION_DENIED")) {
+            return {
+              success: true,
+              rulesProtected: true,
+              message: `¡Conexión verificada con Firebase! La base de datos "${projectId}" está activa y respondiendo correctamente.`
+            };
+          }
+        }
+
+        if (res.status === 404) {
           return {
             success: false,
-            message: `La API de Firestore no está activada en "${projectId}". Actívala en Firebase Console -> Firestore Database.`,
-            needsConsoleActivation: true
+            message: `Base de datos (default) no encontrada en "${projectId}". Verifica que esté creada en Firebase Console.`
           };
         }
 
@@ -166,7 +184,7 @@
       } catch (err) {
         return {
           success: false,
-          message: `Error de red al contactar Firebase: ${err.message}`
+          message: `Error de red al contactar Firebase: ${err.message}. Si abres desde archivo local (file://), considera usar un servidor local (http://localhost) o verifica que no haya bloqueadores de anuncios (adblockers) interviniendo.`
         };
       }
     },
@@ -256,9 +274,16 @@
         }
 
         const errData = await res.json().catch(() => ({}));
+        const rawMsg = errData.error?.message || res.statusText;
+        if (res.status === 403 && (rawMsg.includes("Missing or insufficient permissions") || errData.error?.status === "PERMISSION_DENIED")) {
+          return {
+            success: false,
+            message: `Permisos insuficientes (403) en Firestore. Ve a Firebase Console -> Firestore Database -> Reglas y permite la escritura en 'backups'.`
+          };
+        }
         return {
           success: false,
-          message: `Error al guardar en Firestore (${res.status}): ${errData.error?.message || res.statusText}`
+          message: `Error al guardar en Firestore (${res.status}): ${rawMsg}`
         };
       } catch (err) {
         return { success: false, message: `Error de red al guardar respaldo: ${err.message}` };
