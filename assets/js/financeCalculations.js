@@ -1345,6 +1345,171 @@
     return null;
   }
 
+  /**
+   * Fusiona bidireccionalmente el estado contable local con el estado remoto de Firestore (Spec 015 / RF-1)
+   * @param {Object} localState Estado local { accounts, transactions, budgets, goals, planAccounts }
+   * @param {Object} remoteState Estado remoto de la nube { accounts, transactions, budgets, goals, planAccounts }
+   * @returns {Object} { mergedState, hasChangesFromRemote, newTransactionsFromRemote }
+   */
+  function fusionarEstadoContable(localState, remoteState) {
+    const local = localState && typeof localState === "object" ? localState : {};
+    const remote = remoteState && typeof remoteState === "object" ? remoteState : {};
+
+    const localTxs = Array.isArray(local.transactions) ? local.transactions : [];
+    const remoteTxs = Array.isArray(remote.transactions) ? remote.transactions : [];
+
+    const localAccs = Array.isArray(local.accounts) ? local.accounts : [];
+    const remoteAccs = Array.isArray(remote.accounts) ? remote.accounts : [];
+
+    const localBudgets = Array.isArray(local.budgets) ? local.budgets : [];
+    const remoteBudgets = Array.isArray(remote.budgets) ? remote.budgets : [];
+
+    const localGoals = Array.isArray(local.goals) ? local.goals : [];
+    const remoteGoals = Array.isArray(remote.goals) ? remote.goals : [];
+
+    const localPlan = Array.isArray(local.planAccounts) ? local.planAccounts : [];
+    const remotePlan = Array.isArray(remote.planAccounts) ? remote.planAccounts : [];
+
+    // 1. Fusionar transacciones sin duplicados por ID
+    const txMap = new Map();
+    let newTxsFromRemote = 0;
+    const localTxIdSet = new Set(localTxs.map(t => t.id));
+
+    localTxs.forEach(t => {
+      if (t && t.id) txMap.set(t.id, { ...t });
+    });
+
+    remoteTxs.forEach(t => {
+      if (!t || !t.id) return;
+      if (!txMap.has(t.id)) {
+        txMap.set(t.id, { ...t });
+        if (!localTxIdSet.has(t.id)) {
+          newTxsFromRemote++;
+        }
+      } else {
+        const existing = txMap.get(t.id);
+        txMap.set(t.id, { ...existing, ...t });
+      }
+    });
+
+    const mergedTransactions = Array.from(txMap.values());
+    mergedTransactions.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+
+    // 2. Fusionar cuentas sin duplicados por ID
+    const accMap = new Map();
+    localAccs.forEach(a => {
+      if (a && a.id) accMap.set(a.id, { ...a });
+    });
+    remoteAccs.forEach(a => {
+      if (!a || !a.id) return;
+      if (!accMap.has(a.id)) {
+        accMap.set(a.id, { ...a });
+      } else {
+        const existing = accMap.get(a.id);
+        accMap.set(a.id, { ...existing, ...a, initialBalance: existing.initialBalance ?? a.initialBalance });
+      }
+    });
+
+    // Recalcular contablemente el balance actual (currentBalance) de cada cuenta
+    const mergedAccounts = Array.from(accMap.values()).map(acc => {
+      let balance = Number(acc.initialBalance || 0);
+
+      mergedTransactions.forEach(tx => {
+        const amt = Number(tx.amount || 0);
+        if (tx.isSplit && Array.isArray(tx.splitLines)) {
+          if (tx.accountId === acc.id) {
+            balance -= amt;
+          }
+          tx.splitLines.forEach(line => {
+            if (line.targetAccountId === acc.id) {
+              balance += Number(line.amount || 0);
+            }
+          });
+        } else if (tx.type === "expense" && tx.accountId === acc.id) {
+          balance -= amt;
+        } else if (tx.type === "income" && tx.accountId === acc.id) {
+          balance += amt;
+        } else if (tx.type === "transfer") {
+          if (tx.accountId === acc.id) balance -= amt;
+          if (tx.toAccountId === acc.id) balance += amt;
+        }
+      });
+
+      return {
+        ...acc,
+        currentBalance: balance
+      };
+    });
+
+    // 3. Fusionar presupuestos
+    const budgetMap = new Map();
+    localBudgets.forEach(b => {
+      if (b && b.id) budgetMap.set(b.id, { ...b });
+    });
+    remoteBudgets.forEach(b => {
+      if (!b || !b.id) return;
+      if (!budgetMap.has(b.id)) {
+        budgetMap.set(b.id, { ...b });
+      } else {
+        const existing = budgetMap.get(b.id);
+        budgetMap.set(b.id, { ...existing, ...b });
+      }
+    });
+    const mergedBudgets = Array.from(budgetMap.values());
+
+    // 4. Fusionar metas de ahorro
+    const goalMap = new Map();
+    localGoals.forEach(g => {
+      if (g && g.id) goalMap.set(g.id, { ...g });
+    });
+    remoteGoals.forEach(g => {
+      if (!g || !g.id) return;
+      if (!goalMap.has(g.id)) {
+        goalMap.set(g.id, { ...g });
+      } else {
+        const existing = goalMap.get(g.id);
+        const currentAmount = Math.max(Number(existing.currentAmount || 0), Number(g.currentAmount || 0));
+        goalMap.set(g.id, { ...existing, ...g, currentAmount });
+      }
+    });
+    const mergedGoals = Array.from(goalMap.values());
+
+    // 5. Fusionar plan de cuentas personalizado
+    const planMap = new Map();
+    localPlan.forEach(p => {
+      if (p && (p.id || p.code)) planMap.set(p.code || p.id, { ...p });
+    });
+    remotePlan.forEach(p => {
+      if (!p || (!p.id && !p.code)) return;
+      const key = p.code || p.id;
+      if (!planMap.has(key)) {
+        planMap.set(key, { ...p });
+      } else {
+        const existing = planMap.get(key);
+        planMap.set(key, { ...existing, ...p });
+      }
+    });
+    const mergedPlanAccounts = Array.from(planMap.values());
+
+    const hasNewAccounts = mergedAccounts.length > localAccs.length;
+    const hasNewBudgets = mergedBudgets.length > localBudgets.length;
+    const hasNewGoals = mergedGoals.length > localGoals.length;
+    const hasNewPlan = mergedPlanAccounts.length > localPlan.length;
+    const hasChangesFromRemote = Boolean(newTxsFromRemote > 0 || hasNewAccounts || hasNewBudgets || hasNewGoals || hasNewPlan);
+
+    return {
+      mergedState: {
+        accounts: mergedAccounts,
+        transactions: mergedTransactions,
+        budgets: mergedBudgets,
+        goals: mergedGoals,
+        planAccounts: mergedPlanAccounts
+      },
+      hasChangesFromRemote,
+      newTransactionsFromRemote: newTxsFromRemote
+    };
+  }
+
   return {
     calcularPatrimonioNeto,
     calcularBalanceMes,
@@ -1376,6 +1541,7 @@
     puedeEliminarCuentaPlan,
     obtenerCategoriasDesdePlan,
     resolverCategoriaPlan,
-    generarSiguienteCodigoSubcuenta
+    generarSiguienteCodigoSubcuenta,
+    fusionarEstadoContable
   };
 });

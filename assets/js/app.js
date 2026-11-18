@@ -2110,6 +2110,7 @@
         modal.close();
         renderActiveView();
         showToast(`Movimiento dividido de ${formatMoney(tx.amount)} registrado con éxito (${tx.splitLines.length} partidas).`, "success");
+        triggerAutoSync({ notify: false });
         return;
       }
 
@@ -2174,6 +2175,7 @@
 
       const typeWord = tx.type === "income" ? "Ingreso" : tx.type === "transfer" ? "Transferencia" : "Gasto";
       showToast(`${typeWord} de ${formatMoney(tx.amount)} registrado con éxito.`, "success");
+      triggerAutoSync({ notify: false });
     });
 
     modal.showModal();
@@ -2332,6 +2334,9 @@
       modal.close();
       renderActiveView();
       showToast(`Cuenta "${newAccount.name}" creada con éxito.`, "success");
+      if (typeof DbAdapter !== "undefined" && DbAdapter && DbAdapter.getProvider() === "firebase") {
+        DbAdapter.syncBidirectional().catch(() => {});
+      }
     });
 
     modal.showModal();
@@ -2484,6 +2489,9 @@
       modal.close();
       renderActiveView();
       showToast(`Cuenta "${account.name}" actualizada con éxito.`, "success");
+      if (typeof DbAdapter !== "undefined" && DbAdapter && DbAdapter.getProvider() === "firebase") {
+        DbAdapter.syncBidirectional().catch(() => {});
+      }
     });
 
     modal.showModal();
@@ -2728,6 +2736,9 @@
         ? `Subcuenta "${nameVal}" (${codeVal}) creada exitosamente bajo ${parentCodeVal}.`
         : `Cuenta contable "${nameVal}" guardada con éxito.`;
       showToast(successMsg, "success");
+      if (typeof DbAdapter !== "undefined" && DbAdapter && DbAdapter.getProvider() === "firebase") {
+        DbAdapter.syncBidirectional().catch(() => {});
+      }
     });
 
     modal.showModal();
@@ -2875,6 +2886,9 @@
 
       modal.close();
       renderActiveView();
+      if (typeof DbAdapter !== "undefined" && DbAdapter && DbAdapter.getProvider() === "firebase") {
+        DbAdapter.syncBidirectional().catch(() => {});
+      }
     });
 
     modal.showModal();
@@ -2994,6 +3008,9 @@
 
       modal.close();
       renderActiveView();
+      if (typeof DbAdapter !== "undefined" && DbAdapter && DbAdapter.getProvider() === "firebase") {
+        DbAdapter.syncBidirectional().catch(() => {});
+      }
     });
 
     modal.showModal();
@@ -3082,6 +3099,9 @@
           showToast(`🎉 ¡Felicitaciones! Has completado tu meta "${goal.title}" con ${formatMoney(goalActualizada.currentAmount)}.`, "success");
         } else {
           showToast(`Aporte de ${formatMoney(aporte)} sumado a "${goal.title}".`, "success");
+        }
+        if (typeof DbAdapter !== "undefined" && DbAdapter && DbAdapter.getProvider() === "firebase") {
+          DbAdapter.syncBidirectional().catch(() => {});
         }
       } catch (err) {
         showToast(err.message || "Error al aplicar aporte", "error");
@@ -3375,16 +3395,74 @@
       }
     });
 
-    document.getElementById("btn-firebase-sync")?.addEventListener("click", async () => {
-      showToast("Sincronizando con base de datos remota...", "info");
-      if (DbAdapter) {
-        const result = await DbAdapter.syncAll();
-        if (result.synced) {
-          showToast(result.message, "success");
-        } else {
-          showToast(result.message, "info");
+    // ========================================================
+    // AUTO-SINCRONIZACIÓN BIDIRECCIONAL CON FIREBASE (SPEC 015)
+    // ========================================================
+    let isSyncing = false;
+    async function triggerAutoSync(options = {}) {
+      if (isSyncing) return;
+      if (!DbAdapter || DbAdapter.getProvider() !== "firebase") return;
+
+      const quickIcon = document.getElementById("quick-sync-icon");
+      const quickText = document.getElementById("quick-sync-text");
+
+      try {
+        isSyncing = true;
+        if (quickIcon) {
+          quickIcon.classList.add("animate-spin");
+        }
+        if (quickText && options.manual) {
+          quickText.textContent = "Sincronizando...";
+        }
+
+        const res = await DbAdapter.syncBidirectional();
+        if (res && res.synced) {
+          if (res.hasChangesFromRemote) {
+            loadStateFromStorage();
+            renderActiveView();
+            if (options.notify !== false) {
+              showToast(res.message, "success");
+            }
+          } else if (options.manual) {
+            showToast("Datos al día con la nube.", "info");
+          }
+        }
+      } catch (err) {
+        if (options.manual) {
+          showToast("Error de sincronización con la nube.", "error");
+        }
+      } finally {
+        isSyncing = false;
+        if (quickIcon) {
+          quickIcon.classList.remove("animate-spin");
+        }
+        if (quickText) {
+          quickText.textContent = "Sincronizar";
         }
       }
+    }
+
+    // Botón rápido en la cabecera superior
+    document.getElementById("btn-quick-sync")?.addEventListener("click", async () => {
+      showToast("Sincronizando con Cloud Firestore...", "info");
+      await triggerAutoSync({ notify: true, manual: true });
+    });
+
+    // Botón en la sección de Configuración
+    document.getElementById("btn-firebase-sync")?.addEventListener("click", async () => {
+      showToast("Sincronizando con base de datos remota...", "info");
+      await triggerAutoSync({ notify: true, manual: true });
+    });
+
+    // Sincronización automática al retomar la pestaña o la app en móvil
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        triggerAutoSync({ notify: true });
+      }
+    });
+
+    window.addEventListener("focus", () => {
+      triggerAutoSync({ notify: false });
     });
 
     const modal = document.getElementById("app-modal");
@@ -3431,6 +3509,13 @@
     loadStateFromStorage();
     initFiltersAndEvents();
     renderActiveView();
+    // Auto-sincronización multi-dispositivo en segundo plano al abrir la app
+    if (typeof DbAdapter !== "undefined" && DbAdapter && DbAdapter.getProvider() === "firebase") {
+      setTimeout(() => {
+        const syncBtn = document.getElementById("btn-quick-sync");
+        if (syncBtn) syncBtn.click();
+      }, 500);
+    }
   }
 
   if (document.readyState === "loading") {

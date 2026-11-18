@@ -5,13 +5,15 @@
 (function (root, factory) {
   if (typeof module === "object" && module.exports) {
     const storage = require("./storage.js");
-    module.exports = factory(storage);
+    const calculations = require("./financeCalculations.js");
+    module.exports = factory(storage, calculations);
   } else {
     root.ContaPersonal = root.ContaPersonal || {};
     const storage = root.ContaPersonal.Storage || {};
-    root.ContaPersonal.DbAdapter = factory(storage);
+    const calculations = root.ContaPersonal.Calculations || {};
+    root.ContaPersonal.DbAdapter = factory(storage, calculations);
   }
-})(typeof globalThis !== "undefined" ? globalThis : this, function (Storage) {
+})(typeof globalThis !== "undefined" ? globalThis : this, function (Storage, Calculations) {
 
   // ========================================================
   // SERIALIZACIÓN / DESERIALIZACIÓN REST CLOUD FIRESTORE
@@ -290,12 +292,82 @@
       }
     },
 
-    // --- SINCRONIZACIÓN GENERAL ---
-    async syncAll() {
-      const config = Storage.getDbConfig ? Storage.getDbConfig() : null;
-      const provider = this.getProvider();
+    // --- OBTENER ESTADO REMOTO DE WORKSPACE (SPEC 015) ---
+    async fetchRemoteWorkspace(config) {
+      const dbConfig = config || (Storage.getDbConfig ? Storage.getDbConfig() : null);
+      if (!this.isFirebaseConfigured(dbConfig)) return null;
 
-      if (provider === "none") {
+      const endpoint = `https://firestore.googleapis.com/v1/projects/${dbConfig.projectId}/databases/(default)/documents/workspaces/main?key=${dbConfig.apiKey}`;
+
+      try {
+        const res = await fetch(endpoint);
+        if (res.status === 200) {
+          const data = await res.json();
+          if (data && data.fields) {
+            return this.fromFirestoreFields(data.fields);
+          }
+        }
+        // Si no existe workspaces/main (404), intentamos recuperar el último backup en 'backups' para inicializarlo
+        if (res.status === 404) {
+          const backupsEndpoint = `https://firestore.googleapis.com/v1/projects/${dbConfig.projectId}/databases/(default)/documents/backups?key=${dbConfig.apiKey}&pageSize=1`;
+          const backupRes = await fetch(backupsEndpoint).catch(() => null);
+          if (backupRes && backupRes.status === 200) {
+            const bData = await backupRes.json();
+            if (bData.documents && bData.documents.length > 0) {
+              const latest = bData.documents[0];
+              if (latest && latest.fields) {
+                return this.fromFirestoreFields(latest.fields);
+              }
+            }
+          }
+        }
+        return null;
+      } catch (err) {
+        return null;
+      }
+    },
+
+    // --- GUARDAR ESTADO REMOTO DE WORKSPACE (SPEC 015) ---
+    async saveRemoteWorkspace(workspaceData, config) {
+      const dbConfig = config || (Storage.getDbConfig ? Storage.getDbConfig() : null);
+      if (!this.isFirebaseConfigured(dbConfig)) {
+        return { success: false, message: "Firebase no está configurado." };
+      }
+
+      const payload = {
+        updatedAt: new Date().toISOString(),
+        accounts: Array.isArray(workspaceData.accounts) ? workspaceData.accounts : [],
+        transactions: Array.isArray(workspaceData.transactions) ? workspaceData.transactions : [],
+        budgets: Array.isArray(workspaceData.budgets) ? workspaceData.budgets : [],
+        goals: Array.isArray(workspaceData.goals) ? workspaceData.goals : [],
+        planAccounts: Array.isArray(workspaceData.planAccounts) ? workspaceData.planAccounts : []
+      };
+
+      const fields = this.toFirestoreFields(payload);
+      // Usamos PATCH en Firestore REST API para crear o reemplazar el documento workspaces/main
+      const endpoint = `https://firestore.googleapis.com/v1/projects/${dbConfig.projectId}/databases/(default)/documents/workspaces/main?key=${dbConfig.apiKey}`;
+
+      try {
+        const res = await fetch(endpoint, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fields })
+        });
+
+        if (res.ok || res.status === 200) {
+          return { success: true, message: "Workspace actualizado en Cloud Firestore." };
+        }
+        const errData = await res.json().catch(() => ({}));
+        return { success: false, message: `Error (${res.status}): ${errData.error?.message || res.statusText}` };
+      } catch (err) {
+        return { success: false, message: `Error de red: ${err.message}` };
+      }
+    },
+
+    // --- SINCRONIZACIÓN BIDIRECCIONAL COMPLETA (SPEC 015) ---
+    async syncBidirectional(customConfig = null) {
+      const config = customConfig || (Storage.getDbConfig ? Storage.getDbConfig() : null);
+      if (!this.isFirebaseConfigured(config)) {
         return {
           synced: false,
           provider: "none",
@@ -303,23 +375,73 @@
         };
       }
 
-      if (provider === "firebase") {
-        const fullBackup = {
-          accounts: Storage.getAccounts ? Storage.getAccounts() : [],
-          transactions: Storage.getTransactions ? Storage.getTransactions() : [],
-          budgets: Storage.getBudgets ? Storage.getBudgets() : [],
-          goals: Storage.getGoals ? Storage.getGoals() : [],
-          planAccounts: Storage.getPlanAccounts ? Storage.getPlanAccounts() : []
-        };
-        const res = await this.saveBackupToFirebase(fullBackup, config);
+      const localState = {
+        accounts: Storage.getAccounts ? Storage.getAccounts() : [],
+        transactions: Storage.getTransactions ? Storage.getTransactions() : [],
+        budgets: Storage.getBudgets ? Storage.getBudgets() : [],
+        goals: Storage.getGoals ? Storage.getGoals() : [],
+        planAccounts: Storage.getPlanAccounts ? Storage.getPlanAccounts() : []
+      };
+
+      const remoteState = await this.fetchRemoteWorkspace(config);
+
+      // Si no hay nada en remoto aún, inicializamos remoto con el local
+      if (!remoteState) {
+        await this.saveRemoteWorkspace(localState, config);
         return {
-          synced: res.success,
+          synced: true,
           provider: "firebase",
-          message: res.message
+          hasChangesFromRemote: false,
+          newTransactionsFromRemote: 0,
+          mergedState: localState,
+          message: "Datos locales inicializados en la nube."
         };
       }
 
-      // Proveedor Supabase
+      // Si hay datos remotos, fusionamos bidireccionalmente
+      const fusion = Calculations && Calculations.fusionarEstadoContable
+        ? Calculations.fusionarEstadoContable(localState, remoteState)
+        : { mergedState: localState, hasChangesFromRemote: false, newTransactionsFromRemote: 0 };
+
+      const merged = fusion.mergedState;
+
+      // Guardar en Storage local si hubo cambios o para unificar
+      if (Storage) {
+        if (Storage.saveAccounts) Storage.saveAccounts(merged.accounts);
+        if (Storage.saveTransactions) Storage.saveTransactions(merged.transactions);
+        if (Storage.saveBudgets) Storage.saveBudgets(merged.budgets);
+        if (Storage.saveGoals) Storage.saveGoals(merged.goals);
+        if (Storage.savePlanAccounts) Storage.savePlanAccounts(merged.planAccounts);
+      }
+
+      // Subir el estado fusionado resultante a Firestore para que el otro dispositivo también lo reciba
+      await this.saveRemoteWorkspace(merged, config);
+
+      return {
+        synced: true,
+        provider: "firebase",
+        hasChangesFromRemote: fusion.hasChangesFromRemote,
+        newTransactionsFromRemote: fusion.newTransactionsFromRemote,
+        mergedState: merged,
+        message: fusion.newTransactionsFromRemote > 0
+          ? `Sincronización exitosa: ${fusion.newTransactionsFromRemote} movimiento(s) recibido(s) desde otro dispositivo.`
+          : "Sincronización al día con la nube."
+      };
+    },
+
+    // --- SINCRONIZACIÓN GENERAL ---
+    async syncAll() {
+      const provider = this.getProvider();
+      if (provider === "firebase") {
+        return await this.syncBidirectional();
+      }
+      if (provider === "none") {
+        return {
+          synced: false,
+          provider: "none",
+          message: "Operando en modo Local Storage (sin base de datos remota configurada)."
+        };
+      }
       return { synced: true, provider: "supabase", message: "Sincronización con base de datos remota completada." };
     }
   };
