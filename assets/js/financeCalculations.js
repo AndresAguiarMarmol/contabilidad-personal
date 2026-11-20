@@ -910,6 +910,29 @@
     };
   }
 
+  /**
+   * Elimina inmutablemente todas las transacciones asociadas a una cuenta financiera (directas, transferencias y splits) (Spec 017 / RF-4)
+   * @param {string} accountId ID de la cuenta a purgar
+   * @param {Array} transactions Lista de transacciones
+   * @returns {Array} Nueva lista de transacciones sin los movimientos vinculados a la cuenta
+   */
+  function purgarMovimientosDeCuenta(accountId, transactions = []) {
+    if (!accountId || !Array.isArray(transactions)) {
+      return Array.isArray(transactions) ? transactions.slice() : [];
+    }
+
+    return transactions.filter((tx) => {
+      if (!tx) return false;
+      if (tx.accountId === accountId) return false;
+      if (tx.toAccountId === accountId) return false;
+      if (Boolean(tx.isSplit && Array.isArray(tx.splitLines))) {
+        const afectaCuenta = tx.splitLines.some((l) => l && l.targetAccountId === accountId);
+        if (afectaCuenta) return false;
+      }
+      return true;
+    });
+  }
+
   // ========================================================
   // PLAN DE CUENTAS ORIENTADO A CONTABILIDAD PERSONAL (SPEC 011)
   // ========================================================
@@ -1384,6 +1407,10 @@
     const remoteDeletedGoals = Array.isArray(remote.deletedGoals) ? remote.deletedGoals : [];
     const deletedGoalsSet = new Set([...localDeletedGoals, ...remoteDeletedGoals]);
 
+    const localDeletedAccounts = Array.isArray(local.deletedAccounts) ? local.deletedAccounts : [];
+    const remoteDeletedAccounts = Array.isArray(remote.deletedAccounts) ? remote.deletedAccounts : [];
+    const deletedAccountsSet = new Set([...localDeletedAccounts, ...remoteDeletedAccounts]);
+
     // 1. Fusionar transacciones sin duplicados por ID
     const txMap = new Map();
     let newTxsFromRemote = 0;
@@ -1409,13 +1436,13 @@
     const mergedTransactions = Array.from(txMap.values());
     mergedTransactions.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
-    // 2. Fusionar cuentas sin duplicados por ID (Local-First: atributos locales tienen prioridad)
+    // 2. Fusionar cuentas sin duplicados por ID (Local-First: atributos locales tienen prioridad, excluyendo eliminados)
     const accMap = new Map();
     localAccs.forEach(a => {
-      if (a && a.id) accMap.set(a.id, { ...a });
+      if (a && a.id && !deletedAccountsSet.has(a.id)) accMap.set(a.id, { ...a });
     });
     remoteAccs.forEach(a => {
-      if (!a || !a.id) return;
+      if (!a || !a.id || deletedAccountsSet.has(a.id)) return;
       if (!accMap.has(a.id)) {
         accMap.set(a.id, { ...a });
       } else {
@@ -1528,6 +1555,7 @@
         budgets: mergedBudgets,
         goals: mergedGoals,
         planAccounts: mergedPlanAccounts,
+        deletedAccounts: Array.from(deletedAccountsSet),
         deletedPlanAccounts: Array.from(deletedPlanSet),
         deletedBudgets: Array.from(deletedBudgetsSet),
         deletedGoals: Array.from(deletedGoalsSet)
@@ -1561,6 +1589,7 @@
     clasificarPlanDeCuentas,
     validarEdicionCuenta,
     puedeEliminarCuenta,
+    purgarMovimientosDeCuenta,
     CATALOGO_PLAN_CUENTAS_PERSONAL_BASE,
     obtenerCatalogoPlanCuentas,
     calcularResumenPlanCuentas,

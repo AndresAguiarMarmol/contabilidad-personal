@@ -21,6 +21,7 @@
     BUDGETS: "finance_budgets_data",
     GOALS: "finance_goals_data",
     PLAN_ACCOUNTS: "finance_plan_accounts_data",
+    DELETED_ACCOUNTS: "finance_deleted_accounts_data",
     DELETED_PLAN_ACCOUNTS: "finance_deleted_plan_accounts_data",
     DELETED_BUDGETS: "finance_deleted_budgets_data",
     DELETED_GOALS: "finance_deleted_goals_data",
@@ -165,7 +166,25 @@
       }
     },
 
-    // --- LÁPIDAS DE ELIMINACIÓN (TOMBSTONES - SPEC 016) ---
+    // --- LÁPIDAS DE ELIMINACIÓN (TOMBSTONES - SPEC 016 & SPEC 017) ---
+    getDeletedAccounts() {
+      const ls = getLocalStorage();
+      try {
+        const raw = ls ? ls.getItem(STORAGE_KEYS.DELETED_ACCOUNTS) : null;
+        return raw ? JSON.parse(raw) : [];
+      } catch (e) {
+        return [];
+      }
+    },
+    saveDeletedAccounts(list) {
+      const ls = getLocalStorage();
+      if (ls) {
+        try {
+          ls.setItem(STORAGE_KEYS.DELETED_ACCOUNTS, JSON.stringify(Array.isArray(list) ? list : []));
+        } catch (e) {}
+      }
+    },
+
     getDeletedPlanAccounts() {
       const ls = getLocalStorage();
       try {
@@ -299,7 +318,11 @@
         transactions: this.getTransactions(),
         budgets: this.getBudgets(),
         goals: this.getGoals(),
-        planAccounts: this.getPlanAccounts()
+        planAccounts: this.getPlanAccounts(),
+        deletedAccounts: this.getDeletedAccounts(),
+        deletedPlanAccounts: this.getDeletedPlanAccounts(),
+        deletedBudgets: this.getDeletedBudgets(),
+        deletedGoals: this.getDeletedGoals()
       };
       if (typeof window !== "undefined") {
         const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
@@ -322,6 +345,10 @@
           if (Array.isArray(data.budgets)) this.saveBudgets(data.budgets);
           if (Array.isArray(data.goals)) this.saveGoals(data.goals);
           if (Array.isArray(data.planAccounts)) this.savePlanAccounts(data.planAccounts);
+          if (Array.isArray(data.deletedAccounts)) this.saveDeletedAccounts(data.deletedAccounts);
+          if (Array.isArray(data.deletedPlanAccounts)) this.saveDeletedPlanAccounts(data.deletedPlanAccounts);
+          if (Array.isArray(data.deletedBudgets)) this.saveDeletedBudgets(data.deletedBudgets);
+          if (Array.isArray(data.deletedGoals)) this.saveDeletedGoals(data.deletedGoals);
           return true;
         }
         return false;

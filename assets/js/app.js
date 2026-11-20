@@ -16,6 +16,10 @@
     budgets: [],
     goals: [],
     planAccounts: [],
+    deletedAccounts: [],
+    deletedPlanAccounts: [],
+    deletedBudgets: [],
+    deletedGoals: [],
     selectedAccountId: null,
     chartOfAccountsFilter: {
       search: "",
@@ -413,9 +417,17 @@
             <div class="w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-sm" style="background-color: ${acc.color || '#10b981'}">
               <i data-lucide="${acc.icon || 'wallet'}" class="w-5 h-5"></i>
             </div>
-            <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-              ${typeLabels[acc.type] || acc.type}
-            </span>
+            <div class="flex items-center gap-1.5">
+              <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                ${typeLabels[acc.type] || acc.type}
+              </span>
+              <button type="button" data-account-action="edit" data-id="${acc.id}" class="btn-card-edit-account p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/60 transition-colors" title="Editar ${escapeHtml(acc.name)}">
+                <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+              </button>
+              <button type="button" data-account-action="delete" data-id="${acc.id}" class="btn-card-delete-account p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/60 transition-colors" title="Eliminar ${escapeHtml(acc.name)}">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
           </div>
 
           <div>
@@ -443,6 +455,24 @@
       card.addEventListener("click", () => {
         const id = card.getAttribute("data-account-id");
         openAccountDetail(id);
+      });
+    });
+
+    // Eventos de botones Editar en tarjeta (Spec 017 / RF-1)
+    container.querySelectorAll(".btn-card-edit-account").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const id = btn.getAttribute("data-id");
+        if (id) openAccountEditModal(id);
+      });
+    });
+
+    // Eventos de botones Eliminar en tarjeta (Spec 017 / RF-1, RF-4)
+    container.querySelectorAll(".btn-card-delete-account").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const id = btn.getAttribute("data-id");
+        if (id) solicitarEliminarCuentaFinanciera(id);
       });
     });
 
@@ -631,10 +661,20 @@
           <span>Volver a Cuentas & Billeteras</span>
         </button>
 
-        <button type="button" id="btn-account-screen-new-tx" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition-all self-start sm:self-auto active:scale-95">
-          <i data-lucide="plus" class="w-4 h-4"></i>
-          <span>Nuevo Movimiento en esta Cuenta</span>
-        </button>
+        <div class="flex items-center gap-2 flex-wrap self-start sm:self-auto">
+          <button type="button" id="btn-account-screen-edit" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all shadow-sm active:scale-95" title="Editar datos de ${escapeHtml(account.name)}">
+            <i data-lucide="pencil" class="w-3.5 h-3.5 text-blue-500"></i>
+            <span>Editar Cuenta</span>
+          </button>
+          <button type="button" id="btn-account-screen-delete" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-rose-600 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 hover:bg-rose-100 dark:hover:bg-rose-900/60 transition-all shadow-sm active:scale-95" title="Eliminar ${escapeHtml(account.name)}">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5 text-rose-600"></i>
+            <span>Eliminar Cuenta</span>
+          </button>
+          <button type="button" id="btn-account-screen-new-tx" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition-all active:scale-95">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            <span>Nuevo Movimiento en esta Cuenta</span>
+          </button>
+        </div>
       </div>
 
       <!-- Ficha de Cabecera de la Cuenta -->
@@ -735,6 +775,15 @@
     // Vincular botón Volver a Cuentas
     document.getElementById("btn-back-to-accounts")?.addEventListener("click", () => {
       switchView("accounts");
+    });
+
+    // Vincular botones de Editar y Eliminar de la cabecera (Spec 017 / RF-2)
+    document.getElementById("btn-account-screen-edit")?.addEventListener("click", () => {
+      openAccountEditModal(account.id);
+    });
+
+    document.getElementById("btn-account-screen-delete")?.addEventListener("click", () => {
+      solicitarEliminarCuentaFinanciera(account.id);
     });
 
     // Vincular búsqueda y tipo en la pantalla de la cuenta
@@ -891,8 +940,8 @@
               <button data-plan-id="${acc.id}" class="btn-edit-plan-account p-1.5 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors" title="Editar Cuenta Contable">
                 <i data-lucide="pencil" class="w-4 h-4"></i>
               </button>
-              ${!acc.isSystem && !acc.financialAccountId ? `
-                <button data-plan-id="${acc.id}" class="btn-delete-plan-account p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors" title="Eliminar Cuenta Contable">
+              ${!acc.isSystem ? `
+                <button data-plan-id="${acc.id}" class="btn-delete-plan-account p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors" title="Eliminar Cuenta">
                   <i data-lucide="trash-2" class="w-4 h-4"></i>
                 </button>
               ` : ''}
@@ -1118,6 +1167,12 @@
 
         const target = fullCatalog.find(c => c.id === planId);
         if (!target) return;
+
+        // Si es una cuenta financiera vinculada, delegar en el flujo unificado de tesorería (Spec 017 / RF-5)
+        if (target.financialAccountId) {
+          solicitarEliminarCuentaFinanciera(target.financialAccountId);
+          return;
+        }
 
         const check = Calculations && Calculations.puedeEliminarCuentaPlan
           ? Calculations.puedeEliminarCuentaPlan(target)
@@ -2348,6 +2403,12 @@
 
       // Actualizar estado y persistir
       state.accounts.push(newAccount);
+      if (state.deletedAccounts && state.deletedAccounts.includes(newAccount.id)) {
+        state.deletedAccounts = state.deletedAccounts.filter(id => id !== newAccount.id);
+        if (Storage && Storage.saveDeletedAccounts) {
+          Storage.saveDeletedAccounts(state.deletedAccounts);
+        }
+      }
       if (Storage) {
         Storage.saveAccounts(state.accounts);
       }
@@ -2517,6 +2578,112 @@
 
     modal.showModal();
     setTimeout(() => document.getElementById("acc-edit-input-name")?.focus(), 50);
+  }
+
+  // ========================================================
+  // ELIMINACIÓN DE CUENTA FINANCIERA (SPEC 017 / RF-3, RF-4, RF-5, RF-6)
+  // ========================================================
+  function solicitarEliminarCuentaFinanciera(accountId) {
+    if (!accountId) return;
+    const account = state.accounts.find(a => a.id === accountId);
+    if (!account) {
+      showToast("No se encontró la cuenta a eliminar.", "error");
+      return;
+    }
+
+    // RF-3: Salvaguarda de mínimo 1 cuenta activa en el sistema
+    if (!Array.isArray(state.accounts) || state.accounts.length <= 1) {
+      showToast("No se puede eliminar la única cuenta activa. Debe existir al menos una cuenta en el sistema.", "warning");
+      return;
+    }
+
+    // RF-4: Verificar movimientos asociados
+    const check = Calculations && Calculations.puedeEliminarCuenta
+      ? Calculations.puedeEliminarCuenta(accountId, state.transactions)
+      : { tieneMovimientos: false, cantidadMovimientos: 0 };
+
+    let mensajeConfirmacion = "";
+    if (check.cantidadMovimientos > 0) {
+      mensajeConfirmacion = `⚠️ ATENCIÓN: La cuenta "${account.name}" tiene ${check.cantidadMovimientos} movimiento(s) registrado(s).\n\n¿Deseas eliminar la cuenta y purgar definitivamente todos sus movimientos asociados?`;
+    } else {
+      mensajeConfirmacion = `¿Estás seguro de que deseas eliminar la cuenta "${account.name}"?`;
+    }
+
+    const confirmado = window.confirm(mensajeConfirmacion);
+    if (!confirmado) return;
+
+    // 1. Purgar movimientos asociados si los tiene (Opción A)
+    if (check.cantidadMovimientos > 0) {
+      if (Calculations && Calculations.purgarMovimientosDeCuenta) {
+        state.transactions = Calculations.purgarMovimientosDeCuenta(accountId, state.transactions);
+      } else {
+        state.transactions = state.transactions.filter(tx => tx.accountId !== accountId && tx.toAccountId !== accountId);
+      }
+      if (Storage && Storage.saveTransactions) {
+        Storage.saveTransactions(state.transactions);
+      }
+    }
+
+    // 2. Eliminar la cuenta del arreglo de cuentas
+    state.accounts = state.accounts.filter(a => a.id !== accountId);
+    if (Storage && Storage.saveAccounts) {
+      Storage.saveAccounts(state.accounts);
+    }
+
+    // 3. Registrar en lápidas (tombstones) para evitar resurrección en sync (RF-6)
+    state.deletedAccounts = Array.from(new Set([...(state.deletedAccounts || []), accountId]));
+    if (Storage && Storage.saveDeletedAccounts) {
+      Storage.saveDeletedAccounts(state.deletedAccounts);
+    }
+
+    // 4. Si la cuenta eliminada estaba seleccionada en la vista de detalle, volver a la lista
+    if (state.selectedAccountId === accountId) {
+      state.selectedAccountId = null;
+      if (state.currentView === "account-detail") {
+        switchView("accounts");
+      }
+    }
+
+    // 5. Re-sincronizar presupuestos con transacciones
+    if (Calculations && Calculations.sincronizarPresupuestosConTransacciones) {
+      state.budgets = Calculations.sincronizarPresupuestosConTransacciones(state.budgets, state.transactions);
+      if (Storage && Storage.saveBudgets) {
+        Storage.saveBudgets(state.budgets);
+      }
+    }
+
+    // 6. Recalcular saldos de cuentas restantes
+    state.accounts = state.accounts.map(acc => {
+      let bal = Number(acc.initialBalance || 0);
+      state.transactions.forEach(tx => {
+        const amt = Number(tx.amount || 0);
+        if (tx.isSplit && Array.isArray(tx.splitLines)) {
+          if (tx.accountId === acc.id) bal -= amt;
+          tx.splitLines.forEach(line => {
+            if (line.targetAccountId === acc.id) bal += Number(line.amount || 0);
+          });
+        } else if (tx.type === "expense" && tx.accountId === acc.id) {
+          bal -= amt;
+        } else if (tx.type === "income" && tx.accountId === acc.id) {
+          bal += amt;
+        } else if (tx.type === "transfer") {
+          if (tx.accountId === acc.id) bal -= amt;
+          if (tx.toAccountId === acc.id) bal += amt;
+        }
+      });
+      return { ...acc, currentBalance: bal };
+    });
+    if (Storage && Storage.saveAccounts) {
+      Storage.saveAccounts(state.accounts);
+    }
+
+    renderActiveView();
+    showToast(`Cuenta "${account.name}" eliminada exitosamente.`, "success");
+
+    // Sincronización en segundo plano con Firestore
+    if (typeof DbAdapter !== "undefined" && DbAdapter && DbAdapter.getProvider() === "firebase") {
+      DbAdapter.syncBidirectional().catch(() => {});
+    }
   }
 
   // ========================================================
@@ -3178,6 +3345,7 @@
       state.budgets = Storage.getBudgets();
       state.goals = Storage.getGoals();
       state.planAccounts = Storage.getPlanAccounts ? Storage.getPlanAccounts() : [];
+      state.deletedAccounts = Storage.getDeletedAccounts ? Storage.getDeletedAccounts() : [];
       state.deletedPlanAccounts = Storage.getDeletedPlanAccounts ? Storage.getDeletedPlanAccounts() : [];
       state.deletedBudgets = Storage.getDeletedBudgets ? Storage.getDeletedBudgets() : [];
       state.deletedGoals = Storage.getDeletedGoals ? Storage.getDeletedGoals() : [];
@@ -3209,6 +3377,7 @@
           state.budgets = res.mergedState.budgets;
           state.goals = res.mergedState.goals;
           state.planAccounts = res.mergedState.planAccounts;
+          if (res.mergedState.deletedAccounts) state.deletedAccounts = res.mergedState.deletedAccounts;
           if (res.mergedState.deletedPlanAccounts) state.deletedPlanAccounts = res.mergedState.deletedPlanAccounts;
           if (res.mergedState.deletedBudgets) state.deletedBudgets = res.mergedState.deletedBudgets;
           if (res.mergedState.deletedGoals) state.deletedGoals = res.mergedState.deletedGoals;

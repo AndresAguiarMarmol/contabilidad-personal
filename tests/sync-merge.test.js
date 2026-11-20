@@ -247,3 +247,71 @@ test('Spec 016 - RF-6: obtenerCatalogoPlanCuentas actualiza el nombre del catál
   assert.equal(itemBanco.name, "BancoEstado Cuenta RUT", "El nombre en el catálogo contable debe reflejar el nombre de la cuenta financiera");
 });
 
+// ========================================================
+// SPEC 017: CRUD CUENTAS FINANCIERAS Y PREVENCIÓN DE RESURRECCIÓN
+// ========================================================
+
+test('Spec 017 - RF-6: Cuenta financiera eliminada localmente no resucita aunque exista en Firestore', () => {
+  const local = {
+    accounts: [
+      { id: "ACC-001", name: "Banco Principal", type: "bank", initialBalance: 100000, currentBalance: 100000 }
+    ],
+    transactions: [],
+    budgets: [],
+    goals: [],
+    planAccounts: [],
+    deletedAccounts: ["ACC-002", "ACC-005"]
+  };
+
+  const remote = {
+    accounts: [
+      { id: "ACC-001", name: "Banco Principal", type: "bank", initialBalance: 100000, currentBalance: 100000 },
+      { id: "ACC-002", name: "Efectivo", type: "cash", initialBalance: 20000, currentBalance: 20000 },
+      { id: "ACC-005", name: "Tarjeta de Crédito", type: "credit_card", initialBalance: 0, currentBalance: 0 }
+    ],
+    transactions: [],
+    budgets: [],
+    goals: [],
+    planAccounts: [],
+    deletedAccounts: []
+  };
+
+  const result = Calculations.fusionarEstadoContable(local, remote);
+  const ids = result.mergedState.accounts.map(a => a.id);
+
+  assert.deepStrictEqual(ids, ["ACC-001"], "Las cuentas en deletedAccounts no deben resucitar");
+  assert.ok(result.mergedState.deletedAccounts.includes("ACC-002"));
+  assert.ok(result.mergedState.deletedAccounts.includes("ACC-005"));
+});
+
+test('Spec 017 - RF-6: Cuenta financiera eliminada remotamente es purgada de los datos locales sin resucitar', () => {
+  const local = {
+    accounts: [
+      { id: "ACC-001", name: "Banco Principal", type: "bank", initialBalance: 100000, currentBalance: 100000 },
+      { id: "ACC-003", name: "Billetera Digital", type: "wallet", initialBalance: 30000, currentBalance: 30000 }
+    ],
+    transactions: [],
+    budgets: [],
+    goals: [],
+    planAccounts: [],
+    deletedAccounts: []
+  };
+
+  const remote = {
+    accounts: [
+      { id: "ACC-001", name: "Banco Principal", type: "bank", initialBalance: 100000, currentBalance: 100000 }
+    ],
+    transactions: [],
+    budgets: [],
+    goals: [],
+    planAccounts: [],
+    deletedAccounts: ["ACC-003"]
+  };
+
+  const result = Calculations.fusionarEstadoContable(local, remote);
+  const ids = result.mergedState.accounts.map(a => a.id);
+
+  assert.deepStrictEqual(ids, ["ACC-001"], "La cuenta eliminada en remoto debe ser purgada");
+  assert.ok(result.mergedState.deletedAccounts.includes("ACC-003"));
+});
+

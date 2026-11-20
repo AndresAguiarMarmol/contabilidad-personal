@@ -2,7 +2,8 @@ const test = require("node:test");
 const assert = require("node:assert");
 const {
   validarNuevaCuenta,
-  crearCuentaObjeto
+  crearCuentaObjeto,
+  purgarMovimientosDeCuenta
 } = require("../assets/js/financeCalculations.js");
 
 test("RF-2: validarNuevaCuenta rechaza nombre vacío o compuesto por espacios", () => {
@@ -73,5 +74,44 @@ test("RF-3 y RF-4: crearCuentaObjeto construye el objeto con icono, color y sald
   assert.strictEqual(acc2.currentBalance, -80000);
   assert.strictEqual(acc2.icon, "credit-card");
   assert.strictEqual(acc2.color, "#e11d48");
+});
+
+test("Spec 017 - RF-4: purgarMovimientosDeCuenta elimina transacciones directas, transferencias y partidas split asociadas", () => {
+  const accountId = "ACC-002"; // Cuenta a eliminar
+
+  const transacciones = [
+    { id: "TX-1", accountId: "ACC-002", type: "expense", amount: 15000, description: "Gasto directo" },
+    { id: "TX-2", accountId: "ACC-001", toAccountId: "ACC-002", type: "transfer", amount: 50000, description: "Transferencia a ACC-002" },
+    { id: "TX-3", accountId: "ACC-002", toAccountId: "ACC-003", type: "transfer", amount: 20000, description: "Transferencia desde ACC-002" },
+    {
+      id: "TX-4",
+      accountId: "ACC-001",
+      type: "expense",
+      amount: 100000,
+      isSplit: true,
+      splitLines: [
+        { id: "L-1", targetAccountId: "ACC-002", amount: 40000 },
+        { id: "L-2", targetAccountId: "ACC-003", amount: 60000 }
+      ]
+    },
+    { id: "TX-5", accountId: "ACC-001", type: "income", amount: 500000, description: "Sueldo en ACC-001" },
+    {
+      id: "TX-6",
+      accountId: "ACC-005",
+      type: "expense",
+      amount: 30000,
+      isSplit: true,
+      splitLines: [
+        { id: "L-3", targetAccountId: "ACC-003", amount: 30000 }
+      ]
+    }
+  ];
+
+  const resultado = purgarMovimientosDeCuenta(accountId, transacciones);
+
+  // Deben eliminarse TX-1, TX-2, TX-3 y TX-4 (donde ACC-002 aparece en split)
+  assert.strictEqual(resultado.length, 2);
+  const idsRestantes = resultado.map(t => t.id);
+  assert.deepStrictEqual(idsRestantes, ["TX-5", "TX-6"]);
 });
 
