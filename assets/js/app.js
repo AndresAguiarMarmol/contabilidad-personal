@@ -34,6 +34,12 @@
       txDateRange: "all",
       txStartDate: "",
       txEndDate: ""
+    },
+    reports: {
+      activeReport: "balance", // "balance" | "income_statement"
+      periodType: "current-month", // "current-month" | "current-year" | "custom"
+      startDate: "",
+      endDate: ""
     }
   };
 
@@ -185,6 +191,10 @@
       title: "Presupuestos & Metas de Ahorro",
       subtitle: "Semáforos de límites mensuales y avance hacia tus objetivos financieros"
     },
+    reports: {
+      title: "Reportes Contables & Financieros",
+      subtitle: "Balance General Clasificado y Estado de Resultados según normativa contable chilena (IFRS Pymes)"
+    },
     settings: {
       title: "Base de Datos & Ajustes",
       subtitle: "Conexión a Supabase PostgreSQL en la nube, respaldo y restauración JSON"
@@ -207,7 +217,7 @@
     }
     if (subEl) subEl.textContent = VIEW_METADATA[viewName].subtitle;
 
-    const views = ["dashboard", "accounts", "chart-of-accounts", "account-detail", "transactions", "budgets", "settings"];
+    const views = ["dashboard", "accounts", "chart-of-accounts", "account-detail", "transactions", "budgets", "reports", "settings"];
     views.forEach((v) => {
       const el = document.getElementById(`view-${v}`);
       if (el) {
@@ -3765,6 +3775,659 @@
   }
 
   // ========================================================
+  // RENDERIZADO 5: REPORTES CONTABLES Y FINANCIEROS (SPEC 020)
+  // ========================================================
+  function renderReportsView() {
+    const container = document.getElementById("report-content-container");
+    if (!container) return;
+
+    // 1. Resolver fechas según el período contable seleccionado
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = String(now.getMonth() + 1).padStart(2, "0");
+    const lastDayOfMonth = new Date(currentYear, now.getMonth() + 1, 0).getDate();
+
+    let startDate = "";
+    let endDate = "";
+    let labelPeriodo = "";
+
+    if (state.reports.periodType === "current-month") {
+      startDate = `${currentYear}-${currentMonth}-01`;
+      endDate = `${currentYear}-${currentMonth}-${String(lastDayOfMonth).padStart(2, "0")}`;
+      const nombreMes = now.toLocaleDateString("es-CL", { month: "long" });
+      labelPeriodo = `${nombreMes.charAt(0).toUpperCase() + nombreMes.slice(1)} ${currentYear}`;
+    } else if (state.reports.periodType === "current-year") {
+      startDate = `${currentYear}-01-01`;
+      endDate = `${currentYear}-12-31`;
+      labelPeriodo = `Año Comercial ${currentYear} (Enero a Diciembre)`;
+    } else {
+      startDate = state.reports.startDate || `${currentYear}-${currentMonth}-01`;
+      endDate = state.reports.endDate || `${currentYear}-${currentMonth}-${String(lastDayOfMonth).padStart(2, "0")}`;
+      labelPeriodo = `Desde ${formatDate(startDate)} hasta ${formatDate(endDate)}`;
+    }
+
+    // Actualizar inputs de fecha en toolbar si existen
+    const inputStart = document.getElementById("report-input-start-date");
+    const inputEnd = document.getElementById("report-input-end-date");
+    if (inputStart && !inputStart.value) inputStart.value = startDate;
+    if (inputEnd && !inputEnd.value) inputEnd.value = endDate;
+
+    // Estilos de botones de período
+    const btnMonth = document.getElementById("btn-period-month");
+    const btnYear = document.getElementById("btn-period-year");
+    const btnCustom = document.getElementById("btn-period-custom");
+
+    const activePeriodClass = "px-3 py-1.5 rounded-lg border border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-700 font-semibold transition-all";
+    const inactivePeriodClass = "px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 font-medium transition-all";
+
+    if (btnMonth) btnMonth.className = state.reports.periodType === "current-month" ? activePeriodClass : inactivePeriodClass;
+    if (btnYear) btnYear.className = state.reports.periodType === "current-year" ? activePeriodClass : inactivePeriodClass;
+    if (btnCustom) btnCustom.className = state.reports.periodType === "custom" ? activePeriodClass : inactivePeriodClass;
+
+    // Estilos de tabs
+    const tabBalance = document.getElementById("tab-report-balance");
+    const tabIncome = document.getElementById("tab-report-income");
+    const activeTabClass = "px-4 py-2 rounded-lg transition-all shadow-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white flex items-center gap-2";
+    const inactiveTabClass = "px-4 py-2 rounded-lg transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-2";
+
+    if (tabBalance) tabBalance.className = state.reports.activeReport === "balance" ? activeTabClass : inactiveTabClass;
+    if (tabIncome) tabIncome.className = state.reports.activeReport === "income_statement" ? activeTabClass : inactiveTabClass;
+
+    // Obtener catálogo contable unificado
+    const catalog = Calculations ? Calculations.obtenerCatalogoPlanCuentas(state.planAccounts, state.accounts, state.transactions) : state.planAccounts;
+
+    if (state.reports.activeReport === "balance") {
+      renderBalanceSheet(container, catalog, startDate, endDate, labelPeriodo);
+    } else {
+      renderIncomeStatement(container, catalog, startDate, endDate, labelPeriodo);
+    }
+
+    safeRenderIcons();
+  }
+
+  function renderBalanceSheet(container, catalog, startDate, endDate, labelPeriodo) {
+    if (!Calculations || !Calculations.generarBalanceGeneral) {
+      container.innerHTML = `<div class="p-4 text-center text-xs text-slate-400">Motor de cálculo contable no disponible.</div>`;
+      return;
+    }
+
+    const data = Calculations.generarBalanceGeneral(state.accounts, catalog, state.transactions, {
+      currencies: state.currencies,
+      startDate,
+      endDate,
+      cutoffDate: endDate
+    });
+
+    const renderFila = (codigo, nombre, monto, originalCurrency, originalAmt) => {
+      const extraDivisa = originalCurrency && originalCurrency !== "CLP"
+        ? `<span class="text-[10px] text-slate-400 block">${formatMoney(originalAmt, originalCurrency)}</span>`
+        : "";
+      return `
+        <div class="flex items-center justify-between py-1.5 border-b border-slate-100 dark:border-slate-800/60 text-xs">
+          <div class="flex items-center gap-2 min-w-0 pr-2">
+            <span class="font-mono text-[10px] text-slate-400 flex-shrink-0">${escapeHtml(codigo)}</span>
+            <span class="text-slate-700 dark:text-slate-300 truncate">${escapeHtml(nombre)}</span>
+          </div>
+          <div class="text-right flex-shrink-0 tabular-nums">
+            <span class="font-semibold text-slate-900 dark:text-white">${formatMoney(monto, "CLP")}</span>
+            ${extraDivisa}
+          </div>
+        </div>
+      `;
+    };
+
+    // Filas Activo Circulante
+    const filasActivoCirculante = (data.activos.circulante.cuentas || []).map(c => 
+      renderFila(c.code || "1.1.00", c.name, c.balanceCLP, c.currency, c.originalBalance)
+    ).join("") || `<div class="py-2 text-slate-400 italic text-[11px]">Sin cuentas registradas</div>`;
+
+    // Filas Activo Fijo
+    const filasActivoFijo = (data.activos.fijo.cuentas || []).map(c => 
+      renderFila(c.code || "1.3.00", c.name, c.balanceCLP)
+    ).join("") || `<div class="py-2 text-slate-400 italic text-[11px]">Sin activos fijos valorizados</div>`;
+
+    // Filas Pasivo Circulante
+    const filasPasivoCirculante = (data.pasivos.circulante.cuentas || []).map(c => 
+      renderFila(c.code || "2.1.00", c.name, c.balanceCLP, c.currency, c.originalBalance)
+    ).join("") || `<div class="py-2 text-slate-400 italic text-[11px]">Sin obligaciones a corto plazo</div>`;
+
+    // Filas Pasivo Largo Plazo
+    const filasPasivoLargoPlazo = (data.pasivos.largoPlazo.cuentas || []).map(c => 
+      renderFila(c.code || "2.2.00", c.name, c.balanceCLP)
+    ).join("") || `<div class="py-2 text-slate-400 italic text-[11px]">Sin obligaciones a largo plazo</div>`;
+
+    // Filas Patrimonio
+    const filasPatrimonio = (data.patrimonio.cuentas || []).map(c => 
+      renderFila(c.code || "3.1.00", c.name, c.balanceCLP)
+    ).join("");
+
+    // Notas cambiarias
+    const notasHtml = (data.notasCambiarias || []).map((n, idx) => `
+      <div class="text-[11px] text-slate-500 dark:text-slate-400 flex items-start gap-1.5">
+        <span class="font-bold text-slate-700 dark:text-slate-300">Nota ${idx + 1}:</span>
+        <span>Cuentas valorizadas en ${escapeHtml(n.currency)} convertidas a la tasa de cambio referente oficial: ${escapeHtml(n.message)}.</span>
+      </div>
+    `).join("");
+
+    const fechaHoy = new Date().toLocaleDateString("es-CL", { day: "2-digit", month: "long", year: "numeric" });
+    const horaHoy = new Date().toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
+
+    container.innerHTML = `
+      <div id="report-sheet" class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 md:p-8 shadow-sm space-y-6">
+        
+        <!-- Encabezado Institucional Contable -->
+        <div class="border-b-2 border-slate-900 dark:border-slate-100 pb-5 space-y-1">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <span class="text-[10px] uppercase font-bold tracking-widest text-emerald-600 dark:text-emerald-400">Contabilidad Personal & Gestión Patrimonial</span>
+              <h1 class="text-lg md:text-xl font-black text-slate-900 dark:text-white tracking-tight uppercase">Estado de Situación Financiera</h1>
+              <p class="text-xs font-semibold text-slate-600 dark:text-slate-300">Balance General Clasificado</p>
+            </div>
+            <div class="text-left sm:text-right text-xs space-y-0.5">
+              <div class="font-bold text-slate-900 dark:text-white">Al ${formatDate(endDate)}</div>
+              <div class="text-[11px] text-slate-500 dark:text-slate-400">Período: ${escapeHtml(labelPeriodo)}</div>
+              <div class="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">Moneda Base: Pesos Chilenos (CLP)</div>
+            </div>
+          </div>
+          <div class="text-[10px] text-slate-400 italic pt-1">
+            Preparado en conformidad a Normas Internacionales de Información Financiera para Pymes (IFRS Pymes) y legislación contable chilena.
+          </div>
+        </div>
+
+        <!-- Cuerpo del Balance en Dos Columnas Contables -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+          
+          <!-- COLUMNA 1: ACTIVOS -->
+          <div class="space-y-6">
+            <div class="bg-slate-50/70 dark:bg-slate-800/40 p-4 rounded-xl border border-slate-200/60 dark:border-slate-800/80 space-y-4">
+              <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
+                <h3 class="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <i data-lucide="arrow-down-left" class="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400"></i>
+                  <span>1. Activos</span>
+                </h3>
+              </div>
+
+              <!-- Activo Circulante -->
+              <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                  <h4 class="text-[11px] font-bold uppercase text-slate-600 dark:text-slate-400">1.1 Activo Circulante</h4>
+                  <span class="text-[10px] text-slate-400 font-medium">(Disponible & Realizable)</span>
+                </div>
+                <div class="pl-2 space-y-1">
+                  ${filasActivoCirculante}
+                </div>
+                <div class="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200">
+                  <span>Subtotal Activo Circulante</span>
+                  <span class="tabular-nums">${formatMoney(data.activos.circulante.total, "CLP")}</span>
+                </div>
+              </div>
+
+              <!-- Activo Fijo / No Circulante -->
+              <div class="space-y-2 pt-2 border-t border-slate-200/80 dark:border-slate-800">
+                <div class="flex items-center justify-between">
+                  <h4 class="text-[11px] font-bold uppercase text-slate-600 dark:text-slate-400">1.3 Activo Fijo / No Circulante</h4>
+                  <span class="text-[10px] text-slate-400 font-medium">(Bienes & Patrimonio Físico)</span>
+                </div>
+                <div class="pl-2 space-y-1">
+                  ${filasActivoFijo}
+                </div>
+                <div class="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200">
+                  <span>Subtotal Activo No Circulante</span>
+                  <span class="tabular-nums">${formatMoney(data.activos.fijo.total, "CLP")}</span>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Total Activos (Destacado Doble Subrayado) -->
+            <div class="p-4 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 flex items-center justify-between text-sm">
+              <span class="font-black text-emerald-900 dark:text-emerald-100 uppercase tracking-wide">Total Activos</span>
+              <span class="text-base font-extrabold text-emerald-700 dark:text-emerald-300 tabular-nums border-b-4 border-double border-emerald-600 dark:border-emerald-400 pb-0.5">
+                ${formatMoney(data.activos.total, "CLP")}
+              </span>
+            </div>
+          </div>
+
+          <!-- COLUMNA 2: PASIVOS Y PATRIMONIO NETO -->
+          <div class="space-y-6">
+            <div class="bg-slate-50/70 dark:bg-slate-800/40 p-4 rounded-xl border border-slate-200/60 dark:border-slate-800/80 space-y-4">
+              
+              <!-- Pasivos -->
+              <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
+                <h3 class="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <i data-lucide="arrow-up-right" class="w-3.5 h-3.5 text-rose-600 dark:text-rose-400"></i>
+                  <span>2. Pasivos</span>
+                </h3>
+              </div>
+
+              <!-- Pasivo Circulante -->
+              <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                  <h4 class="text-[11px] font-bold uppercase text-slate-600 dark:text-slate-400">2.1 Pasivo Circulante</h4>
+                  <span class="text-[10px] text-slate-400 font-medium">(Obligaciones a Corto Plazo)</span>
+                </div>
+                <div class="pl-2 space-y-1">
+                  ${filasPasivoCirculante}
+                </div>
+                <div class="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200">
+                  <span>Subtotal Pasivo Circulante</span>
+                  <span class="tabular-nums text-rose-600 dark:text-rose-400">${formatMoney(data.pasivos.circulante.total, "CLP")}</span>
+                </div>
+              </div>
+
+              <!-- Pasivo a Largo Plazo -->
+              <div class="space-y-2 pt-2 border-t border-slate-200/80 dark:border-slate-800">
+                <div class="flex items-center justify-between">
+                  <h4 class="text-[11px] font-bold uppercase text-slate-600 dark:text-slate-400">2.2 Pasivo a Largo Plazo</h4>
+                  <span class="text-[10px] text-slate-400 font-medium">(Créditos & Hipotecas)</span>
+                </div>
+                <div class="pl-2 space-y-1">
+                  ${filasPasivoLargoPlazo}
+                </div>
+                <div class="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200">
+                  <span>Subtotal Pasivo Largo Plazo</span>
+                  <span class="tabular-nums text-rose-600 dark:text-rose-400">${formatMoney(data.pasivos.largoPlazo.total, "CLP")}</span>
+                </div>
+              </div>
+
+              <div class="flex items-center justify-between pt-2 border-t border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white">
+                <span>Total Pasivos</span>
+                <span class="tabular-nums text-rose-600 dark:text-rose-400">${formatMoney(data.pasivos.total, "CLP")}</span>
+              </div>
+
+              <!-- Patrimonio Neto -->
+              <div class="space-y-2 pt-4 border-t-2 border-slate-300 dark:border-slate-700">
+                <div class="flex items-center justify-between">
+                  <h3 class="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <i data-lucide="shield" class="w-3.5 h-3.5 text-blue-600 dark:text-blue-400"></i>
+                    <span>3. Patrimonio Neto</span>
+                  </h3>
+                </div>
+                <div class="pl-2 space-y-1">
+                  ${filasPatrimonio}
+                  ${data.patrimonio.resultadoEjercicio !== 0 ? `
+                    <div class="flex items-center justify-between py-1.5 border-b border-slate-100 dark:border-slate-800/60 text-xs">
+                      <div class="flex items-center gap-2 min-w-0 pr-2">
+                        <span class="font-mono text-[10px] text-slate-400 flex-shrink-0">3.2.01</span>
+                        <span class="text-slate-700 dark:text-slate-300 truncate">Resultado del Ejercicio (Período)</span>
+                      </div>
+                      <span class="font-semibold tabular-nums ${data.patrimonio.resultadoEjercicio >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}">
+                        ${formatMoney(data.patrimonio.resultadoEjercicio, "CLP")}
+                      </span>
+                    </div>
+                  ` : ""}
+                </div>
+                <div class="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white">
+                  <span>Total Patrimonio Neto</span>
+                  <span class="tabular-nums text-blue-600 dark:text-blue-400">${formatMoney(data.patrimonio.total, "CLP")}</span>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Total Pasivo + Patrimonio (Destacado Doble Subrayado) -->
+            <div class="p-4 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 flex items-center justify-between text-sm">
+              <span class="font-black text-slate-900 dark:text-white uppercase tracking-wide">Total Pasivo + Patrimonio</span>
+              <span class="text-base font-extrabold text-slate-900 dark:text-white tabular-nums border-b-4 border-double border-slate-700 dark:border-slate-300 pb-0.5">
+                ${formatMoney(data.cuadratura.totalPasivoMasPatrimonio, "CLP")}
+              </span>
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- Certificación de Cuadratura Contable Estricta -->
+        <div class="p-3.5 rounded-xl border ${data.cuadratura.estaCuadrado ? "bg-emerald-50/70 border-emerald-200 text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-800/80 dark:text-emerald-200" : "bg-rose-50 border-rose-200 text-rose-800 dark:bg-rose-950/40 dark:border-rose-800 dark:text-rose-200"} flex items-center justify-between text-xs font-medium">
+          <div class="flex items-center gap-2">
+            <i data-lucide="${data.cuadratura.estaCuadrado ? "check-circle-2" : "alert-triangle"}" class="w-4 h-4 flex-shrink-0"></i>
+            <span>
+              ${data.cuadratura.estaCuadrado 
+                ? "<strong>Certificación Contable:</strong> Balance General en estricta cuadratura contable (Activos = Pasivos + Patrimonio). Descuadre: $0."
+                : `<strong>Alerta Contable:</strong> Descuadre contable detectado de ${formatMoney(data.cuadratura.diferencia, "CLP")}.`}
+            </span>
+          </div>
+          <span class="font-mono text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded ${data.cuadratura.estaCuadrado ? "bg-emerald-100 dark:bg-emerald-900/60" : "bg-rose-100 dark:bg-rose-900/60"}">
+            ${data.cuadratura.estaCuadrado ? "Cuadrado 100%" : "Revisar"}
+          </span>
+        </div>
+
+        <!-- Notas a los Estados Financieros (Multidivisa) -->
+        ${notasHtml ? `
+          <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 space-y-2">
+            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Notas a los Estados Financieros</h4>
+            <div class="space-y-1">
+              ${notasHtml}
+            </div>
+          </div>
+        ` : ""}
+
+        <!-- Bloque de Cierre y Emisión -->
+        <div class="pt-4 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-400 gap-2">
+          <div>Documento emitido el ${fechaHoy} a las ${horaHoy} hrs.</div>
+          <div class="flex items-center gap-1 font-semibold text-slate-500 dark:text-slate-400">
+            <span>ContaPersonal PWA — Sistema de Contabilidad Personal</span>
+          </div>
+        </div>
+
+      </div>
+    `;
+  }
+
+  function renderIncomeStatement(container, catalog, startDate, endDate, labelPeriodo) {
+    if (!Calculations || !Calculations.generarEstadoResultados) {
+      container.innerHTML = `<div class="p-4 text-center text-xs text-slate-400">Motor de cálculo contable no disponible.</div>`;
+      return;
+    }
+
+    const data = Calculations.generarEstadoResultados(state.transactions, catalog, {
+      startDate,
+      endDate,
+      currencies: state.currencies
+    });
+
+    const renderFila = (codigo, nombre, monto, esIngreso = false) => `
+      <div class="flex items-center justify-between py-1.5 border-b border-slate-100 dark:border-slate-800/60 text-xs">
+        <div class="flex items-center gap-2 min-w-0 pr-2">
+          ${codigo ? `<span class="font-mono text-[10px] text-slate-400 flex-shrink-0">${escapeHtml(codigo)}</span>` : ""}
+          <span class="text-slate-700 dark:text-slate-300 truncate">${escapeHtml(nombre)}</span>
+        </div>
+        <span class="font-semibold tabular-nums flex-shrink-0 ${esIngreso ? "text-emerald-600 dark:text-emerald-400" : "text-slate-900 dark:text-white"}">
+          ${formatMoney(monto, "CLP")}
+        </span>
+      </div>
+    `;
+
+    // Ingresos
+    const filasIngresosOp = (data.ingresos.operacionales || []).map(i => renderFila(i.code, i.name, i.amount, true)).join("")
+      || `<div class="py-2 text-slate-400 italic text-[11px]">Sin ingresos operacionales en el período</div>`;
+
+    const filasIngresosNoOp = (data.ingresos.noOperacionales || []).map(i => renderFila(i.code, i.name, i.amount, true)).join("")
+      || `<div class="py-2 text-slate-400 italic text-[11px]">Sin ingresos por inversión o rendimientos</div>`;
+
+    // Gastos
+    const filasGastosOp = (data.gastos.operacionales || []).map(g => renderFila(g.code, g.name, g.amount, false)).join("")
+      || `<div class="py-2 text-slate-400 italic text-[11px]">Sin gastos operacionales en el período</div>`;
+
+    const filasGastosFin = (data.gastos.financieros || []).map(g => renderFila(g.code, g.name, g.amount, false)).join("")
+      || `<div class="py-2 text-slate-400 italic text-[11px]">Sin gastos financieros o comisiones bancarias</div>`;
+
+    const fechaHoy = new Date().toLocaleDateString("es-CL", { day: "2-digit", month: "long", year: "numeric" });
+    const horaHoy = new Date().toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
+
+    container.innerHTML = `
+      <div id="report-sheet" class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 md:p-8 shadow-sm space-y-6">
+        
+        <!-- Encabezado Institucional Contable -->
+        <div class="border-b-2 border-slate-900 dark:border-slate-100 pb-5 space-y-1">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <span class="text-[10px] uppercase font-bold tracking-widest text-blue-600 dark:text-blue-400">Contabilidad Personal & Gestión Patrimonial</span>
+              <h1 class="text-lg md:text-xl font-black text-slate-900 dark:text-white tracking-tight uppercase">Estado de Resultados</h1>
+              <p class="text-xs font-semibold text-slate-600 dark:text-slate-300">Estado de Ganancias y Pérdidas del Ejercicio</p>
+            </div>
+            <div class="text-left sm:text-right text-xs space-y-0.5">
+              <div class="font-bold text-slate-900 dark:text-white">Período: ${escapeHtml(labelPeriodo)}</div>
+              <div class="text-[11px] text-slate-500 dark:text-slate-400">Del ${formatDate(startDate)} al ${formatDate(endDate)}</div>
+              <div class="text-[11px] font-semibold text-blue-600 dark:text-blue-400">Moneda Base: Pesos Chilenos (CLP)</div>
+            </div>
+          </div>
+          <div class="text-[10px] text-slate-400 italic pt-1">
+            Estructurado bajo criterios de contabilidad IFRS Pymes Chile. Discrimina gastos operacionales y financieros.
+          </div>
+        </div>
+
+        <div class="space-y-6">
+          
+          <!-- SECCIÓN 1: INGRESOS -->
+          <div class="bg-slate-50/70 dark:bg-slate-800/40 p-5 rounded-xl border border-slate-200/60 dark:border-slate-800/80 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
+              <h3 class="text-xs font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+                <i data-lucide="trending-up" class="w-4 h-4"></i>
+                <span>4. Ingresos</span>
+              </h3>
+            </div>
+
+            <!-- Ingresos Operacionales -->
+            <div class="space-y-2">
+              <h4 class="text-[11px] font-bold uppercase text-slate-600 dark:text-slate-400">4.1 Ingresos Operacionales (Laborales / Habituales)</h4>
+              <div class="pl-2 space-y-1">
+                ${filasIngresosOp}
+              </div>
+              <div class="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200">
+                <span>Subtotal Ingresos Operacionales</span>
+                <span class="tabular-nums text-emerald-600 dark:text-emerald-400">${formatMoney(data.ingresos.operacionalesTotal, "CLP")}</span>
+              </div>
+            </div>
+
+            <!-- Ingresos No Operacionales -->
+            <div class="space-y-2 pt-2 border-t border-slate-200/80 dark:border-slate-800">
+              <h4 class="text-[11px] font-bold uppercase text-slate-600 dark:text-slate-400">4.2 Ingresos No Operacionales (Inversiones / Rendimientos)</h4>
+              <div class="pl-2 space-y-1">
+                ${filasIngresosNoOp}
+              </div>
+              <div class="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200">
+                <span>Subtotal Ingresos No Operacionales</span>
+                <span class="tabular-nums text-emerald-600 dark:text-emerald-400">${formatMoney(data.ingresos.noOperacionalesTotal, "CLP")}</span>
+              </div>
+            </div>
+
+            <!-- Total Ingresos -->
+            <div class="flex items-center justify-between pt-3 border-t-2 border-slate-300 dark:border-slate-700 text-sm font-extrabold text-emerald-800 dark:text-emerald-300">
+              <span>TOTAL INGRESOS</span>
+              <span class="tabular-nums text-base">${formatMoney(data.ingresos.total, "CLP")}</span>
+            </div>
+          </div>
+
+          <!-- SECCIÓN 2: GASTOS -->
+          <div class="bg-slate-50/70 dark:bg-slate-800/40 p-5 rounded-xl border border-slate-200/60 dark:border-slate-800/80 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
+              <h3 class="text-xs font-black uppercase tracking-wider text-rose-700 dark:text-rose-400 flex items-center gap-1.5">
+                <i data-lucide="trending-down" class="w-4 h-4"></i>
+                <span>5. Gastos</span>
+              </h3>
+            </div>
+
+            <!-- Gastos Operacionales -->
+            <div class="space-y-2">
+              <h4 class="text-[11px] font-bold uppercase text-slate-600 dark:text-slate-400">5.1 - 5.6 Gastos de Vida & Operacionales</h4>
+              <div class="pl-2 space-y-1">
+                ${filasGastosOp}
+              </div>
+              <div class="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200">
+                <span>Subtotal Gastos Operacionales</span>
+                <span class="tabular-nums text-slate-800 dark:text-slate-200">${formatMoney(data.gastos.operacionalesTotal, "CLP")}</span>
+              </div>
+            </div>
+
+            <!-- Gastos Financieros -->
+            <div class="space-y-2 pt-2 border-t border-slate-200/80 dark:border-slate-800">
+              <h4 class="text-[11px] font-bold uppercase text-slate-600 dark:text-slate-400">5.7 Gastos Financieros & Comisiones</h4>
+              <div class="pl-2 space-y-1">
+                ${filasGastosFin}
+              </div>
+              <div class="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200">
+                <span>Subtotal Gastos Financieros</span>
+                <span class="tabular-nums text-slate-800 dark:text-slate-200">${formatMoney(data.gastos.financierosTotal, "CLP")}</span>
+              </div>
+            </div>
+
+            <!-- Total Gastos -->
+            <div class="flex items-center justify-between pt-3 border-t-2 border-slate-300 dark:border-slate-700 text-sm font-extrabold text-rose-800 dark:text-rose-300">
+              <span>TOTAL GASTOS</span>
+              <span class="tabular-nums text-base">${formatMoney(data.gastos.total, "CLP")}</span>
+            </div>
+          </div>
+
+          <!-- RESULTADO NETO DEL EJERCICIO -->
+          <div class="p-6 rounded-2xl border ${data.esSuperavit ? "bg-emerald-50/90 border-emerald-300 dark:bg-emerald-950/60 dark:border-emerald-800" : "bg-rose-50/90 border-rose-300 dark:bg-rose-950/60 dark:border-rose-800"} flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
+            <div class="space-y-1 text-center sm:text-left">
+              <span class="text-[11px] font-bold uppercase tracking-wider ${data.esSuperavit ? "text-emerald-700 dark:text-emerald-300" : "text-rose-700 dark:text-rose-300"}">
+                ${data.esSuperavit ? "Superávit Neto del Período (Utilidad)" : "Déficit Neto del Período (Pérdida)"}
+              </span>
+              <h2 class="text-2xl font-black ${data.esSuperavit ? "text-emerald-900 dark:text-white" : "text-rose-900 dark:text-white"} tabular-nums">
+                ${formatMoney(data.resultadoNeto, "CLP")}
+              </h2>
+              <p class="text-xs ${data.esSuperavit ? "text-emerald-700 dark:text-emerald-300" : "text-rose-700 dark:text-rose-300"}">
+                ${data.esSuperavit 
+                  ? "Capacidad de ahorro positiva acumulada en el patrimonio personal." 
+                  : "Los egresos del período superaron los ingresos registrados."}
+              </p>
+            </div>
+
+            <div class="p-3.5 rounded-xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800 text-center sm:text-right flex-shrink-0">
+              <span class="text-[10px] uppercase font-bold text-slate-400 block">Tasa de Ahorro</span>
+              <span class="text-xl font-extrabold tabular-nums ${data.esSuperavit ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}">
+                ${data.tasaAhorro}%
+              </span>
+              <span class="text-[10px] text-slate-400 block">del total de ingresos</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Bloque de Cierre y Emisión -->
+        <div class="pt-4 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-400 gap-2">
+          <div>Documento emitido el ${fechaHoy} a las ${horaHoy} hrs.</div>
+          <div class="flex items-center gap-1 font-semibold text-slate-500 dark:text-slate-400">
+            <span>ContaPersonal PWA — Sistema de Contabilidad Personal</span>
+          </div>
+        </div>
+
+      </div>
+    `;
+  }
+
+  function exportarReporteActualCSV() {
+    if (!Calculations || !Calculations.generarReporteCSV) {
+      showToast("Módulo de exportación CSV no disponible.", "error");
+      return;
+    }
+
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = String(now.getMonth() + 1).padStart(2, "0");
+    const lastDayOfMonth = new Date(currentYear, now.getMonth() + 1, 0).getDate();
+
+    let startDate = "";
+    let endDate = "";
+    let labelPeriodo = "";
+
+    if (state.reports.periodType === "current-month") {
+      startDate = `${currentYear}-${currentMonth}-01`;
+      endDate = `${currentYear}-${currentMonth}-${String(lastDayOfMonth).padStart(2, "0")}`;
+      labelPeriodo = `${now.toLocaleDateString("es-CL", { month: "long" })} ${currentYear}`;
+    } else if (state.reports.periodType === "current-year") {
+      startDate = `${currentYear}-01-01`;
+      endDate = `${currentYear}-12-31`;
+      labelPeriodo = `Año ${currentYear}`;
+    } else {
+      startDate = state.reports.startDate || `${currentYear}-${currentMonth}-01`;
+      endDate = state.reports.endDate || `${currentYear}-${currentMonth}-${String(lastDayOfMonth).padStart(2, "0")}`;
+      labelPeriodo = `${startDate} al ${endDate}`;
+    }
+
+    const catalog = Calculations.obtenerCatalogoPlanCuentas(state.planAccounts, state.accounts, state.transactions);
+
+    if (state.reports.activeReport === "balance") {
+      const bg = Calculations.generarBalanceGeneral(state.accounts, catalog, state.transactions, {
+        currencies: state.currencies,
+        startDate,
+        endDate,
+        cutoffDate: endDate
+      });
+
+      const filas = [];
+      (bg.activos.circulante.cuentas || []).forEach(c => {
+        filas.push({ seccion: "ACTIVO CIRCULANTE", rubro: `[${c.code}] ${c.name}`, monto: c.balanceCLP });
+      });
+      filas.push({ seccion: "ACTIVO CIRCULANTE", rubro: "SUBTOTAL ACTIVO CIRCULANTE", monto: bg.activos.circulante.total });
+
+      (bg.activos.fijo.cuentas || []).forEach(c => {
+        filas.push({ seccion: "ACTIVO NO CIRCULANTE", rubro: `[${c.code}] ${c.name}`, monto: c.balanceCLP });
+      });
+      filas.push({ seccion: "ACTIVO NO CIRCULANTE", rubro: "SUBTOTAL ACTIVO NO CIRCULANTE", monto: bg.activos.fijo.total });
+      filas.push({ seccion: "TOTALES", rubro: "TOTAL ACTIVOS", monto: bg.activos.total });
+
+      (bg.pasivos.circulante.cuentas || []).forEach(c => {
+        filas.push({ seccion: "PASIVO CIRCULANTE", rubro: `[${c.code}] ${c.name}`, monto: c.balanceCLP });
+      });
+      filas.push({ seccion: "PASIVO CIRCULANTE", rubro: "SUBTOTAL PASIVO CIRCULANTE", monto: bg.pasivos.circulante.total });
+
+      (bg.pasivos.largoPlazo.cuentas || []).forEach(c => {
+        filas.push({ seccion: "PASIVO LARGO PLAZO", rubro: `[${c.code}] ${c.name}`, monto: c.balanceCLP });
+      });
+      filas.push({ seccion: "PASIVO LARGO PLAZO", rubro: "SUBTOTAL PASIVO LARGO PLAZO", monto: bg.pasivos.largoPlazo.total });
+      filas.push({ seccion: "TOTALES", rubro: "TOTAL PASIVOS", monto: bg.pasivos.total });
+
+      (bg.patrimonio.cuentas || []).forEach(c => {
+        filas.push({ seccion: "PATRIMONIO NETO", rubro: `[${c.code}] ${c.name}`, monto: c.balanceCLP });
+      });
+      if (bg.patrimonio.resultadoEjercicio !== 0) {
+        filas.push({ seccion: "PATRIMONIO NETO", rubro: "Resultado del Ejercicio", monto: bg.patrimonio.resultadoEjercicio });
+      }
+      filas.push({ seccion: "TOTALES", rubro: "TOTAL PATRIMONIO NETO", monto: bg.patrimonio.total });
+      filas.push({ seccion: "TOTALES", rubro: "TOTAL PASIVO Y PATRIMONIO", monto: bg.cuadratura.totalPasivoMasPatrimonio });
+
+      const csvContent = Calculations.generarReporteCSV("balance", {
+        titulo: "Balance General Clasificado",
+        periodo: labelPeriodo,
+        fechaEmision: new Date().toISOString().slice(0, 10),
+        filas
+      });
+
+      descargarCSVArchivo(csvContent, `Balance_General_${endDate}.csv`);
+      showToast("Balance General exportado a CSV exitosamente.", "success");
+    } else {
+      const er = Calculations.generarEstadoResultados(state.transactions, catalog, {
+        startDate,
+        endDate,
+        currencies: state.currencies
+      });
+
+      const filas = [];
+      (er.ingresos.operacionales || []).forEach(i => {
+        filas.push({ seccion: "INGRESOS OPERACIONALES", rubro: `[${i.code}] ${i.name}`, monto: i.amount });
+      });
+      (er.ingresos.noOperacionales || []).forEach(i => {
+        filas.push({ seccion: "INGRESOS NO OPERACIONALES", rubro: `[${i.code}] ${i.name}`, monto: i.amount });
+      });
+      filas.push({ seccion: "TOTALES", rubro: "TOTAL INGRESOS", monto: er.ingresos.total });
+
+      (er.gastos.operacionales || []).forEach(g => {
+        filas.push({ seccion: "GASTOS OPERACIONALES", rubro: `[${g.code}] ${g.name}`, monto: g.amount });
+      });
+      (er.gastos.financieros || []).forEach(g => {
+        filas.push({ seccion: "GASTOS FINANCIEROS", rubro: `[${g.code}] ${g.name}`, monto: g.amount });
+      });
+      filas.push({ seccion: "TOTALES", rubro: "TOTAL GASTOS", monto: er.gastos.total });
+      filas.push({ seccion: "TOTALES", rubro: "RESULTADO NETO DEL EJERCICIO", monto: er.resultadoNeto });
+
+      const csvContent = Calculations.generarReporteCSV("income_statement", {
+        titulo: "Estado de Resultados (Ganancias y Pérdidas)",
+        periodo: labelPeriodo,
+        fechaEmision: new Date().toISOString().slice(0, 10),
+        filas
+      });
+
+      descargarCSVArchivo(csvContent, `Estado_Resultados_${startDate}_al_${endDate}.csv`);
+      showToast("Estado de Resultados exportado a CSV exitosamente.", "success");
+    }
+  }
+
+  function descargarCSVArchivo(content, filename) {
+    const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  // ========================================================
   // RENDERIZADO GENERAL Y CICLO DE VIDA
   // ========================================================
   function renderActiveView() {
@@ -3786,6 +4449,9 @@
         break;
       case "budgets":
         renderBudgets();
+        break;
+      case "reports":
+        renderReportsView();
         break;
       case "settings":
         renderSettings();
@@ -4167,6 +4833,54 @@
     });
     document.getElementById("btn-settings-new-currency")?.addEventListener("click", () => {
       openCurrencyModal();
+    });
+
+    // LISTENERS DEL MÓDULO DE REPORTES (SPEC 020)
+    document.getElementById("tab-report-balance")?.addEventListener("click", () => {
+      state.reports.activeReport = "balance";
+      renderReportsView();
+    });
+
+    document.getElementById("tab-report-income")?.addEventListener("click", () => {
+      state.reports.activeReport = "income_statement";
+      renderReportsView();
+    });
+
+    document.getElementById("btn-period-month")?.addEventListener("click", () => {
+      state.reports.periodType = "current-month";
+      renderReportsView();
+    });
+
+    document.getElementById("btn-period-year")?.addEventListener("click", () => {
+      state.reports.periodType = "current-year";
+      renderReportsView();
+    });
+
+    document.getElementById("btn-period-custom")?.addEventListener("click", () => {
+      state.reports.periodType = "custom";
+      const inputStart = document.getElementById("report-input-start-date");
+      const inputEnd = document.getElementById("report-input-end-date");
+      if (inputStart && inputStart.value) state.reports.startDate = inputStart.value;
+      if (inputEnd && inputEnd.value) state.reports.endDate = inputEnd.value;
+      renderReportsView();
+    });
+
+    document.getElementById("btn-apply-report-dates")?.addEventListener("click", () => {
+      const inputStart = document.getElementById("report-input-start-date");
+      const inputEnd = document.getElementById("report-input-end-date");
+      if (inputStart && inputStart.value) state.reports.startDate = inputStart.value;
+      if (inputEnd && inputEnd.value) state.reports.endDate = inputEnd.value;
+      state.reports.periodType = "custom";
+      renderReportsView();
+      showToast("Rango de fechas aplicado al reporte.", "info");
+    });
+
+    document.getElementById("btn-print-report")?.addEventListener("click", () => {
+      window.print();
+    });
+
+    document.getElementById("btn-export-report-csv")?.addEventListener("click", () => {
+      exportarReporteActualCSV();
     });
   }
 

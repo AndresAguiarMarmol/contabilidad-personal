@@ -65,3 +65,45 @@ dialog[open] {
   font-variant-numeric: tabular-nums;
 }
 
+/* Estilos ejecutivos para impresión de reportes contables (Spec 020) */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    overflow: visible !important;
+  }
+
+  /* Ocultar elementos de navegación y herramientas */
+  #sidebar,
+  header,
+  #sidebar-backdrop,
+  #toast-container,
+  .no-print,
+  #reports-toolbar {
+    display: none !important;
+  }
+
+  .flex-1,
+  #main-content {
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  #view-reports {
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  #report-sheet {
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+  }
+}
+

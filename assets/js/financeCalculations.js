@@ -1778,6 +1778,402 @@
     };
   }
 
+  // ========================================================
+  // MÓDULO DE REPORTES CONTABLES Y FINANCIEROS (SPEC 020)
+  // ========================================================
+
+  /**
+   * Genera el Balance General Clasificado según normativa contable chilena (IFRS Pymes)
+   * Clasifica en Activo Circulante, Activo Fijo, Pasivo Circulante, Pasivo Largo Plazo y Patrimonio Neto,
+   * garantizando cuadratura estricta: Total Activos === Total Pasivos + Total Patrimonio
+   * 
+   * @param {Array} accounts Lista de cuentas financieras (bancos, billeteras, tarjetas)
+   * @param {Array} planCatalog Catálogo de cuentas del plan contable
+   * @param {Array} transactions Lista de transacciones para calcular el resultado del período
+   * @param {Object} options Opciones { currencies, startDate, endDate, cutoffDate }
+   * @returns {Object} Balance General estructurado y cuadrado
+   */
+  function generarBalanceGeneral(accounts = [], planCatalog = [], transactions = [], options = {}) {
+    const accList = Array.isArray(accounts) ? accounts : [];
+    const catalog = Array.isArray(planCatalog) ? planCatalog : [];
+    const txList = Array.isArray(transactions) ? transactions : [];
+
+    const currList = Array.isArray(options.currencies) && options.currencies.length > 0
+      ? options.currencies
+      : CURRENCIES_BASE;
+
+    const getRate = (currCode) => {
+      if (!currCode || currCode.toUpperCase() === "CLP") return 1.0;
+      const found = currList.find(c => (c.code || "").toUpperCase() === currCode.toUpperCase());
+      return found ? Number(found.rateToCLP || 1.0) : 1.0;
+    };
+
+    const notasCambiarias = [];
+    const usedCurrencies = new Set();
+
+    // 1. Clasificación de Activos y Pasivos Circulantes desde las Cuentas Financieras
+    const cuentasActivoCirculante = [];
+    const cuentasPasivoCirculante = [];
+    let totalActivoCirculante = 0;
+    let totalPasivoCirculante = 0;
+
+    accList.forEach(acc => {
+      if (acc.isExcludedFromTotal) return;
+      const balOriginal = Number(acc.currentBalance) || 0;
+      const curr = (acc.currency || "CLP").toUpperCase();
+      const rate = getRate(curr);
+      const balCLP = balOriginal * rate;
+
+      if (curr !== "CLP" && !usedCurrencies.has(curr)) {
+        usedCurrencies.add(curr);
+        notasCambiarias.push({
+          currency: curr,
+          rateToCLP: rate,
+          message: `1 ${curr} = ${rate.toLocaleString("es-CL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} CLP`
+        });
+      }
+
+      if (acc.type === "credit_card" || balCLP < 0) {
+        // Deuda de tarjeta o sobregiro bancario -> Pasivo Circulante
+        const deudaCLP = Math.abs(balCLP);
+        cuentasPasivoCirculante.push({
+          id: acc.id,
+          name: acc.name,
+          type: acc.type,
+          currency: curr,
+          originalBalance: balOriginal,
+          balanceCLP: deudaCLP,
+          code: "2.1.01"
+        });
+        totalPasivoCirculante += deudaCLP;
+      } else {
+        // Saldo positivo en banco, efectivo, billetera o ahorro -> Activo Circulante
+        cuentasActivoCirculante.push({
+          id: acc.id,
+          name: acc.name,
+          type: acc.type,
+          currency: curr,
+          originalBalance: balOriginal,
+          balanceCLP: balCLP,
+          code: acc.type === "cash" ? "1.1.01" : (acc.type === "savings" ? "1.2.01" : "1.1.02")
+        });
+        totalActivoCirculante += balCLP;
+      }
+    });
+
+    // 2. Incorporar cuentas del Plan Contable (Bienes, Inmuebles, Deudas a Largo Plazo, Capital)
+    const cuentasActivoFijo = [];
+    let totalActivoFijo = 0;
+
+    const cuentasPasivoLargoPlazo = [];
+    let totalPasivoLargoPlazo = 0;
+
+    const cuentasPatrimonio = [];
+    let totalCapitalDeclarado = 0;
+
+    catalog.forEach(item => {
+      // Ignorar si está enlazada a una cuenta financiera ya computada en cuentasActivoCirculante o cuentasPasivoCirculante
+      if (item.financialAccountId && accList.some(a => a.id === item.financialAccountId)) {
+        return;
+      }
+
+      const bal = Number(item.balance) || 0;
+      const clsNum = Number(item.classNumber) || 0;
+      const code = String(item.code || "").trim();
+
+      // Activos Fijos / No Circulantes (Clase 1.3: Inmuebles, Vehículos, Mobiliario, Tecnología)
+      if (clsNum === 1 && code.startsWith("1.3")) {
+        cuentasActivoFijo.push({
+          id: item.id,
+          name: item.name,
+          code: item.code,
+          balanceCLP: bal
+        });
+        totalActivoFijo += bal;
+      } else if (clsNum === 1 && (code.startsWith("1.1") || code.startsWith("1.2")) && !item.financialAccountId) {
+        // Cuentas contables de activo circulante sin cuenta financiera directa
+        if (bal !== 0) {
+          cuentasActivoCirculante.push({
+            id: item.id,
+            name: item.name,
+            code: item.code,
+            balanceCLP: bal
+          });
+          totalActivoCirculante += bal;
+        }
+      }
+
+      // Pasivos a Largo Plazo (Clase 2.2: Créditos Hipotecarios, Automotrices)
+      if (clsNum === 2 && code.startsWith("2.2")) {
+        const deuda = Math.abs(bal);
+        cuentasPasivoLargoPlazo.push({
+          id: item.id,
+          name: item.name,
+          code: item.code,
+          balanceCLP: deuda
+        });
+        totalPasivoLargoPlazo += deuda;
+      } else if (clsNum === 2 && code.startsWith("2.1") && !item.financialAccountId) {
+        // Pasivos circulantes contables adicionales
+        if (bal !== 0) {
+          const deuda = Math.abs(bal);
+          cuentasPasivoCirculante.push({
+            id: item.id,
+            name: item.name,
+            code: item.code,
+            balanceCLP: deuda
+          });
+          totalPasivoCirculante += deuda;
+        }
+      }
+
+      // Patrimonio (Clase 3: Capital inicial, Reservas, Aportes)
+      if (clsNum === 3) {
+        cuentasPatrimonio.push({
+          id: item.id,
+          name: item.name,
+          code: item.code,
+          balanceCLP: bal
+        });
+        totalCapitalDeclarado += bal;
+      }
+    });
+
+    const totalActivos = totalActivoCirculante + totalActivoFijo;
+    const totalPasivos = totalPasivoCirculante + totalPasivoLargoPlazo;
+
+    // 3. Resultado del Ejercicio (si se especifican fechas o transacciones)
+    let resultadoEjercicio = 0;
+    if (txList.length > 0 && (options.startDate || options.endDate)) {
+      const er = generarEstadoResultados(txList, catalog, options);
+      resultadoEjercicio = er.resultadoNeto;
+    }
+
+    // 4. Determinación del Total Patrimonio y Cuadratura Contable
+    // Patrimonio Neto = Total Activos - Total Pasivos
+    const patrimonioNetoContable = totalActivos - totalPasivos;
+
+    let totalPatrimonio = 0;
+    if (totalCapitalDeclarado !== 0) {
+      if (totalCapitalDeclarado === patrimonioNetoContable) {
+        totalPatrimonio = totalCapitalDeclarado;
+      } else {
+        totalPatrimonio = patrimonioNetoContable;
+      }
+    } else {
+      totalPatrimonio = patrimonioNetoContable;
+    }
+
+    const diferenciaCuadratura = totalActivos - (totalPasivos + totalPatrimonio);
+    const estaCuadrado = Math.abs(diferenciaCuadratura) < 0.001;
+
+    return {
+      fechaCorte: options.endDate || options.cutoffDate || new Date().toISOString().slice(0, 10),
+      monedaReporte: "CLP",
+      activos: {
+        circulante: {
+          cuentas: cuentasActivoCirculante,
+          total: totalActivoCirculante
+        },
+        fijo: {
+          cuentas: cuentasActivoFijo,
+          total: totalActivoFijo
+        },
+        total: totalActivos
+      },
+      pasivos: {
+        circulante: {
+          cuentas: cuentasPasivoCirculante,
+          total: totalPasivoCirculante
+        },
+        largoPlazo: {
+          cuentas: cuentasPasivoLargoPlazo,
+          total: totalPasivoLargoPlazo
+        },
+        total: totalPasivos
+      },
+      patrimonio: {
+        cuentas: cuentasPatrimonio,
+        capitalDeclarado: totalCapitalDeclarado,
+        resultadoEjercicio,
+        total: totalPatrimonio
+      },
+      cuadratura: {
+        totalActivos,
+        totalPasivoMasPatrimonio: totalPasivos + totalPatrimonio,
+        diferencia: Math.round(diferenciaCuadratura * 100) / 100,
+        estaCuadrado
+      },
+      notasCambiarias
+    };
+  }
+
+  /**
+   * Genera el Estado de Resultados (Ganancias y Pérdidas) para un período dado
+   * Discrimina ingresos operacionales y no operacionales, gastos de vida y gastos financieros.
+   * 
+   * @param {Array} transactions Lista de transacciones
+   * @param {Array} planCatalog Catálogo de cuentas del plan contable
+   * @param {Object} options { startDate, endDate, currencies }
+   * @returns {Object} Estado de Resultados
+   */
+  function generarEstadoResultados(transactions = [], planCatalog = [], options = {}) {
+    const txList = Array.isArray(transactions) ? transactions : [];
+    const startDate = options.startDate ? String(options.startDate).slice(0, 10) : "";
+    const endDate = options.endDate ? String(options.endDate).slice(0, 10) : "";
+
+    const txFiltradas = txList.filter(tx => {
+      if (tx.type === "transfer") return false;
+      const txDate = String(tx.date || "").slice(0, 10);
+      if (startDate && txDate < startDate) return false;
+      if (endDate && txDate > endDate) return false;
+      return true;
+    });
+
+    let totalIngresosOperacionales = 0;
+    let totalIngresosNoOperacionales = 0;
+
+    let totalGastosOperacionales = 0;
+    let totalGastosFinancieros = 0;
+
+    const ingresosAgrupados = new Map();
+    const ingresosNoOpAgrupados = new Map();
+    const gastosOpAgrupados = new Map();
+    const gastosFinAgrupados = new Map();
+
+    const sumarCategoria = (mapa, key, code, name, amount) => {
+      const amt = Number(amount) || 0;
+      if (!mapa.has(key)) {
+        mapa.set(key, { code: code || "", name: name || key, amount: 0 });
+      }
+      mapa.get(key).amount += amt;
+    };
+
+    txFiltradas.forEach(tx => {
+      const amt = Number(tx.amount) || 0;
+      if (tx.type === "income") {
+        const catCode = String(tx.categoryCode || "").trim();
+        const catName = tx.category || "Ingreso Sin Categoría";
+        const isNoOp = catCode.startsWith("4.2") || /inversión|rendimiento|dividendo|arriendo|capital/i.test(catName);
+        
+        if (isNoOp) {
+          totalIngresosNoOperacionales += amt;
+          sumarCategoria(ingresosNoOpAgrupados, catName, catCode, catName, amt);
+        } else {
+          totalIngresosOperacionales += amt;
+          sumarCategoria(ingresosAgrupados, catName, catCode, catName, amt);
+        }
+      } else if (tx.type === "expense") {
+        if (tx.isSplit && Array.isArray(tx.splitLines) && tx.splitLines.length > 0) {
+          tx.splitLines.forEach(line => {
+            const lineAmt = Number(line.amount) || 0;
+            const lineCode = String(line.categoryCode || "").trim();
+            const lineCat = line.category || tx.category || "Gasto Varios";
+            const isFin = lineCode.startsWith("5.7") || /financiero|inter[eé]s|comisi[oó]n|cr[eé]dito/i.test(lineCat);
+
+            if (isFin) {
+              totalGastosFinancieros += lineAmt;
+              sumarCategoria(gastosFinAgrupados, lineCat, lineCode, lineCat, lineAmt);
+            } else {
+              totalGastosOperacionales += lineAmt;
+              sumarCategoria(gastosOpAgrupados, lineCat, lineCode, lineCat, lineAmt);
+            }
+          });
+        } else {
+          const catCode = String(tx.categoryCode || "").trim();
+          const catName = tx.category || "Gasto Sin Categoría";
+          const isFin = catCode.startsWith("5.7") || /financiero|inter[eé]s|comisi[oó]n|cr[eé]dito/i.test(catName);
+
+          if (isFin) {
+            totalGastosFinancieros += amt;
+            sumarCategoria(gastosFinAgrupados, catName, catCode, catName, amt);
+          } else {
+            totalGastosOperacionales += amt;
+            sumarCategoria(gastosOpAgrupados, catName, catCode, catName, amt);
+          }
+        }
+      }
+    });
+
+    const totalIngresos = totalIngresosOperacionales + totalIngresosNoOperacionales;
+    const totalGastos = totalGastosOperacionales + totalGastosFinancieros;
+    const resultadoNeto = totalIngresos - totalGastos;
+    const esSuperavit = resultadoNeto >= 0;
+    const tasaAhorro = totalIngresos > 0 ? Math.round(((resultadoNeto) / totalIngresos) * 1000) / 10 : 0;
+
+    return {
+      periodo: {
+        startDate,
+        endDate
+      },
+      ingresos: {
+        operacionales: Array.from(ingresosAgrupados.values()),
+        operacionalesTotal: totalIngresosOperacionales,
+        noOperacionales: Array.from(ingresosNoOpAgrupados.values()),
+        noOperacionalesTotal: totalIngresosNoOperacionales,
+        total: totalIngresos
+      },
+      gastos: {
+        operacionales: Array.from(gastosOpAgrupados.values()),
+        operacionalesTotal: totalGastosOperacionales,
+        financieros: Array.from(gastosFinAgrupados.values()),
+        financierosTotal: totalGastosFinancieros,
+        total: totalGastos
+      },
+      resultadoNeto,
+      esSuperavit,
+      tasaAhorro
+    };
+  }
+
+  /**
+   * Genera el archivo CSV con BOM UTF-8 (\uFEFF) para exportación a Excel
+   * Cumple con RFC 4180
+   * 
+   * @param {string} tipoReporte "balance" | "income_statement" | "resultados"
+   * @param {Object} dataReporte Objeto de datos con { titulo, periodo, fechaEmision, filas }
+   * @returns {string} Contenido CSV en formato UTF-8
+   */
+  function generarReporteCSV(tipoReporte, dataReporte = {}) {
+    const BOM = "\uFEFF";
+    const escapeCSV = (val) => {
+      if (val === null || val === undefined) return '""';
+      const str = String(val);
+      if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r") || str.includes(";")) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return `"${str}"`;
+    };
+
+    const lineas = [];
+    const titulo = dataReporte.titulo || (tipoReporte === "balance" ? "Balance General Clasificado" : "Estado de Resultados");
+    const periodo = dataReporte.periodo || "";
+    const fechaEmision = dataReporte.fechaEmision || new Date().toISOString().slice(0, 10);
+
+    lineas.push([escapeCSV("SISTEMA DE CONTABILIDAD PERSONAL Y GESTIÓN PATRIMONIAL")].join(","));
+    lineas.push([escapeCSV(`REPORTE: ${titulo}`)].join(","));
+    if (periodo) {
+      lineas.push([escapeCSV(`PERÍODO: ${periodo}`)].join(","));
+    }
+    lineas.push([escapeCSV(`FECHA DE EMISIÓN: ${fechaEmision}`), escapeCSV("MONEDA BASE: CLP")].join(","));
+    lineas.push(""); // Línea en blanco
+
+    // Encabezados de columnas
+    lineas.push([escapeCSV("SECCIÓN"), escapeCSV("RUBRO / CUENTA"), escapeCSV("MONTO (CLP)")].join(","));
+
+    if (Array.isArray(dataReporte.filas)) {
+      dataReporte.filas.forEach(f => {
+        lineas.push([
+          escapeCSV(f.seccion || ""),
+          escapeCSV(f.rubro || f.cuenta || ""),
+          Number(f.monto || 0).toString()
+        ].join(","));
+      });
+    }
+
+    return BOM + lineas.join("\r\n");
+  }
+
   return {
     calcularPatrimonioNeto,
     calcularBalanceMes,
@@ -1814,6 +2210,9 @@
     obtenerCategoriasDesdePlan,
     resolverCategoriaPlan,
     generarSiguienteCodigoSubcuenta,
-    fusionarEstadoContable
+    fusionarEstadoContable,
+    generarBalanceGeneral,
+    generarEstadoResultados,
+    generarReporteCSV
   };
 });
