@@ -1132,12 +1132,19 @@
         if (!confirmacion) return;
 
         state.planAccounts = state.planAccounts.filter(p => p.id !== planId && p.code !== target.code);
+        state.deletedPlanAccounts = Array.from(new Set([...(state.deletedPlanAccounts || []), target.code, target.id]));
         if (Storage && Storage.savePlanAccounts) {
           Storage.savePlanAccounts(state.planAccounts);
+        }
+        if (Storage && Storage.saveDeletedPlanAccounts) {
+          Storage.saveDeletedPlanAccounts(state.deletedPlanAccounts);
         }
 
         renderActiveView();
         showToast(`Cuenta "${target.name}" eliminada del catálogo.`, "success");
+        if (typeof DbAdapter !== "undefined" && DbAdapter && DbAdapter.getProvider() === "firebase") {
+          DbAdapter.syncBidirectional().catch(() => {});
+        }
       });
     });
   }
@@ -1395,9 +1402,16 @@
             const catName = targetBudget ? targetBudget.category : "este presupuesto";
             if (confirm(`¿Estás seguro de eliminar el presupuesto para "${catName}"?`)) {
               state.budgets = state.budgets.filter(b => b.id !== id);
-              if (Storage) Storage.saveBudgets(state.budgets);
+              state.deletedBudgets = Array.from(new Set([...(state.deletedBudgets || []), id]));
+              if (Storage) {
+                Storage.saveBudgets(state.budgets);
+                if (Storage.saveDeletedBudgets) Storage.saveDeletedBudgets(state.deletedBudgets);
+              }
               renderActiveView();
               showToast("Presupuesto eliminado con éxito.", "info");
+              if (typeof DbAdapter !== "undefined" && DbAdapter && DbAdapter.getProvider() === "firebase") {
+                DbAdapter.syncBidirectional().catch(() => {});
+              }
             }
           });
         });
@@ -1501,9 +1515,16 @@
             const title = targetGoal ? targetGoal.title : "esta meta";
             if (confirm(`¿Estás seguro de eliminar la meta de ahorro "${title}"?`)) {
               state.goals = state.goals.filter(g => g.id !== id);
-              if (Storage) Storage.saveGoals(state.goals);
+              state.deletedGoals = Array.from(new Set([...(state.deletedGoals || []), id]));
+              if (Storage) {
+                Storage.saveGoals(state.goals);
+                if (Storage.saveDeletedGoals) Storage.saveDeletedGoals(state.deletedGoals);
+              }
               renderActiveView();
               showToast("Meta de ahorro eliminada.", "info");
+              if (typeof DbAdapter !== "undefined" && DbAdapter && DbAdapter.getProvider() === "firebase") {
+                DbAdapter.syncBidirectional().catch(() => {});
+              }
             }
           });
         });
@@ -2730,6 +2751,14 @@
         Storage.savePlanAccounts(state.planAccounts);
       }
 
+      // RF-5: Si se está creando o editando una cuenta previamente eliminada, retirarla de lápidas
+      if (Array.isArray(state.deletedPlanAccounts)) {
+        state.deletedPlanAccounts = state.deletedPlanAccounts.filter(c => c !== codeVal && c !== (existing ? existing.id : null));
+        if (Storage && Storage.saveDeletedPlanAccounts) {
+          Storage.saveDeletedPlanAccounts(state.deletedPlanAccounts);
+        }
+      }
+
       modal.close();
       renderActiveView();
       const successMsg = parentCodeVal 
@@ -3149,6 +3178,9 @@
       state.budgets = Storage.getBudgets();
       state.goals = Storage.getGoals();
       state.planAccounts = Storage.getPlanAccounts ? Storage.getPlanAccounts() : [];
+      state.deletedPlanAccounts = Storage.getDeletedPlanAccounts ? Storage.getDeletedPlanAccounts() : [];
+      state.deletedBudgets = Storage.getDeletedBudgets ? Storage.getDeletedBudgets() : [];
+      state.deletedGoals = Storage.getDeletedGoals ? Storage.getDeletedGoals() : [];
     }
   }
 
@@ -3177,6 +3209,9 @@
           state.budgets = res.mergedState.budgets;
           state.goals = res.mergedState.goals;
           state.planAccounts = res.mergedState.planAccounts;
+          if (res.mergedState.deletedPlanAccounts) state.deletedPlanAccounts = res.mergedState.deletedPlanAccounts;
+          if (res.mergedState.deletedBudgets) state.deletedBudgets = res.mergedState.deletedBudgets;
+          if (res.mergedState.deletedGoals) state.deletedGoals = res.mergedState.deletedGoals;
         } else {
           loadStateFromStorage();
         }

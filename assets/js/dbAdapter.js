@@ -224,6 +224,9 @@
       const budgets = Array.isArray(backupData.budgets) ? backupData.budgets : [];
       const goals = Array.isArray(backupData.goals) ? backupData.goals : [];
       const planAccounts = Array.isArray(backupData.planAccounts) ? backupData.planAccounts : [];
+      const deletedPlanAccounts = Array.isArray(backupData.deletedPlanAccounts) ? backupData.deletedPlanAccounts : [];
+      const deletedBudgets = Array.isArray(backupData.deletedBudgets) ? backupData.deletedBudgets : [];
+      const deletedGoals = Array.isArray(backupData.deletedGoals) ? backupData.deletedGoals : [];
 
       return {
         app: "Contabilidad Personal PWA",
@@ -234,14 +237,18 @@
           transactionsCount: transactions.length,
           budgetsCount: budgets.length,
           goalsCount: goals.length,
-          planAccountsCount: planAccounts.length
+          planAccountsCount: planAccounts.length,
+          deletedPlanAccountsCount: deletedPlanAccounts.length
         },
         payload: JSON.stringify({
           accounts,
           transactions,
           budgets,
           goals,
-          planAccounts
+          planAccounts,
+          deletedPlanAccounts,
+          deletedBudgets,
+          deletedGoals
         })
       };
     },
@@ -340,7 +347,10 @@
         transactions: Array.isArray(workspaceData.transactions) ? workspaceData.transactions : [],
         budgets: Array.isArray(workspaceData.budgets) ? workspaceData.budgets : [],
         goals: Array.isArray(workspaceData.goals) ? workspaceData.goals : [],
-        planAccounts: Array.isArray(workspaceData.planAccounts) ? workspaceData.planAccounts : []
+        planAccounts: Array.isArray(workspaceData.planAccounts) ? workspaceData.planAccounts : [],
+        deletedPlanAccounts: Array.isArray(workspaceData.deletedPlanAccounts) ? workspaceData.deletedPlanAccounts : [],
+        deletedBudgets: Array.isArray(workspaceData.deletedBudgets) ? workspaceData.deletedBudgets : [],
+        deletedGoals: Array.isArray(workspaceData.deletedGoals) ? workspaceData.deletedGoals : []
       };
 
       const fields = this.toFirestoreFields(payload);
@@ -380,7 +390,10 @@
         transactions: Storage.getTransactions ? Storage.getTransactions() : [],
         budgets: Storage.getBudgets ? Storage.getBudgets() : [],
         goals: Storage.getGoals ? Storage.getGoals() : [],
-        planAccounts: Storage.getPlanAccounts ? Storage.getPlanAccounts() : []
+        planAccounts: Storage.getPlanAccounts ? Storage.getPlanAccounts() : [],
+        deletedPlanAccounts: Storage.getDeletedPlanAccounts ? Storage.getDeletedPlanAccounts() : [],
+        deletedBudgets: Storage.getDeletedBudgets ? Storage.getDeletedBudgets() : [],
+        deletedGoals: Storage.getDeletedGoals ? Storage.getDeletedGoals() : []
       };
 
       const remoteState = await this.fetchRemoteWorkspace(config);
@@ -412,6 +425,9 @@
         if (Storage.saveBudgets) Storage.saveBudgets(merged.budgets);
         if (Storage.saveGoals) Storage.saveGoals(merged.goals);
         if (Storage.savePlanAccounts) Storage.savePlanAccounts(merged.planAccounts);
+        if (Storage.saveDeletedPlanAccounts && merged.deletedPlanAccounts) Storage.saveDeletedPlanAccounts(merged.deletedPlanAccounts);
+        if (Storage.saveDeletedBudgets && merged.deletedBudgets) Storage.saveDeletedBudgets(merged.deletedBudgets);
+        if (Storage.saveDeletedGoals && merged.deletedGoals) Storage.saveDeletedGoals(merged.deletedGoals);
       }
 
       // Subir el estado fusionado resultante a Firestore para que el otro dispositivo también lo reciba

@@ -21,6 +21,9 @@
     BUDGETS: "finance_budgets_data",
     GOALS: "finance_goals_data",
     PLAN_ACCOUNTS: "finance_plan_accounts_data",
+    DELETED_PLAN_ACCOUNTS: "finance_deleted_plan_accounts_data",
+    DELETED_BUDGETS: "finance_deleted_budgets_data",
+    DELETED_GOALS: "finance_deleted_goals_data",
     THEME: "finance_theme",
     DB_CONFIG: "finance_remote_db_config"
   };
@@ -158,6 +161,61 @@
       if (ls) {
         try {
           ls.setItem(STORAGE_KEYS.PLAN_ACCOUNTS, JSON.stringify(planAccounts));
+        } catch (e) {}
+      }
+    },
+
+    // --- LÁPIDAS DE ELIMINACIÓN (TOMBSTONES - SPEC 016) ---
+    getDeletedPlanAccounts() {
+      const ls = getLocalStorage();
+      try {
+        const raw = ls ? ls.getItem(STORAGE_KEYS.DELETED_PLAN_ACCOUNTS) : null;
+        return raw ? JSON.parse(raw) : [];
+      } catch (e) {
+        return [];
+      }
+    },
+    saveDeletedPlanAccounts(list) {
+      const ls = getLocalStorage();
+      if (ls) {
+        try {
+          ls.setItem(STORAGE_KEYS.DELETED_PLAN_ACCOUNTS, JSON.stringify(Array.isArray(list) ? list : []));
+        } catch (e) {}
+      }
+    },
+
+    getDeletedBudgets() {
+      const ls = getLocalStorage();
+      try {
+        const raw = ls ? ls.getItem(STORAGE_KEYS.DELETED_BUDGETS) : null;
+        return raw ? JSON.parse(raw) : [];
+      } catch (e) {
+        return [];
+      }
+    },
+    saveDeletedBudgets(list) {
+      const ls = getLocalStorage();
+      if (ls) {
+        try {
+          ls.setItem(STORAGE_KEYS.DELETED_BUDGETS, JSON.stringify(Array.isArray(list) ? list : []));
+        } catch (e) {}
+      }
+    },
+
+    getDeletedGoals() {
+      const ls = getLocalStorage();
+      try {
+        const raw = ls ? ls.getItem(STORAGE_KEYS.DELETED_GOALS) : null;
+        return raw ? JSON.parse(raw) : [];
+      } catch (e) {
+        return [];
+      }
+    },
+    saveDeletedGoals(list) {
+      const ls = getLocalStorage();
+      if (ls) {
+        try {
+          ls.setItem(STORAGE_KEYS.DELETED_GOALS, JSON.stringify(Array.isArray(list) ? list : []));
         } catch (e) {}
       }
     },

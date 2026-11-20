@@ -986,6 +986,7 @@
         // Verificar si ya existe en catálogo
         const existingIdx = catalogo.findIndex(c => c.financialAccountId === acc.id || c.name.toLowerCase() === acc.name.toLowerCase());
         if (existingIdx >= 0) {
+          catalogo[existingIdx].name = acc.name;
           catalogo[existingIdx].balance = balance;
           catalogo[existingIdx].financialAccountId = acc.id;
           catalogo[existingIdx].color = acc.color || catalogo[existingIdx].color;
@@ -1370,6 +1371,19 @@
     const localPlan = Array.isArray(local.planAccounts) ? local.planAccounts : [];
     const remotePlan = Array.isArray(remote.planAccounts) ? remote.planAccounts : [];
 
+    // Listas de eliminados (Tombstones - Spec 016)
+    const localDeletedPlan = Array.isArray(local.deletedPlanAccounts) ? local.deletedPlanAccounts : [];
+    const remoteDeletedPlan = Array.isArray(remote.deletedPlanAccounts) ? remote.deletedPlanAccounts : [];
+    const deletedPlanSet = new Set([...localDeletedPlan, ...remoteDeletedPlan]);
+
+    const localDeletedBudgets = Array.isArray(local.deletedBudgets) ? local.deletedBudgets : [];
+    const remoteDeletedBudgets = Array.isArray(remote.deletedBudgets) ? remote.deletedBudgets : [];
+    const deletedBudgetsSet = new Set([...localDeletedBudgets, ...remoteDeletedBudgets]);
+
+    const localDeletedGoals = Array.isArray(local.deletedGoals) ? local.deletedGoals : [];
+    const remoteDeletedGoals = Array.isArray(remote.deletedGoals) ? remote.deletedGoals : [];
+    const deletedGoalsSet = new Set([...localDeletedGoals, ...remoteDeletedGoals]);
+
     // 1. Fusionar transacciones sin duplicados por ID
     const txMap = new Map();
     let newTxsFromRemote = 0;
@@ -1388,14 +1402,14 @@
         }
       } else {
         const existing = txMap.get(t.id);
-        txMap.set(t.id, { ...existing, ...t });
+        txMap.set(t.id, { ...t, ...existing });
       }
     });
 
     const mergedTransactions = Array.from(txMap.values());
     mergedTransactions.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
-    // 2. Fusionar cuentas sin duplicados por ID
+    // 2. Fusionar cuentas sin duplicados por ID (Local-First: atributos locales tienen prioridad)
     const accMap = new Map();
     localAccs.forEach(a => {
       if (a && a.id) accMap.set(a.id, { ...a });
@@ -1406,7 +1420,11 @@
         accMap.set(a.id, { ...a });
       } else {
         const existing = accMap.get(a.id);
-        accMap.set(a.id, { ...existing, ...a, initialBalance: existing.initialBalance ?? a.initialBalance });
+        accMap.set(a.id, {
+          ...a,
+          ...existing,
+          initialBalance: existing.initialBalance ?? a.initialBalance
+        });
       }
     });
 
@@ -1441,29 +1459,29 @@
       };
     });
 
-    // 3. Fusionar presupuestos
+    // 3. Fusionar presupuestos (Local-First: límites modificados localmente tienen prioridad, excluyendo eliminados)
     const budgetMap = new Map();
     localBudgets.forEach(b => {
-      if (b && b.id) budgetMap.set(b.id, { ...b });
+      if (b && b.id && !deletedBudgetsSet.has(b.id)) budgetMap.set(b.id, { ...b });
     });
     remoteBudgets.forEach(b => {
-      if (!b || !b.id) return;
+      if (!b || !b.id || deletedBudgetsSet.has(b.id)) return;
       if (!budgetMap.has(b.id)) {
         budgetMap.set(b.id, { ...b });
       } else {
         const existing = budgetMap.get(b.id);
-        budgetMap.set(b.id, { ...existing, ...b });
+        budgetMap.set(b.id, { ...b, ...existing });
       }
     });
     const mergedBudgets = Array.from(budgetMap.values());
 
-    // 4. Fusionar metas de ahorro
+    // 4. Fusionar metas de ahorro (excluyendo eliminados)
     const goalMap = new Map();
     localGoals.forEach(g => {
-      if (g && g.id) goalMap.set(g.id, { ...g });
+      if (g && g.id && !deletedGoalsSet.has(g.id)) goalMap.set(g.id, { ...g });
     });
     remoteGoals.forEach(g => {
-      if (!g || !g.id) return;
+      if (!g || !g.id || deletedGoalsSet.has(g.id)) return;
       if (!goalMap.has(g.id)) {
         goalMap.set(g.id, { ...g });
       } else {
@@ -1474,19 +1492,25 @@
     });
     const mergedGoals = Array.from(goalMap.values());
 
-    // 5. Fusionar plan de cuentas personalizado
+    // 5. Fusionar plan de cuentas personalizado (Local-First: subcuentas locales tienen prioridad, excluyendo eliminados)
     const planMap = new Map();
     localPlan.forEach(p => {
-      if (p && (p.id || p.code)) planMap.set(p.code || p.id, { ...p });
+      if (p && (p.id || p.code)) {
+        const key = p.code || p.id;
+        if (!deletedPlanSet.has(p.code) && !deletedPlanSet.has(p.id)) {
+          planMap.set(key, { ...p });
+        }
+      }
     });
     remotePlan.forEach(p => {
       if (!p || (!p.id && !p.code)) return;
       const key = p.code || p.id;
+      if (deletedPlanSet.has(p.code) || deletedPlanSet.has(p.id)) return;
       if (!planMap.has(key)) {
         planMap.set(key, { ...p });
       } else {
         const existing = planMap.get(key);
-        planMap.set(key, { ...existing, ...p });
+        planMap.set(key, { ...p, ...existing });
       }
     });
     const mergedPlanAccounts = Array.from(planMap.values());
@@ -1503,7 +1527,10 @@
         transactions: mergedTransactions,
         budgets: mergedBudgets,
         goals: mergedGoals,
-        planAccounts: mergedPlanAccounts
+        planAccounts: mergedPlanAccounts,
+        deletedPlanAccounts: Array.from(deletedPlanSet),
+        deletedBudgets: Array.from(deletedBudgetsSet),
+        deletedGoals: Array.from(deletedGoalsSet)
       },
       hasChangesFromRemote,
       newTransactionsFromRemote: newTxsFromRemote
