@@ -224,6 +224,7 @@
       const budgets = Array.isArray(backupData.budgets) ? backupData.budgets : [];
       const goals = Array.isArray(backupData.goals) ? backupData.goals : [];
       const planAccounts = Array.isArray(backupData.planAccounts) ? backupData.planAccounts : [];
+      const currencies = Array.isArray(backupData.currencies) ? backupData.currencies : [];
       const deletedAccounts = Array.isArray(backupData.deletedAccounts) ? backupData.deletedAccounts : [];
       const deletedPlanAccounts = Array.isArray(backupData.deletedPlanAccounts) ? backupData.deletedPlanAccounts : [];
       const deletedBudgets = Array.isArray(backupData.deletedBudgets) ? backupData.deletedBudgets : [];
@@ -247,6 +248,7 @@
           budgets,
           goals,
           planAccounts,
+          currencies,
           deletedAccounts,
           deletedPlanAccounts,
           deletedBudgets,
@@ -350,6 +352,7 @@
         budgets: Array.isArray(workspaceData.budgets) ? workspaceData.budgets : [],
         goals: Array.isArray(workspaceData.goals) ? workspaceData.goals : [],
         planAccounts: Array.isArray(workspaceData.planAccounts) ? workspaceData.planAccounts : [],
+        currencies: Array.isArray(workspaceData.currencies) ? workspaceData.currencies : [],
         deletedAccounts: Array.isArray(workspaceData.deletedAccounts) ? workspaceData.deletedAccounts : [],
         deletedPlanAccounts: Array.isArray(workspaceData.deletedPlanAccounts) ? workspaceData.deletedPlanAccounts : [],
         deletedBudgets: Array.isArray(workspaceData.deletedBudgets) ? workspaceData.deletedBudgets : [],
@@ -394,6 +397,7 @@
         budgets: Storage.getBudgets ? Storage.getBudgets() : [],
         goals: Storage.getGoals ? Storage.getGoals() : [],
         planAccounts: Storage.getPlanAccounts ? Storage.getPlanAccounts() : [],
+        currencies: Storage.getCurrencies ? Storage.getCurrencies() : [],
         deletedAccounts: Storage.getDeletedAccounts ? Storage.getDeletedAccounts() : [],
         deletedPlanAccounts: Storage.getDeletedPlanAccounts ? Storage.getDeletedPlanAccounts() : [],
         deletedBudgets: Storage.getDeletedBudgets ? Storage.getDeletedBudgets() : [],
@@ -429,6 +433,7 @@
         if (Storage.saveBudgets) Storage.saveBudgets(merged.budgets);
         if (Storage.saveGoals) Storage.saveGoals(merged.goals);
         if (Storage.savePlanAccounts) Storage.savePlanAccounts(merged.planAccounts);
+        if (Storage.saveCurrencies && merged.currencies) Storage.saveCurrencies(merged.currencies);
         if (Storage.saveDeletedAccounts && merged.deletedAccounts) Storage.saveDeletedAccounts(merged.deletedAccounts);
         if (Storage.saveDeletedPlanAccounts && merged.deletedPlanAccounts) Storage.saveDeletedPlanAccounts(merged.deletedPlanAccounts);
         if (Storage.saveDeletedBudgets && merged.deletedBudgets) Storage.saveDeletedBudgets(merged.deletedBudgets);

@@ -573,6 +573,49 @@
           </div>
         </div>
 
+        <!-- Gestión de Monedas y Tasas de Cambio (Spec 018) -->
+        <div id="settings-currencies-section" class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                <i data-lucide="coins" class="w-5 h-5"></i>
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h2 class="text-sm font-bold text-slate-900 dark:text-white">Monedas Soportadas y Tasas de Cambio</h2>
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 dark:bg-indigo-950/80 dark:text-indigo-300">
+                    Base: CLP ($1.00)
+                  </span>
+                </div>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Administra las divisas y sus tipos de cambio de referencia respecto al Peso Chileno (CLP)</p>
+              </div>
+            </div>
+            <div>
+              <button type="button" id="btn-settings-new-currency" class="px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs shadow-sm transition-all flex items-center gap-2 active:scale-95">
+                <i data-lucide="plus" class="w-4 h-4"></i>
+                <span>Nueva Moneda</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr class="border-b border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40 text-slate-500 dark:text-slate-400 uppercase tracking-wider font-semibold text-[10px]">
+                  <th class="px-4 py-2.5 w-24">Código</th>
+                  <th class="px-4 py-2.5">Moneda</th>
+                  <th class="px-4 py-2.5 w-20">Símbolo</th>
+                  <th class="px-4 py-2.5 text-right w-44">Tasa respecto a CLP</th>
+                  <th class="px-4 py-2.5 text-right w-28">Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="settings-currencies-table-body" class="divide-y divide-slate-100 dark:divide-slate-800/60">
+                <!-- Generado dinámicamente -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         <!-- Respaldo y Portabilidad -->
         <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm space-y-4">
           <div class="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">

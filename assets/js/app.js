@@ -16,6 +16,7 @@
     budgets: [],
     goals: [],
     planAccounts: [],
+    currencies: [],
     deletedAccounts: [],
     deletedPlanAccounts: [],
     deletedBudgets: [],
@@ -36,13 +37,26 @@
     }
   };
 
-  // Formateador de moneda estándar
-  const formatMoney = (amount) => {
-    return new Intl.NumberFormat("es-CL", {
-      style: "currency",
-      currency: "CLP",
-      maximumFractionDigits: 0
-    }).format(amount || 0);
+  // Formateador de moneda estándar con soporte multidivisa (Spec 018)
+  const formatMoney = (amount, currencyCode = "CLP") => {
+    const code = (currencyCode || "CLP").toUpperCase();
+    const curr = (state.currencies || []).find(c => (c.code || "").toUpperCase() === code);
+    const maxDigits = code === "CLP" ? 0 : 2;
+
+    try {
+      return new Intl.NumberFormat("es-CL", {
+        style: "currency",
+        currency: code,
+        maximumFractionDigits: maxDigits
+      }).format(amount || 0);
+    } catch (e) {
+      const symbol = curr ? curr.symbol : `${code} `;
+      const numStr = new Intl.NumberFormat("es-CL", {
+        maximumFractionDigits: maxDigits,
+        minimumFractionDigits: maxDigits > 0 ? 2 : 0
+      }).format(amount || 0);
+      return `${symbol} ${numStr}`;
+    }
   };
 
   // Formateador de fechas
@@ -255,7 +269,7 @@
   // ========================================================
   function renderDashboard() {
     const netWorthData = Calculations
-      ? Calculations.calcularPatrimonioNeto(state.accounts)
+      ? Calculations.calcularPatrimonioNeto(state.accounts, state.currencies)
       : { assets: 0, liabilities: 0, netWorth: 0 };
 
     const netWorthEl = document.getElementById("dash-net-worth");
@@ -439,7 +453,7 @@
             <div class="mt-2 flex items-baseline justify-between">
               <div>
                 <span class="text-xs text-slate-500">${isCredit ? 'Saldo adeudado:' : 'Saldo disponible:'}</span>
-                <p class="text-xl font-bold tabular-nums ${balanceColor}">${formatMoney(acc.currentBalance)}</p>
+                <p class="text-xl font-bold tabular-nums ${balanceColor}">${formatMoney(acc.currentBalance, acc.currency)}</p>
               </div>
               <span class="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity">
                 Ver detalle →
@@ -704,7 +718,7 @@
             ${isCredit ? 'Saldo Adeudado Actual' : 'Saldo Disponible Contable'}
           </span>
           <p class="text-2xl md:text-3xl font-extrabold tabular-nums ${balanceColor}">
-            ${formatMoney(account.currentBalance)}
+            ${formatMoney(account.currentBalance, account.currency)}
           </p>
         </div>
       </div>
@@ -719,7 +733,7 @@
             </div>
           </div>
           <p class="text-xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
-            +${formatMoney(resumen.totalAbonos)}
+            +${formatMoney(resumen.totalAbonos, account.currency)}
           </p>
           <p class="text-[10px] text-slate-400">Ingresos directos y transferencias recibidas</p>
         </div>
@@ -732,7 +746,7 @@
             </div>
           </div>
           <p class="text-xl font-bold text-rose-600 dark:text-rose-400 tabular-nums">
-            -${formatMoney(resumen.totalCargos)}
+            -${formatMoney(resumen.totalCargos, account.currency)}
           </p>
           <p class="text-[10px] text-slate-400">Gastos pagados y transferencias enviadas</p>
         </div>
@@ -1283,7 +1297,10 @@
           : isTransfer ? "bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300" : "bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300");
 
       const account = state.accounts.find(a => a.id === tx.accountId);
-      const accountName = account ? account.name : "Cuenta";
+      const toAccount = tx.toAccountId ? state.accounts.find(a => a.id === tx.toAccountId) : null;
+      const accountName = (isTransfer && toAccount)
+        ? `${account ? account.name : 'Cuenta'} → ${toAccount.name}`
+        : (account ? account.name : "Cuenta");
 
       // Resolver código contable para mostrar badge elegante
       let displayCode = tx.categoryCode;
@@ -1307,7 +1324,7 @@
             return `
               <div class="flex items-center justify-between text-slate-600 dark:text-slate-300">
                 <span>• <strong class="text-slate-700 dark:text-slate-200">${l.description || 'Partida'}</strong> <span class="text-slate-400 font-normal">${destLabel}</span></span>
-                <span class="font-bold tabular-nums">${formatMoney(l.amount)}</span>
+                <span class="font-bold tabular-nums">${formatMoney(l.amount, account?.currency)}</span>
               </div>
             `;
           }).join("")}
@@ -1328,6 +1345,13 @@
         </div>
       `;
 
+      let amountDisplay = "";
+      if (isTransfer && tx.toAmount && toAccount) {
+        amountDisplay = `↔ ${formatMoney(tx.amount, account?.currency)} <span class="text-[11px] font-normal text-slate-400 block sm:inline">(${formatMoney(tx.toAmount, toAccount.currency)})</span>`;
+      } else {
+        amountDisplay = `${isIncome ? '+' : isTransfer ? '↔' : '-'}${formatMoney(tx.amount, account?.currency)}`;
+      }
+
       return `
         <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
           <td class="py-3 px-4 text-slate-500 whitespace-nowrap">${formatDate(tx.date)}</td>
@@ -1343,7 +1367,7 @@
           <td class="py-3 px-4">${categoryCellHtml}</td>
           <td class="py-3 px-4 text-slate-500">${accountName}</td>
           <td class="py-3 px-4 text-right font-bold tabular-nums ${isIncome ? 'text-emerald-600 dark:text-emerald-400' : isTransfer ? 'text-blue-600 dark:text-blue-400' : 'text-rose-600 dark:text-rose-400'}">
-            ${isIncome ? '+' : isTransfer ? '↔' : '-'}${formatMoney(tx.amount)}
+            ${amountDisplay}
           </td>
         </tr>
       `;
@@ -1635,6 +1659,237 @@
         firebaseStatusBadge.className = "px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300";
       }
     }
+
+    // Spec 018: Renderizar tabla de monedas soportadas y tasas de cambio
+    renderCurrenciesTable();
+  }
+
+  // Helper para generar opciones de monedas en los selects
+  function renderCurrencyOptions(selectedCode = "CLP") {
+    const list = (state.currencies && state.currencies.length > 0)
+      ? state.currencies
+      : (Calculations?.CURRENCIES_BASE || [{ code: "CLP", name: "Peso Chileno", symbol: "$" }]);
+    return list.map(c => `
+      <option value="${c.code}" ${c.code === selectedCode ? 'selected' : ''}>
+        ${c.code} (${c.symbol} - ${c.name})
+      </option>
+    `).join("");
+  }
+
+  // ========================================================
+  // RENDERIZADO 5.1: TABLA DE MONEDAS Y TASAS (SPEC 018)
+  // ========================================================
+  function renderCurrenciesTable() {
+    const tbody = document.getElementById("settings-currencies-table-body");
+    if (!tbody) return;
+
+    if (!Array.isArray(state.currencies) || state.currencies.length === 0) {
+      state.currencies = Storage ? Storage.getCurrencies() : (Calculations?.CURRENCIES_BASE || []);
+    }
+
+    tbody.innerHTML = state.currencies.map(c => {
+      const isBase = c.code === "CLP";
+      const rateDisplay = isBase
+        ? "1.0000 (Base)"
+        : `1 ${c.code} = ${Number(c.rateToCLP).toLocaleString("es-CL", { minimumFractionDigits: 2, maximumFractionDigits: 4 })} CLP`;
+      const typeBadge = isBase
+        ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300">Moneda Base</span>`
+        : `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300">Divisa Extranjera</span>`;
+
+      const accountsUsing = (state.accounts || []).filter(a => a.currency === c.code);
+      const isDeletable = !isBase && accountsUsing.length === 0;
+      const deleteDisabledTitle = isBase
+        ? "La moneda base CLP no se puede eliminar"
+        : (accountsUsing.length > 0 ? `En uso por ${accountsUsing.length} cuenta(s)` : "Eliminar divisa");
+
+      return `
+        <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+          <td class="py-2.5 px-3 font-mono font-bold text-slate-800 dark:text-slate-100">${escapeHtml(c.code)}</td>
+          <td class="py-2.5 px-3 font-medium">${escapeHtml(c.name)}</td>
+          <td class="py-2.5 px-3 font-bold">${escapeHtml(c.symbol || '')}</td>
+          <td class="py-2.5 px-3 text-right font-mono font-semibold tabular-nums text-slate-700 dark:text-slate-200">${rateDisplay}</td>
+          <td class="py-2.5 px-3 text-center">${typeBadge}</td>
+          <td class="py-2.5 px-3 text-right whitespace-nowrap">
+            <div class="inline-flex items-center gap-1">
+              <button type="button" class="btn-edit-currency p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors" data-code="${c.code}" title="Editar moneda">
+                <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
+              </button>
+              <button type="button" class="btn-delete-currency p-1.5 rounded-lg ${isDeletable ? 'hover:bg-rose-50 text-slate-400 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400' : 'opacity-30 cursor-not-allowed text-slate-400'} transition-colors" data-code="${c.code}" ${isDeletable ? '' : 'disabled'} title="${deleteDisabledTitle}">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join("");
+
+    safeRenderIcons();
+
+    tbody.querySelectorAll(".btn-edit-currency").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const code = btn.dataset.code;
+        openCurrencyModal(code);
+      });
+    });
+
+    tbody.querySelectorAll(".btn-delete-currency").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const code = btn.dataset.code;
+        if (!code || btn.hasAttribute("disabled")) return;
+        solicitarEliminarMoneda(code);
+      });
+    });
+  }
+
+  // ========================================================
+  // PLANILLA INTERACTIVA: NUEVA / EDITAR MONEDA (SPEC 018)
+  // ========================================================
+  function openCurrencyModal(currencyCode = null) {
+    const modal = document.getElementById("app-modal");
+    const modalTitle = document.getElementById("modal-title");
+    const modalBody = document.getElementById("modal-body");
+    if (!modal || !modalTitle || !modalBody) return;
+
+    const isEdit = Boolean(currencyCode);
+    const existing = isEdit ? state.currencies.find(c => c.code === currencyCode) : null;
+    const isBase = existing && existing.code === "CLP";
+
+    modalTitle.textContent = isEdit ? `Editar Moneda: ${existing.code}` : "Agregar Nueva Moneda";
+
+    modalBody.innerHTML = `
+      <form id="form-currency" class="space-y-4">
+        <div class="space-y-3 text-xs">
+          <!-- Código ISO -->
+          <div class="space-y-1">
+            <label class="font-semibold text-slate-700 dark:text-slate-300">Código ISO (3-5 letras) *</label>
+            <input type="text" id="curr-input-code" maxlength="5" value="${escapeHtml(existing ? existing.code : '')}" ${isEdit ? 'disabled' : 'required'} placeholder="Ej. USD, EUR, GBP, BRL..." class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white uppercase font-mono font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 ${isEdit ? 'opacity-60 cursor-not-allowed' : ''}">
+            <p class="text-[10px] text-slate-400">Código identificador de la divisa (ej. USD para Dólar estadounidense).</p>
+          </div>
+
+          <!-- Nombre de la moneda -->
+          <div class="space-y-1">
+            <label class="font-semibold text-slate-700 dark:text-slate-300">Nombre de la Moneda *</label>
+            <input type="text" id="curr-input-name" value="${escapeHtml(existing ? existing.name : '')}" required placeholder="Ej. Dólar Estadounidense, Libra Esterlina..." class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <!-- Símbolo -->
+            <div class="space-y-1">
+              <label class="font-semibold text-slate-700 dark:text-slate-300">Símbolo *</label>
+              <input type="text" id="curr-input-symbol" value="${escapeHtml(existing ? existing.symbol : '$')}" required placeholder="Ej. $, €, £, R$..." class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            </div>
+
+            <!-- Tasa referente respecto a CLP -->
+            <div class="space-y-1">
+              <label class="font-semibold text-slate-700 dark:text-slate-300">Tasa (1 unidad en CLP) *</label>
+              <input type="number" id="curr-input-rate" step="any" min="0.00000001" value="${existing ? existing.rateToCLP : '1'}" ${isBase ? 'disabled' : 'required'} placeholder="Ej. 950" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-mono font-bold tabular-nums focus:outline-none focus:ring-2 focus:ring-emerald-500 ${isBase ? 'opacity-60 cursor-not-allowed' : ''}">
+            </div>
+          </div>
+
+          ${isBase ? '<p class="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">ℹ️ CLP es la moneda base del sistema y su tasa referente está fijada en 1.0.</p>' : '<p class="text-[10px] text-slate-400">Indica cuánto equivale 1 unidad de esta divisa en Pesos Chilenos (ej. 1 USD = 950 CLP).</p>'}
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+          <button type="button" id="curr-form-cancel" class="px-4 py-2 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 transition-colors">
+            Cancelar
+          </button>
+          <button type="submit" id="curr-form-submit" class="px-5 py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all flex items-center gap-1.5 active:scale-95">
+            <i data-lucide="check" class="w-3.5 h-3.5"></i>
+            <span>${isEdit ? 'Actualizar Moneda' : 'Guardar Moneda'}</span>
+          </button>
+        </div>
+      </form>
+    `;
+
+    safeRenderIcons();
+
+    document.getElementById("curr-form-cancel")?.addEventListener("click", () => modal.close());
+
+    const form = document.getElementById("form-currency");
+    form?.addEventListener("submit", (e) => {
+      e.preventDefault();
+
+      const codeVal = (isEdit && existing ? existing.code : (document.getElementById("curr-input-code")?.value || "")).trim().toUpperCase();
+      const nameVal = document.getElementById("curr-input-name")?.value.trim() || "";
+      const symbolVal = document.getElementById("curr-input-symbol")?.value.trim() || "$";
+      const rateVal = isBase ? 1.0 : Number(document.getElementById("curr-input-rate")?.value);
+
+      const monedaData = {
+        code: codeVal,
+        name: nameVal,
+        symbol: symbolVal,
+        rateToCLP: rateVal,
+        isBase: isBase || codeVal === "CLP",
+        updatedAt: new Date().toISOString()
+      };
+
+      const validacion = Calculations && Calculations.validarMoneda
+        ? Calculations.validarMoneda(monedaData, isEdit ? state.currencies.filter(c => c.code !== codeVal) : state.currencies)
+        : { valida: true };
+
+      if (!validacion.valida) {
+        showToast(validacion.error || "Datos de moneda inválidos.", "error");
+        return;
+      }
+
+      if (isEdit) {
+        const idx = state.currencies.findIndex(c => c.code === codeVal);
+        if (idx !== -1) {
+          state.currencies[idx] = {
+            ...state.currencies[idx],
+            ...monedaData
+          };
+        }
+      } else {
+        state.currencies.push(monedaData);
+      }
+
+      if (Storage) {
+        Storage.saveCurrencies(state.currencies);
+      }
+
+      modal.close();
+      renderSettings();
+      showToast(`Moneda ${codeVal} guardada correctamente.`, "success");
+      triggerAutoSync({ notify: false });
+    });
+
+    modal.showModal();
+    setTimeout(() => {
+      if (isEdit) {
+        document.getElementById("curr-input-name")?.focus();
+      } else {
+        document.getElementById("curr-input-code")?.focus();
+      }
+    }, 50);
+  }
+
+  // ========================================================
+  // ELIMINACIÓN DE MONEDA (SPEC 018)
+  // ========================================================
+  function solicitarEliminarMoneda(currencyCode) {
+    if (!currencyCode || currencyCode === "CLP") {
+      showToast("La moneda base CLP no puede ser eliminada.", "error");
+      return;
+    }
+
+    const enUso = (state.accounts || []).filter(a => a.currency === currencyCode);
+    if (enUso.length > 0) {
+      showToast(`No es posible eliminar ${currencyCode} porque está asignada a ${enUso.length} cuenta(s) financiera(s).`, "error");
+      return;
+    }
+
+    const conf = window.confirm(`¿Estás seguro de que deseas eliminar la moneda ${currencyCode}?`);
+    if (!conf) return;
+
+    state.currencies = (state.currencies || []).filter(c => c.code !== currencyCode);
+    if (Storage) {
+      Storage.saveCurrencies(state.currencies);
+    }
+
+    renderSettings();
+    showToast(`Moneda ${currencyCode} eliminada correctamente.`, "success");
+    triggerAutoSync({ notify: false });
   }
 
   // ========================================================
@@ -1691,7 +1946,7 @@
 
     // Generar opciones de cuenta origen
     const accountOptions = state.accounts.map((acc) => {
-      return `<option value="${acc.id}">${acc.name} (${formatMoney(acc.currentBalance)})</option>`;
+      return `<option value="${acc.id}">${acc.name} (${formatMoney(acc.currentBalance, acc.currency)})</option>`;
     }).join("");
 
     modalBody.innerHTML = `
@@ -1744,6 +1999,36 @@
             <label class="font-semibold text-slate-700 dark:text-slate-300">Cuenta Receptora *</label>
             <select id="tx-input-to-account" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
             </select>
+          </div>
+
+          <!-- Panel Conversión Multidivisa (Spec 018) -->
+          <div id="transfer-fx-panel" class="sm:col-span-2 p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 space-y-2 hidden">
+            <div class="flex items-center justify-between text-xs font-bold text-amber-900 dark:text-amber-200">
+              <span class="flex items-center gap-1.5">
+                <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-amber-600 dark:text-amber-400"></i>
+                Conversión de Divisas (<span id="tx-fx-pair-label">USD → CLP</span>)
+              </span>
+              <span id="tx-fx-badge" class="px-2 py-0.5 rounded-full text-[10px] font-mono bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300">Multidivisa</span>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+              <div class="space-y-1">
+                <label class="font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                  <span>Tasa de Cambio</span>
+                  <span id="tx-fx-rate-unit" class="text-[10px] text-slate-400 font-normal">1 USD = X CLP</span>
+                </label>
+                <input type="number" id="tx-fx-rate" step="any" min="0.00000001" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-mono font-bold focus:outline-none focus:ring-2 focus:ring-amber-500">
+              </div>
+              <div class="space-y-1">
+                <label class="font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                  <span>Monto a Acreditar</span>
+                  <span id="tx-fx-dest-curr" class="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">CLP</span>
+                </label>
+                <input type="number" id="tx-fx-to-amount" step="any" min="0.01" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-bold tabular-nums focus:outline-none focus:ring-2 focus:ring-amber-500">
+              </div>
+            </div>
+            <p class="text-[10px] text-amber-700/80 dark:text-amber-400/80">
+              💡 El monto en destino y la tasa son editables. El valor ingresado actualizará la tasa referente de la moneda en el sistema.
+            </p>
           </div>
 
           <!-- Categoría (para gasto / ingreso) -->
@@ -1848,6 +2133,7 @@
       if (type === "expense") {
         if (lblSource) lblSource.textContent = "Cuenta de Pago *";
         if (colDest) colDest.classList.add("hidden");
+        document.getElementById("transfer-fx-panel")?.classList.add("hidden");
         if (colSplitToggle) colSplitToggle.classList.remove("hidden");
         if (colMethod) colMethod.classList.remove("hidden");
         if (!isSplitActive && colCat) colCat.classList.remove("hidden");
@@ -1858,6 +2144,7 @@
       } else if (type === "income") {
         if (lblSource) lblSource.textContent = "Cuenta Receptora *";
         if (colDest) colDest.classList.add("hidden");
+        document.getElementById("transfer-fx-panel")?.classList.add("hidden");
         if (colSplitToggle) colSplitToggle.classList.remove("hidden");
         if (colMethod) colMethod.classList.remove("hidden");
         if (!isSplitActive && colCat) colCat.classList.remove("hidden");
@@ -1880,7 +2167,56 @@
       if (!selToAccount || !selAccount) return;
       const currentOrigin = selAccount.value;
       const destAccounts = state.accounts.filter(a => a.id !== currentOrigin);
-      selToAccount.innerHTML = destAccounts.map(a => `<option value="${a.id}">${a.name} (${formatMoney(a.currentBalance)})</option>`).join("");
+      selToAccount.innerHTML = destAccounts.map(a => `<option value="${a.id}">${a.name} (${formatMoney(a.currentBalance, a.currency)})</option>`).join("");
+      updateCurrencyConversionUI();
+    }
+
+    function updateCurrencyConversionUI() {
+      const fxPanel = document.getElementById("transfer-fx-panel");
+      if (!fxPanel) return;
+
+      if (selectedType !== "transfer") {
+        fxPanel.classList.add("hidden");
+        return;
+      }
+
+      const sourceId = selAccount ? selAccount.value : null;
+      const destId = selToAccount ? selToAccount.value : null;
+      const sourceAcc = (state.accounts || []).find(a => a.id === sourceId);
+      const destAcc = (state.accounts || []).find(a => a.id === destId);
+
+      if (!sourceAcc || !destAcc || sourceAcc.currency === destAcc.currency) {
+        fxPanel.classList.add("hidden");
+        return;
+      }
+
+      fxPanel.classList.remove("hidden");
+
+      const sourceCurr = sourceAcc.currency || "CLP";
+      const destCurr = destAcc.currency || "CLP";
+      const amountVal = Number(amountInput?.value) || 0;
+
+      const pairLabel = document.getElementById("tx-fx-pair-label");
+      const rateUnit = document.getElementById("tx-fx-rate-unit");
+      const destCurrLabel = document.getElementById("tx-fx-dest-curr");
+      const rateInput = document.getElementById("tx-fx-rate");
+      const toAmountInput = document.getElementById("tx-fx-to-amount");
+
+      if (pairLabel) pairLabel.textContent = `${sourceCurr} → ${destCurr}`;
+      if (destCurrLabel) destCurrLabel.textContent = destCurr;
+      if (rateUnit) rateUnit.textContent = `1 ${sourceCurr} = X ${destCurr}`;
+
+      const conv = Calculations && Calculations.calcularConversionMoneda
+        ? Calculations.calcularConversionMoneda(amountVal, sourceCurr, destCurr, state.currencies)
+        : { toAmount: amountVal, effectiveRate: 1 };
+
+      if (rateInput && (!document.activeElement || document.activeElement !== rateInput)) {
+        rateInput.value = conv.effectiveRate > 0 ? conv.effectiveRate : 1;
+      }
+      if (toAmountInput && (!document.activeElement || document.activeElement !== toAmountInput)) {
+        toAmountInput.value = conv.toAmount;
+      }
+      safeRenderIcons();
     }
 
     // Generador de opciones para el selector de destino en cada línea Split (Spec 004 & 012)
@@ -2056,14 +2392,47 @@
       renderSplitLines();
     });
 
-    // Escuchar cambios en el monto total para actualizar la barra en tiempo real
+    // Escuchar cambios en el monto total para actualizar la barra en tiempo real o la conversión
     amountInput?.addEventListener("input", () => {
       if (isSplitActive) updateSplitBalanceBar();
+      if (selectedType === "transfer") updateCurrencyConversionUI();
     });
 
     selAccount?.addEventListener("change", () => {
       if (selectedType === "transfer") updateDestinationAccounts();
       if (isSplitActive) renderSplitLines();
+    });
+
+    selToAccount?.addEventListener("change", () => {
+      if (selectedType === "transfer") updateCurrencyConversionUI();
+    });
+
+    // Eventos de edición recíproca en el panel multidivisa (Spec 018)
+    const fxRateInput = document.getElementById("tx-fx-rate");
+    const fxToAmountInput = document.getElementById("tx-fx-to-amount");
+
+    fxRateInput?.addEventListener("input", () => {
+      const customRate = Number(fxRateInput.value);
+      const amountVal = Number(amountInput?.value) || 0;
+      const sourceAcc = (state.accounts || []).find(a => a.id === selAccount?.value);
+      const destAcc = (state.accounts || []).find(a => a.id === selToAccount?.value);
+      if (!sourceAcc || !destAcc || !customRate || customRate <= 0) return;
+
+      const conv = Calculations && Calculations.calcularConversionMoneda
+        ? Calculations.calcularConversionMoneda(amountVal, sourceAcc.currency, destAcc.currency, state.currencies, customRate)
+        : { toAmount: amountVal * customRate };
+      if (fxToAmountInput) fxToAmountInput.value = conv.toAmount;
+    });
+
+    fxToAmountInput?.addEventListener("input", () => {
+      const customToAmount = Number(fxToAmountInput.value);
+      const amountVal = Number(amountInput?.value) || 0;
+      const sourceAcc = (state.accounts || []).find(a => a.id === selAccount?.value);
+      const destAcc = (state.accounts || []).find(a => a.id === selToAccount?.value);
+      if (amountVal > 0 && customToAmount > 0 && sourceAcc && destAcc) {
+        const impliedRate = Number((customToAmount / amountVal).toFixed(6));
+        if (fxRateInput) fxRateInput.value = impliedRate;
+      }
     });
 
     document.getElementById("btn-type-expense")?.addEventListener("click", () => updateFormTabs("expense"));
@@ -2202,11 +2571,78 @@
         }
       }
 
+      let toAmountVal = undefined;
+      let exchangeRateVal = undefined;
+      let sourceAcc = null;
+      let destAcc = null;
+
+      if (selectedType === "transfer") {
+        sourceAcc = (state.accounts || []).find(a => a.id === accountVal);
+        destAcc = (state.accounts || []).find(a => a.id === toAccountVal);
+
+        if (sourceAcc && destAcc && sourceAcc.currency !== destAcc.currency) {
+          const customRate = Number(document.getElementById("tx-fx-rate")?.value);
+          const customToAmount = Number(document.getElementById("tx-fx-to-amount")?.value);
+
+          const conv = Calculations && Calculations.calcularConversionMoneda
+            ? Calculations.calcularConversionMoneda(amountVal, sourceAcc.currency, destAcc.currency, state.currencies, customRate > 0 ? customRate : undefined)
+            : { toAmount: amountVal, effectiveRate: 1 };
+
+          toAmountVal = customToAmount > 0 ? customToAmount : conv.toAmount;
+          exchangeRateVal = customRate > 0 ? customRate : conv.effectiveRate;
+
+          // Herencia de tasa hacia la tabla de monedas del sistema (Spec 018)
+          const srcCode = sourceAcc.currency || "CLP";
+          const dstCode = destAcc.currency || "CLP";
+          let updatedCurrencies = false;
+
+          if (srcCode === "CLP" && dstCode !== "CLP") {
+            if (toAmountVal > 0) {
+              const newRate = Number((amountVal / toAmountVal).toFixed(4));
+              const targetCurr = (state.currencies || []).find(c => c.code === dstCode);
+              if (targetCurr && newRate > 0) {
+                targetCurr.rateToCLP = newRate;
+                targetCurr.updatedAt = new Date().toISOString();
+                updatedCurrencies = true;
+              }
+            }
+          } else if (srcCode !== "CLP" && dstCode === "CLP") {
+            if (amountVal > 0) {
+              const newRate = Number((toAmountVal / amountVal).toFixed(4));
+              const targetCurr = (state.currencies || []).find(c => c.code === srcCode);
+              if (targetCurr && newRate > 0) {
+                targetCurr.rateToCLP = newRate;
+                targetCurr.updatedAt = new Date().toISOString();
+                updatedCurrencies = true;
+              }
+            }
+          } else if (srcCode !== "CLP" && dstCode !== "CLP") {
+            const srcCurrObj = (state.currencies || []).find(c => c.code === srcCode);
+            const dstCurrObj = (state.currencies || []).find(c => c.code === dstCode);
+            if (srcCurrObj && dstCurrObj && toAmountVal > 0 && amountVal > 0) {
+              const effectiveRate = toAmountVal / amountVal;
+              const newDstRate = Number((srcCurrObj.rateToCLP / effectiveRate).toFixed(4));
+              if (newDstRate > 0) {
+                dstCurrObj.rateToCLP = newDstRate;
+                dstCurrObj.updatedAt = new Date().toISOString();
+                updatedCurrencies = true;
+              }
+            }
+          }
+
+          if (updatedCurrencies && Storage) {
+            Storage.saveCurrencies(state.currencies);
+          }
+        }
+      }
+
       const tx = {
         id: `TX-${Date.now()}`,
         date: dateVal ? new Date(dateVal).toISOString() : new Date().toISOString(),
         type: selectedType,
         amount: amountVal,
+        toAmount: toAmountVal,
+        exchangeRate: exchangeRateVal,
         description: descVal,
         accountId: accountVal,
         toAccountId: toAccountVal,
@@ -2249,8 +2685,14 @@
       modal.close();
       renderActiveView();
 
-      const typeWord = tx.type === "income" ? "Ingreso" : tx.type === "transfer" ? "Transferencia" : "Gasto";
-      showToast(`${typeWord} de ${formatMoney(tx.amount)} registrado con éxito.`, "success");
+      let successMsg = "";
+      if (tx.type === "transfer" && tx.toAmount && sourceAcc && destAcc) {
+        successMsg = `Transferencia de ${formatMoney(tx.amount, sourceAcc.currency)} a ${formatMoney(tx.toAmount, destAcc.currency)} registrada con éxito.`;
+      } else {
+        const typeWord = tx.type === "income" ? "Ingreso" : tx.type === "transfer" ? "Transferencia" : "Gasto";
+        successMsg = `${typeWord} de ${formatMoney(tx.amount)} registrado con éxito.`;
+      }
+      showToast(successMsg, "success");
       triggerAutoSync({ notify: false });
     });
 
@@ -2310,10 +2752,7 @@
           <div class="space-y-1">
             <label class="font-semibold text-slate-700 dark:text-slate-300">Moneda *</label>
             <select id="acc-input-currency" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
-              <option value="CLP">CLP ($ - Peso Chileno)</option>
-              <option value="ARS">ARS ($ - Peso Argentino)</option>
-              <option value="USD">USD ($ - Dólar)</option>
-              <option value="EUR">EUR (€ - Euro)</option>
+              ${renderCurrencyOptions("CLP")}
             </select>
           </div>
 
@@ -2474,10 +2913,7 @@
           <div class="space-y-1">
             <label class="font-semibold text-slate-700 dark:text-slate-300">Moneda *</label>
             <select id="acc-edit-input-currency" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
-              <option value="CLP" ${account.currency === "CLP" ? "selected" : ""}>CLP ($ - Peso Chileno)</option>
-              <option value="ARS" ${account.currency === "ARS" ? "selected" : ""}>ARS ($ - Peso Argentino)</option>
-              <option value="USD" ${account.currency === "USD" ? "selected" : ""}>USD ($ - Dólar)</option>
-              <option value="EUR" ${account.currency === "EUR" ? "selected" : ""}>EUR (€ - Euro)</option>
+              ${renderCurrencyOptions(account.currency || "CLP")}
             </select>
           </div>
 
@@ -3345,6 +3781,7 @@
       state.budgets = Storage.getBudgets();
       state.goals = Storage.getGoals();
       state.planAccounts = Storage.getPlanAccounts ? Storage.getPlanAccounts() : [];
+      state.currencies = Storage.getCurrencies ? Storage.getCurrencies() : [];
       state.deletedAccounts = Storage.getDeletedAccounts ? Storage.getDeletedAccounts() : [];
       state.deletedPlanAccounts = Storage.getDeletedPlanAccounts ? Storage.getDeletedPlanAccounts() : [];
       state.deletedBudgets = Storage.getDeletedBudgets ? Storage.getDeletedBudgets() : [];
@@ -3377,6 +3814,7 @@
           state.budgets = res.mergedState.budgets;
           state.goals = res.mergedState.goals;
           state.planAccounts = res.mergedState.planAccounts;
+          if (res.mergedState.currencies) state.currencies = res.mergedState.currencies;
           if (res.mergedState.deletedAccounts) state.deletedAccounts = res.mergedState.deletedAccounts;
           if (res.mergedState.deletedPlanAccounts) state.deletedPlanAccounts = res.mergedState.deletedPlanAccounts;
           if (res.mergedState.deletedBudgets) state.deletedBudgets = res.mergedState.deletedBudgets;
@@ -3706,6 +4144,9 @@
     });
     document.getElementById("btn-modal-new-goal")?.addEventListener("click", () => {
       openGoalModal();
+    });
+    document.getElementById("btn-settings-new-currency")?.addEventListener("click", () => {
+      openCurrencyModal();
     });
   }
 

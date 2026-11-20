@@ -21,6 +21,7 @@
     BUDGETS: "finance_budgets_data",
     GOALS: "finance_goals_data",
     PLAN_ACCOUNTS: "finance_plan_accounts_data",
+    CURRENCIES: "finance_currencies_data",
     DELETED_ACCOUNTS: "finance_deleted_accounts_data",
     DELETED_PLAN_ACCOUNTS: "finance_deleted_plan_accounts_data",
     DELETED_BUDGETS: "finance_deleted_budgets_data",
@@ -162,6 +163,39 @@
       if (ls) {
         try {
           ls.setItem(STORAGE_KEYS.PLAN_ACCOUNTS, JSON.stringify(planAccounts));
+        } catch (e) {}
+      }
+    },
+
+    // --- MONEDAS Y TASAS DE CAMBIO (SPEC 018) ---
+    getCurrencies() {
+      const ls = getLocalStorage();
+      try {
+        const raw = ls ? ls.getItem(STORAGE_KEYS.CURRENCIES) : null;
+        if (!raw) {
+          const defaults = calculations && calculations.CURRENCIES_BASE
+            ? calculations.CURRENCIES_BASE
+            : [
+                { code: "CLP", name: "Peso Chileno", symbol: "$", rateToCLP: 1.0, isBase: true },
+                { code: "USD", name: "Dólar Estadounidense", symbol: "US$", rateToCLP: 950.0, isBase: false },
+                { code: "EUR", name: "Euro", symbol: "€", rateToCLP: 1020.0, isBase: false },
+                { code: "ARS", name: "Peso Argentino", symbol: "AR$", rateToCLP: 0.95, isBase: false }
+              ];
+          this.saveCurrencies(defaults);
+          return [...defaults];
+        }
+        return JSON.parse(raw);
+      } catch (e) {
+        console.warn("Error leyendo monedas, usando semilla inicial:", e);
+        return [...(calculations && calculations.CURRENCIES_BASE ? calculations.CURRENCIES_BASE : [])];
+      }
+    },
+
+    saveCurrencies(currencies) {
+      const ls = getLocalStorage();
+      if (ls) {
+        try {
+          ls.setItem(STORAGE_KEYS.CURRENCIES, JSON.stringify(Array.isArray(currencies) ? currencies : []));
         } catch (e) {}
       }
     },
@@ -319,6 +353,7 @@
         budgets: this.getBudgets(),
         goals: this.getGoals(),
         planAccounts: this.getPlanAccounts(),
+        currencies: this.getCurrencies(),
         deletedAccounts: this.getDeletedAccounts(),
         deletedPlanAccounts: this.getDeletedPlanAccounts(),
         deletedBudgets: this.getDeletedBudgets(),
@@ -345,6 +380,7 @@
           if (Array.isArray(data.budgets)) this.saveBudgets(data.budgets);
           if (Array.isArray(data.goals)) this.saveGoals(data.goals);
           if (Array.isArray(data.planAccounts)) this.savePlanAccounts(data.planAccounts);
+          if (Array.isArray(data.currencies)) this.saveCurrencies(data.currencies);
           if (Array.isArray(data.deletedAccounts)) this.saveDeletedAccounts(data.deletedAccounts);
           if (Array.isArray(data.deletedPlanAccounts)) this.saveDeletedPlanAccounts(data.deletedPlanAccounts);
           if (Array.isArray(data.deletedBudgets)) this.saveDeletedBudgets(data.deletedBudgets);
@@ -361,8 +397,9 @@
     // --- CÁLCULO DE PATRIMONIO NETO CON MÓDULO PURO ---
     calculateNetWorth() {
       const accounts = this.getAccounts();
+      const currencies = this.getCurrencies();
       if (calculations && calculations.calcularPatrimonioNeto) {
-        return calculations.calcularPatrimonioNeto(accounts);
+        return calculations.calcularPatrimonioNeto(accounts, currencies);
       }
       return { assets: 0, liabilities: 0, netWorth: 0 };
     }

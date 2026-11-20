@@ -25,11 +25,22 @@
   };
 
   /**
-   * Calcula el patrimonio neto consolidado
+   * Catálogo base de monedas con tasas cambiarias referenciales respecto a CLP (Spec 018 / RF-1)
+   */
+  const CURRENCIES_BASE = [
+    { code: "CLP", name: "Peso Chileno", symbol: "$", rateToCLP: 1.0, isBase: true },
+    { code: "USD", name: "Dólar Estadounidense", symbol: "US$", rateToCLP: 950.0, isBase: false },
+    { code: "EUR", name: "Euro", symbol: "€", rateToCLP: 1020.0, isBase: false },
+    { code: "ARS", name: "Peso Argentino", symbol: "AR$", rateToCLP: 0.95, isBase: false }
+  ];
+
+  /**
+   * Calcula el patrimonio neto consolidado valorizado en moneda base CLP (Spec 018 / RF-6)
    * @param {Array} accounts 
+   * @param {Array} currenciesList 
    * @returns {{ assets: number, liabilities: number, netWorth: number }}
    */
-  function calcularPatrimonioNeto(accounts) {
+  function calcularPatrimonioNeto(accounts, currenciesList = []) {
     let assets = 0;
     let liabilities = 0;
 
@@ -37,13 +48,26 @@
       return { assets: 0, liabilities: 0, netWorth: 0 };
     }
 
+    const currList = Array.isArray(currenciesList) && currenciesList.length > 0
+      ? currenciesList
+      : CURRENCIES_BASE;
+
+    const getRate = (currCode) => {
+      if (!currCode || currCode.toUpperCase() === "CLP") return 1.0;
+      const found = currList.find(c => (c.code || "").toUpperCase() === currCode.toUpperCase());
+      return found ? Number(found.rateToCLP || 1.0) : 1.0;
+    };
+
     accounts.forEach((acc) => {
       if (acc.isExcludedFromTotal) return;
       const bal = Number(acc.currentBalance) || 0;
-      if (acc.type === "credit_card" || bal < 0) {
-        liabilities += Math.abs(bal);
+      const rate = getRate(acc.currency);
+      const balInCLP = bal * rate;
+
+      if (acc.type === "credit_card" || balInCLP < 0) {
+        liabilities += Math.abs(balInCLP);
       } else {
-        assets += bal;
+        assets += balInCLP;
       }
     });
 
@@ -189,12 +213,131 @@
           updated.currentBalance = (Number(updated.currentBalance) || 0) - amount;
         }
         if (updated.id === tx.toAccountId) {
-          updated.currentBalance = (Number(updated.currentBalance) || 0) + amount;
+          const credited = tx.toAmount !== undefined && tx.toAmount !== null && !isNaN(Number(tx.toAmount))
+            ? Number(tx.toAmount)
+            : amount;
+          updated.currentBalance = (Number(updated.currentBalance) || 0) + credited;
         }
       }
 
       return updated;
     });
+  }
+
+  /**
+   * Valida los datos para crear o editar una moneda soportada (Spec 018 / RF-2)
+   * @param {Object} datos 
+   * @param {Array} monedasExistentes 
+   * @param {string} codigoActual 
+   * @returns {{ valida: boolean, error?: string }}
+   */
+  function validarMoneda(datos, monedasExistentes = [], codigoActual = "") {
+    if (!datos || typeof datos !== "object") {
+      return { valida: false, error: "Datos de moneda inválidos." };
+    }
+
+    const { code, name, symbol, rateToCLP } = datos;
+
+    if (!code || typeof code !== "string" || !/^[A-Za-z]{2,5}$/.test(code.trim())) {
+      return { valida: false, error: "El código de moneda debe tener entre 2 y 5 letras (ej. USD, EUR, UF)." };
+    }
+
+    const codeUpper = code.trim().toUpperCase();
+    const currActualUpper = (codigoActual || "").trim().toUpperCase();
+
+    const existeDuplicado = Array.isArray(monedasExistentes) && monedasExistentes.some((m) => {
+      const mCode = (m.code || "").trim().toUpperCase();
+      if (currActualUpper && mCode === currActualUpper) return false;
+      return mCode === codeUpper;
+    });
+
+    if (existeDuplicado) {
+      return { valida: false, error: `Ya existe una moneda registrada con el código "${codeUpper}".` };
+    }
+
+    if (!name || typeof name !== "string" || name.trim().length === 0) {
+      return { valida: false, error: "El nombre de la moneda es obligatorio." };
+    }
+
+    if (!symbol || typeof symbol !== "string" || symbol.trim().length === 0) {
+      return { valida: false, error: "El símbolo de la moneda es obligatorio." };
+    }
+
+    const rateNum = Number(rateToCLP);
+    if (isNaN(rateNum) || rateNum <= 0) {
+      return { valida: false, error: "La tasa de cambio respecto a CLP debe ser un número mayor a cero." };
+    }
+
+    return { valida: true };
+  }
+
+  /**
+   * Calcula la conversión cambiaria entre dos monedas arbitrarias respecto a la moneda base CLP (Spec 018 / RF-3)
+   * @param {number} amount Monto en moneda origen
+   * @param {string} fromCode Código ISO moneda origen
+   * @param {string} toCode Código ISO moneda destino
+   * @param {Array} currenciesList Lista de monedas con tasas a CLP
+   * @param {number|null} customRate Tasa personalizada opcional
+   * @returns {{ sourceAmount: number, targetAmount: number, effectiveRate: number, fromCurrency: string, toCurrency: string }}
+   */
+  function calcularConversionMoneda(amount, fromCode, toCode, currenciesList = [], customRate = null) {
+    const amt = Number(amount) || 0;
+    const fromUpper = (fromCode || "CLP").toUpperCase();
+    const toUpper = (toCode || "CLP").toUpperCase();
+
+    if (fromUpper === toUpper) {
+      return {
+        sourceAmount: amt,
+        targetAmount: amt,
+        effectiveRate: 1.0,
+        fromCurrency: fromUpper,
+        toCurrency: toUpper
+      };
+    }
+
+    const currList = Array.isArray(currenciesList) && currenciesList.length > 0
+      ? currenciesList
+      : CURRENCIES_BASE;
+
+    const findRate = (code) => {
+      if (code === "CLP") return 1.0;
+      const found = currList.find((c) => (c.code || "").toUpperCase() === code);
+      return found ? Number(found.rateToCLP || 1.0) : 1.0;
+    };
+
+    let rateFrom = findRate(fromUpper);
+    let rateTo = findRate(toUpper);
+
+    // Si se pasa customRate explícito:
+    if (customRate !== null && customRate !== undefined && !isNaN(Number(customRate)) && Number(customRate) > 0) {
+      const cr = Number(customRate);
+      if (fromUpper === "CLP") {
+        rateTo = cr;
+      } else if (toUpper === "CLP") {
+        rateFrom = cr;
+      }
+    }
+
+    // Conversión estándar vía CLP:
+    const targetAmount = (amt * rateFrom) / rateTo;
+
+    // Tasa efectiva representativa
+    let effectiveRate = 1.0;
+    if (fromUpper === "CLP") {
+      effectiveRate = rateTo;
+    } else if (toUpper === "CLP") {
+      effectiveRate = rateFrom;
+    } else {
+      effectiveRate = rateFrom / rateTo;
+    }
+
+    return {
+      sourceAmount: amt,
+      targetAmount: Number(targetAmount.toFixed(4)),
+      effectiveRate: Number(effectiveRate.toFixed(4)),
+      fromCurrency: fromUpper,
+      toCurrency: toUpper
+    };
   }
 
   /**
@@ -748,7 +891,10 @@
           totalCargos += Number(tx.amount) || 0;
         }
         if (tx.toAccountId === accountId) {
-          totalAbonos += Number(tx.amount) || 0;
+          const credited = tx.toAmount !== undefined && tx.toAmount !== null && !isNaN(Number(tx.toAmount))
+            ? Number(tx.toAmount)
+            : Number(tx.amount) || 0;
+          totalAbonos += credited;
         }
       }
     });
@@ -1476,7 +1622,12 @@
           balance += amt;
         } else if (tx.type === "transfer") {
           if (tx.accountId === acc.id) balance -= amt;
-          if (tx.toAccountId === acc.id) balance += amt;
+          if (tx.toAccountId === acc.id) {
+            const credited = tx.toAmount !== undefined && tx.toAmount !== null && !isNaN(Number(tx.toAmount))
+              ? Number(tx.toAmount)
+              : amt;
+            balance += credited;
+          }
         }
       });
 
@@ -1542,6 +1693,32 @@
     });
     const mergedPlanAccounts = Array.from(planMap.values());
 
+    // 6. Fusionar tabla de monedas (Spec 018 / RF-7)
+    const localCurrencies = Array.isArray(local.currencies) ? local.currencies : [];
+    const remoteCurrencies = Array.isArray(remote.currencies) ? remote.currencies : [];
+
+    const currencyMap = new Map();
+    if (localCurrencies.length === 0 && remoteCurrencies.length === 0) {
+      CURRENCIES_BASE.forEach(c => currencyMap.set(c.code.toUpperCase(), { ...c }));
+    } else {
+      remoteCurrencies.forEach(c => {
+        if (c && c.code) {
+          const key = c.code.toUpperCase();
+          currencyMap.set(key, { ...c });
+        }
+      });
+      localCurrencies.forEach(c => {
+        if (c && c.code) {
+          const key = c.code.toUpperCase();
+          currencyMap.set(key, { ...(currencyMap.get(key) || {}), ...c });
+        }
+      });
+      if (!currencyMap.has("CLP")) {
+        currencyMap.set("CLP", { code: "CLP", name: "Peso Chileno", symbol: "$", rateToCLP: 1.0, isBase: true });
+      }
+    }
+    const mergedCurrencies = Array.from(currencyMap.values());
+
     const hasNewAccounts = mergedAccounts.length > localAccs.length;
     const hasNewBudgets = mergedBudgets.length > localBudgets.length;
     const hasNewGoals = mergedGoals.length > localGoals.length;
@@ -1555,6 +1732,7 @@
         budgets: mergedBudgets,
         goals: mergedGoals,
         planAccounts: mergedPlanAccounts,
+        currencies: mergedCurrencies,
         deletedAccounts: Array.from(deletedAccountsSet),
         deletedPlanAccounts: Array.from(deletedPlanSet),
         deletedBudgets: Array.from(deletedBudgetsSet),
@@ -1590,6 +1768,9 @@
     validarEdicionCuenta,
     puedeEliminarCuenta,
     purgarMovimientosDeCuenta,
+    CURRENCIES_BASE,
+    validarMoneda,
+    calcularConversionMoneda,
     CATALOGO_PLAN_CUENTAS_PERSONAL_BASE,
     obtenerCatalogoPlanCuentas,
     calcularResumenPlanCuentas,
