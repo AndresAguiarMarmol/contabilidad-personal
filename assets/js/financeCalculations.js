@@ -1129,11 +1129,39 @@
     // Clonar catálogo base
     const catalogo = CATALOGO_PLAN_CUENTAS_PERSONAL_BASE.map(item => ({ ...item, balance: 0, periodMovement: 0 }));
 
-    // Integrar cuentas personalizadas del usuario
+    // Integrar y sobrescribir cuentas personalizadas del usuario (Spec 019)
     if (Array.isArray(cuentasPersonalizadas)) {
       cuentasPersonalizadas.forEach(p => {
-        if (!catalogo.some(c => c.id === p.id || c.code === p.code)) {
-          catalogo.push({ ...p, balance: Number(p.balance) || 0, periodMovement: Number(p.periodMovement) || 0 });
+        if (!p) return;
+        // Buscar coincidencia en catálogo base por ID, por código base previo o por código actual
+        const targetIdx = catalogo.findIndex(c => 
+          (p.id && c.id === p.id) || 
+          (p.baseCode && c.code === p.baseCode) || 
+          (p.code && c.code === p.code)
+        );
+
+        if (targetIdx >= 0) {
+          // Sobrescribir cuenta base originaria con la personalización del usuario
+          catalogo[targetIdx] = {
+            ...catalogo[targetIdx],
+            ...p,
+            id: p.id || catalogo[targetIdx].id,
+            code: p.code || catalogo[targetIdx].code,
+            name: p.name || catalogo[targetIdx].name,
+            groupName: p.groupName || catalogo[targetIdx].groupName,
+            nature: p.nature || catalogo[targetIdx].nature,
+            classNumber: Number(p.classNumber) || catalogo[targetIdx].classNumber,
+            classType: p.classType || catalogo[targetIdx].classType,
+            balance: Number(p.balance) || catalogo[targetIdx].balance || 0,
+            periodMovement: Number(p.periodMovement) || catalogo[targetIdx].periodMovement || 0,
+            isSystem: false
+          };
+        } else {
+          catalogo.push({
+            ...p,
+            balance: Number(p.balance) || 0,
+            periodMovement: Number(p.periodMovement) || 0
+          });
         }
       });
     }
@@ -1151,17 +1179,24 @@
         const classType = isCredit ? "liability" : "asset";
         const groupName = isCredit ? "2.1 Pasivo Circulante / Corto Plazo" : (isSavings ? "1.2 Inversiones y Ahorro Líquido" : "1.1 Activo Circulante / Disponible");
         const balance = isCredit ? Math.abs(Number(acc.currentBalance) || 0) : (Number(acc.currentBalance) || 0);
+        const customCode = acc.codigoContable ? String(acc.codigoContable).trim() : null;
 
         // Verificar si ya existe en catálogo
-        const existingIdx = catalogo.findIndex(c => c.financialAccountId === acc.id || c.name.toLowerCase() === acc.name.toLowerCase());
+        const existingIdx = catalogo.findIndex(c => 
+          c.financialAccountId === acc.id || 
+          (customCode && c.code === customCode) || 
+          c.name.toLowerCase() === acc.name.toLowerCase()
+        );
+
         if (existingIdx >= 0) {
           catalogo[existingIdx].name = acc.name;
+          if (customCode) catalogo[existingIdx].code = customCode;
           catalogo[existingIdx].balance = balance;
           catalogo[existingIdx].financialAccountId = acc.id;
           catalogo[existingIdx].color = acc.color || catalogo[existingIdx].color;
           catalogo[existingIdx].icon = acc.icon || catalogo[existingIdx].icon;
         } else {
-          const subCode = `${parentCode}.${String(idx + 1).padStart(2, "0")}`;
+          const subCode = customCode || `${parentCode}.${String(idx + 1).padStart(2, "0")}`;
           catalogo.push({
             id: `PLAN-ACC-${acc.id}`,
             code: subCode,

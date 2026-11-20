@@ -3170,7 +3170,7 @@
           <!-- Cuenta Base Padre (Spec 013) -->
           <div class="sm:col-span-2 space-y-1">
             <label class="font-semibold text-slate-700 dark:text-slate-300">Cuenta Base Padre (Opcional / Crear como Subcuenta)</label>
-            <select id="plan-input-parent" ${existing && existing.isSystem ? 'disabled' : ''} class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <select id="plan-input-parent" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
               <option value="">— Ninguna (Cuenta Principal / Base Independiente) —</option>
               ${baseParentAccounts.map(b => `
                 <option value="${b.code}" ${initialParentCode === b.code ? 'selected' : ''}>
@@ -3184,7 +3184,7 @@
           <!-- Clase Contable -->
           <div class="sm:col-span-2 space-y-1">
             <label class="font-semibold text-slate-700 dark:text-slate-300">Clase Contable *</label>
-            <select id="plan-input-class" required ${(existing && existing.isSystem) || Boolean(initialParentCode) ? 'disabled' : ''} class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            <select id="plan-input-class" required ${Boolean(initialParentCode) ? 'disabled' : ''} class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
               <option value="1" ${defaultClass === 1 ? 'selected' : ''}>1. ACTIVOS (Disponible, Inversiones, Bienes)</option>
               <option value="2" ${defaultClass === 2 ? 'selected' : ''}>2. PASIVOS (Tarjetas, Deudas, Compromisos)</option>
               <option value="3" ${defaultClass === 3 ? 'selected' : ''}>3. PATRIMONIO NETO (Capital y Ahorro Acumulado)</option>
@@ -3196,7 +3196,7 @@
           <!-- Código Contable -->
           <div class="space-y-1">
             <label class="font-semibold text-slate-700 dark:text-slate-300">Código Contable *</label>
-            <input type="text" id="plan-input-code" value="${escapeHtml(initialCode)}" placeholder="Ej. 1.3.05 o 5.2.01.01" required ${existing && existing.isSystem ? 'readonly' : ''} class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-mono font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            <input type="text" id="plan-input-code" value="${escapeHtml(initialCode)}" placeholder="Ej. 1.3.05 o 5.2.01.01" required class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-mono font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500">
             <p id="plan-code-hint" class="text-[10px] text-slate-400">Jerarquía contable sugerida.</p>
           </div>
 
@@ -3308,29 +3308,49 @@
       }
 
       if (existing) {
-        const targetIdx = state.planAccounts.findIndex(p => p.id === existing.id || p.code === existing.code);
+        const baseCodeRef = existing.baseCode || existing.code;
+        const targetIdx = state.planAccounts.findIndex(p => 
+          (p.id && (p.id === existing.id || p.id === existing.originalId)) || 
+          (baseCodeRef && (p.code === baseCodeRef || p.baseCode === baseCodeRef)) ||
+          p.code === existing.code
+        );
+
+        const updatedItem = {
+          id: existing.id || `PLAN-${Date.now()}`,
+          baseCode: baseCodeRef,
+          code: codeVal,
+          name: nameVal,
+          parentCode: parentCodeVal,
+          isSubaccount: Boolean(parentCodeVal),
+          classNumber: classNum,
+          classType: classTypeMap[classNum] || "asset",
+          groupName: groupVal,
+          nature: natureVal,
+          balance: existing.balance || 0,
+          periodMovement: existing.periodMovement || 0,
+          isSystem: false,
+          icon: existing.icon || (parentCodeVal ? "corner-down-right" : (classNum === 1 ? "box" : classNum === 2 ? "credit-card" : classNum === 3 ? "shield" : classNum === 4 ? "plus-circle" : "tag"))
+        };
+
         if (targetIdx >= 0) {
-          state.planAccounts[targetIdx].code = codeVal;
-          state.planAccounts[targetIdx].name = nameVal;
-          state.planAccounts[targetIdx].parentCode = parentCodeVal;
-          state.planAccounts[targetIdx].isSubaccount = Boolean(parentCodeVal);
-          state.planAccounts[targetIdx].groupName = groupVal;
-          state.planAccounts[targetIdx].nature = natureVal;
+          state.planAccounts[targetIdx] = {
+            ...state.planAccounts[targetIdx],
+            ...updatedItem
+          };
         } else {
-          state.planAccounts.push({
-            id: existing.id || `PLAN-${Date.now()}`,
-            code: codeVal,
-            name: nameVal,
-            parentCode: parentCodeVal,
-            isSubaccount: Boolean(parentCodeVal),
-            classNumber: classNum,
-            classType: classTypeMap[classNum] || "asset",
-            groupName: groupVal,
-            nature: natureVal,
-            balance: existing.balance || 0,
-            periodMovement: existing.periodMovement || 0,
-            isSystem: false
-          });
+          state.planAccounts.push(updatedItem);
+        }
+
+        // Si la cuenta tiene una cuenta financiera vinculada, sincronizar bidireccionalmente (Decisión 3)
+        if (existing.financialAccountId) {
+          const linkedAcc = (state.accounts || []).find(a => a.id === existing.financialAccountId);
+          if (linkedAcc) {
+            linkedAcc.name = nameVal;
+            if (codeVal) linkedAcc.codigoContable = codeVal;
+            if (Storage && Storage.saveAccounts) {
+              Storage.saveAccounts(state.accounts);
+            }
+          }
         }
       } else {
         state.planAccounts.push({
