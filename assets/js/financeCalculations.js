@@ -2303,6 +2303,70 @@
     return currentTimestampMs >= (session.expiresAt - safetyMarginMs);
   }
 
+  /**
+   * Determina si un usuario cumple con los requisitos para acceder a la aplicación
+   * @param {Object|null} authSession
+   * @param {number} currentTimestampMs
+   * @returns {boolean}
+   */
+  function puedeAccederApp(authSession, currentTimestampMs = Date.now()) {
+    if (!authSession || typeof authSession !== "object") return false;
+    if (typeof authSession.uid !== "string" || !authSession.uid.trim()) return false;
+    if (typeof authSession.idToken !== "string" || !authSession.idToken.trim()) return false;
+    return true;
+  }
+
+  /**
+   * Genera el estado contable inicial limpio para un usuario recién autenticado
+   * @param {string} uid
+   * @param {string} email
+   * @returns {Object}
+   */
+  function crearEstadoInicialLimpio(uid = "", email = "") {
+    return {
+      uid: typeof uid === "string" ? uid : "",
+      email: typeof email === "string" ? email : "",
+      accounts: [],
+      transactions: [],
+      budgets: [],
+      goals: [],
+      planAccounts: [],
+      currencies: CURRENCIES_BASE.map(c => ({ ...c })),
+      deletedAccounts: [],
+      deletedPlanAccounts: [],
+      deletedBudgets: [],
+      deletedGoals: []
+    };
+  }
+
+  /**
+   * Purga registros semilla de prueba o demostración de listas locales
+   * @param {Array} list
+   * @param {string} type
+   * @returns {Array}
+   */
+  function purgarDatosDemoLocales(list = [], type = "accounts") {
+    if (!Array.isArray(list)) return [];
+    
+    const demoIdsRegex = /^(ACC-00\d|TX-2026-0\d+|BUD-00\d|GOAL-00\d)$/i;
+    const demoExactIds = new Set([
+      "ACC-001", "ACC-002", "ACC-003", "ACC-004", "ACC-005",
+      "BUD-001", "BUD-002", "BUD-003", "BUD-004",
+      "GOAL-001", "GOAL-002"
+    ]);
+
+    return list.filter(item => {
+      if (!item || typeof item !== "object") return false;
+      const id = String(item.id || "").trim();
+      if (demoExactIds.has(id) || demoIdsRegex.test(id)) return false;
+      
+      const name = String(item.name || item.title || item.description || "");
+      if (name.includes("(Demo)")) return false;
+
+      return true;
+    });
+  }
+
   return {
     calcularPatrimonioNeto,
     calcularBalanceMes,
@@ -2347,6 +2411,9 @@
     traducirErrorFirebaseAuth,
     construirPayloadAuth,
     extraerSesionAuth,
-    esTokenExpirado
+    esTokenExpirado,
+    puedeAccederApp,
+    crearEstadoInicialLimpio,
+    purgarDatosDemoLocales
   };
 });

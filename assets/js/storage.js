@@ -53,7 +53,15 @@
           this.saveAccounts(defaults);
           return [...defaults];
         }
-        return JSON.parse(raw);
+        const parsed = JSON.parse(raw);
+        if (calculations && typeof calculations.purgarDatosDemoLocales === "function") {
+          const purgadas = calculations.purgarDatosDemoLocales(parsed, "accounts");
+          if (purgadas.length !== parsed.length) {
+            this.saveAccounts(purgadas);
+          }
+          return purgadas;
+        }
+        return parsed;
       } catch (e) {
         console.warn("Error leyendo cuentas, usando semilla inicial:", e);
         return [...(mockData.INITIAL_ACCOUNTS || [])];
@@ -79,7 +87,15 @@
           this.saveTransactions(defaults);
           return [...defaults];
         }
-        return JSON.parse(raw);
+        const parsed = JSON.parse(raw);
+        if (calculations && typeof calculations.purgarDatosDemoLocales === "function") {
+          const purgadas = calculations.purgarDatosDemoLocales(parsed, "transactions");
+          if (purgadas.length !== parsed.length) {
+            this.saveTransactions(purgadas);
+          }
+          return purgadas;
+        }
+        return parsed;
       } catch (e) {
         console.warn("Error leyendo transacciones, usando semilla inicial:", e);
         return [...(mockData.INITIAL_TRANSACTIONS || [])];
@@ -105,7 +121,15 @@
           this.saveBudgets(defaults);
           return [...defaults];
         }
-        return JSON.parse(raw);
+        const parsed = JSON.parse(raw);
+        if (calculations && typeof calculations.purgarDatosDemoLocales === "function") {
+          const purgadas = calculations.purgarDatosDemoLocales(parsed, "budgets");
+          if (purgadas.length !== parsed.length) {
+            this.saveBudgets(purgadas);
+          }
+          return purgadas;
+        }
+        return parsed;
       } catch (e) {
         console.warn("Error leyendo presupuestos, usando semilla inicial:", e);
         return [...(mockData.INITIAL_BUDGETS || [])];
@@ -131,7 +155,15 @@
           this.saveGoals(defaults);
           return [...defaults];
         }
-        return JSON.parse(raw);
+        const parsed = JSON.parse(raw);
+        if (calculations && typeof calculations.purgarDatosDemoLocales === "function") {
+          const purgadas = calculations.purgarDatosDemoLocales(parsed, "goals");
+          if (purgadas.length !== parsed.length) {
+            this.saveGoals(purgadas);
+          }
+          return purgadas;
+        }
+        return parsed;
       } catch (e) {
         console.warn("Error leyendo metas, usando semilla inicial:", e);
         return [...(mockData.INITIAL_GOALS || [])];
@@ -370,12 +402,17 @@
       }
     },
 
-    // --- REINICIAR DATOS A DEMO ---
+    // --- REINICIAR / LIMPIAR DATOS CONTABLES (SPEC 022) ---
     resetToMockData() {
-      this.saveAccounts(mockData.INITIAL_ACCOUNTS || []);
-      this.saveTransactions(mockData.INITIAL_TRANSACTIONS || []);
-      this.saveBudgets(mockData.INITIAL_BUDGETS || []);
-      this.saveGoals(mockData.INITIAL_GOALS || []);
+      this.saveAccounts([]);
+      this.saveTransactions([]);
+      this.saveBudgets([]);
+      this.saveGoals([]);
+      this.savePlanAccounts([]);
+      this.saveDeletedAccounts([]);
+      this.saveDeletedPlanAccounts([]);
+      this.saveDeletedBudgets([]);
+      this.saveDeletedGoals([]);
     },
 
     // --- EXPORTAR / IMPORTAR BACKUP JSON ---
@@ -438,6 +475,24 @@
         return calculations.calcularPatrimonioNeto(accounts, currencies);
       }
       return { assets: 0, liabilities: 0, netWorth: 0 };
+    },
+
+    // --- LIMPIEZA TOTAL DE DATOS LOCALES (SPEC 022) ---
+    limpiarTodoElEstadoLocal() {
+      const ls = getLocalStorage();
+      if (ls) {
+        try {
+          ls.removeItem(STORAGE_KEYS.ACCOUNTS);
+          ls.removeItem(STORAGE_KEYS.TRANSACTIONS);
+          ls.removeItem(STORAGE_KEYS.BUDGETS);
+          ls.removeItem(STORAGE_KEYS.GOALS);
+          ls.removeItem(STORAGE_KEYS.PLAN_ACCOUNTS);
+          ls.removeItem(STORAGE_KEYS.DELETED_ACCOUNTS);
+          ls.removeItem(STORAGE_KEYS.DELETED_PLAN_ACCOUNTS);
+          ls.removeItem(STORAGE_KEYS.DELETED_BUDGETS);
+          ls.removeItem(STORAGE_KEYS.DELETED_GOALS);
+        } catch (e) {}
+      }
     }
   };
 

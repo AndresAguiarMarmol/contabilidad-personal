@@ -8,6 +8,7 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 ## 1. Estructura de datos y persistencia
 
 ### A. Persistencia en `localStorage` (Modo Offline / Local por defecto)
+- **Estado Inicial Limpio (Spec 022):** Todas las semillas de prueba (`INITIAL_ACCOUNTS`, `INITIAL_TRANSACTIONS`, `INITIAL_BUDGETS`, `INITIAL_GOALS`) quedan vacías `[]` por defecto. `Storage` y `Calculations.purgarDatosDemoLocales` descartan automáticamente registros demo históricos (`ACC-001`..`005`, `TX-2026-001`..`012`, etc.) al cargar datos locales para garantizar un inicio 100% limpio para usuarios reales. Se preserva intacto el catálogo contable base (Plan de Cuentas chileno, Clases 1 a 5 con balance $0) y las monedas referenciales (`CLP`, `USD`, `EUR`, `ARS`).
 - **Clave:** `finance_accounts_data`
   - Array de objetos `Account`: `id`, `name`, `type` (`"bank"` | `"cash"` | `"wallet"` | `"savings"` | `"credit_card"`), `initialBalance`, `currentBalance`, `currency`, `color`, `icon`, `isExcludedFromTotal`.
 - **Clave:** `finance_transactions_data`
@@ -47,6 +48,14 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 2. Decisiones vigentes
 
+- **Acceso Obligatorio con Firebase Authentication (Auth Gate) y Limpieza Total de Datos (Spec 022):**
+  - **Bloqueo Completo sin Sesión (Auth Gate Screen):** El contenedor principal de la aplicación (`#app-container`) permanece oculto por defecto (`hidden`) mientras no exista una sesión válida y confirmada con Firebase Authentication (`puedeAccederApp(state.authSession)`).
+  - En su lugar, se despliega a pantalla completa `#auth-gate-screen` con tarjeta centrada corporativa y pestañas para Iniciar Sesión o Crear Cuenta (con validación de contraseña $\ge 6$ caracteres y formato de correo electrónico).
+  - Al autenticarse exitosamente (o registrarse), se desbloquea `#app-container`, se oculta `#auth-gate-screen`, se cargan los datos y se dispara la auto-sincronización con el workspace privado (`workspaces/{uid}`) en Cloud Firestore.
+  - Al cerrar sesión (`solicitarCierreSesion`), se limpian las credenciales de sesión en `Storage` y el estado en memoria, y se regresa inmediatamente a la pantalla completa de bloqueo `#auth-gate-screen`.
+  - **Limpieza Total de Semillas y Datos Demo:** Se vacían completamente `INITIAL_ACCOUNTS = []`, `INITIAL_TRANSACTIONS = []`, `INITIAL_BUDGETS = []` e `INITIAL_GOALS = []`. La función pura `purgarDatosDemoLocales` filtra y remueve cualquier dato demo residual en navegadores locales, garantizando que cada usuario arranque limpio con sus datos reales.
+  - Se adapta la acción del botón `#btn-reset-demo` a "Limpiar Datos", permitiendo al usuario purgar datos locales cuando lo requiera.
+  - Suite de pruebas unitarias TDD Red-Green en `tests/auth-gate.test.js` con 5/5 pruebas aprobadas (108/108 pruebas totales del proyecto).
 - **Autenticación con Firebase Authentication y Aislamiento por UID en Cloud Firestore (Spec 021):**
   - Implementa registro (Sign Up) e inicio de sesión (Sign In) mediante **Firebase Authentication (Email y Contraseña)** consumiendo de forma nativa la API REST de Google Identity Toolkit v1 (`identitytoolkit.googleapis.com` y `securetoken.googleapis.com`), garantizando universalidad y portabilidad sin bundlers ni dependencias pesadas.
   - **Aislamiento Multi-Usuario por UID:** Cada usuario autenticado sincroniza su patrimonio contable en la ruta privada `workspaces/{uid}` de Cloud Firestore. Las peticiones REST a Firestore envían el token JWT con el encabezado `Authorization: Bearer <idToken>`.
@@ -91,6 +100,15 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 3. Historial de cambios
 
+- **2026-11-21 — Spec 022: Acceso Obligatorio con Firebase Authentication (Auth Gate) y Limpieza Total de Datos (SDD):**
+  - Creada especificación formal `specs/022-auth-gate-limpieza-datos/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
+  - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/auth-gate.test.js` (5 pruebas unitarias cubriendo `puedeAccederApp`, `crearEstadoInicialLimpio`, `purgarDatosDemoLocales` y verificación de semillas demo vacías, elevando la suite completa a 108/108 pruebas en verde).
+  - Implementadas en `assets/js/financeCalculations.js` las funciones puras `puedeAccederApp`, `crearEstadoInicialLimpio` y `purgarDatosDemoLocales`.
+  - Vaciadas en `assets/js/mockData.js` las semillas demo (`INITIAL_ACCOUNTS = []`, `INITIAL_TRANSACTIONS = []`, `INITIAL_BUDGETS = []`, `INITIAL_GOALS = []`).
+  - Actualizado `assets/js/storage.js` para purgar de forma transparente y reactiva cualquier registro demo local remanente, y añadido el método `limpiarTodoElEstadoLocal()`.
+  - Agregada en `index.html` la pantalla corporativa completa de bloqueo `#auth-gate-screen` con formulario central de Login / Registro y envoltorio de aislamiento `#app-container` con clase `hidden` inicial.
+  - Implementadas en `assets/js/app.js` las funciones `evaluarAccesoAuth()` e `initAuthGateEvents()`, conmutando la visibilidad del contenedor de la aplicación únicamente tras una validación exitosa de sesión de Firebase Authentication y bloqueando de inmediato ante el cierre de sesión.
+  - Verificación global con `node --test tests/*.test.js`: 108/108 pruebas pasando al 100% sin regresiones.
 - **2026-11-21 — Spec 021: Autenticación con Firebase Authentication y Aislamiento por UID en Cloud Firestore (SDD):**
   - Creada especificación formal `specs/021-firebase-authentication/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
   - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/auth.test.js` (5 pruebas unitarias cubriendo validación sintáctica de credenciales, traducción de errores estándar de Firebase a español, construcción de payloads REST, extracción normalizada de sesión y verificación de expiración de tokens, elevando la suite completa a 103/103 pruebas en verde).

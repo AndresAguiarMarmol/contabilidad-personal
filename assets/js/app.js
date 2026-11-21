@@ -4568,14 +4568,40 @@
   }
 
   function solicitarCierreSesion() {
-    if (confirm("¿Deseas cerrar tu sesión actual? Tus datos locales seguirán disponibles en este dispositivo.")) {
+    if (confirm("¿Deseas cerrar tu sesión? La aplicación se bloqueará hasta que vuelvas a identificarte con Firebase Authentication.")) {
       if (Storage && Storage.clearAuthSession) {
         Storage.clearAuthSession();
       }
       state.authSession = null;
-      renderAuthWidget();
-      showToast("Sesión cerrada. Operando en modo local.", "info");
+      state.accounts = [];
+      state.transactions = [];
+      state.budgets = [];
+      state.goals = [];
+      evaluarAccesoAuth();
+      showToast("Sesión cerrada. Aplicación bloqueada.", "info");
     }
+  }
+
+  function evaluarAccesoAuth() {
+    const puedeAcceder = Calculations && typeof Calculations.puedeAccederApp === "function"
+      ? Calculations.puedeAccederApp(state.authSession)
+      : Boolean(state.authSession && state.authSession.uid && state.authSession.idToken);
+
+    const gateScreen = document.getElementById("auth-gate-screen");
+    const appContainer = document.getElementById("app-container");
+
+    if (puedeAcceder) {
+      if (gateScreen) gateScreen.classList.add("hidden");
+      if (appContainer) appContainer.classList.remove("hidden");
+      renderAuthWidget();
+      renderActiveView();
+      safeRenderIcons();
+    } else {
+      if (appContainer) appContainer.classList.add("hidden");
+      if (gateScreen) gateScreen.classList.remove("hidden");
+      safeRenderIcons();
+    }
+    return puedeAcceder;
   }
 
   // ========================================================
@@ -4707,11 +4733,11 @@
     });
 
     const resetHandler = () => {
-      if (confirm("¿Deseas restablecer todas tus cuentas, movimientos, presupuestos y metas a los datos de demostración?")) {
+      if (confirm("¿Deseas limpiar todos tus datos contables locales (cuentas, movimientos, presupuestos y metas)?")) {
         if (Storage) Storage.resetToMockData();
         loadStateFromStorage();
         renderActiveView();
-        showToast("Datos demo de contabilidad personal cargados con éxito.", "success");
+        showToast("Datos contables locales eliminados con éxito.", "info");
       }
     };
     document.getElementById("btn-reset-demo")?.addEventListener("click", resetHandler);
@@ -5067,16 +5093,137 @@
     });
   }
 
+  // ========================================================
+  // CONTROLADOR DE ACCESO OBLIGATORIO - AUTH GATE (SPEC 022)
+  // ========================================================
+  function initAuthGateEvents() {
+    const gateTabLogin = document.getElementById("gate-tab-login");
+    const gateTabRegister = document.getElementById("gate-tab-register");
+    const gateForm = document.getElementById("gate-auth-form");
+    const gateInputEmail = document.getElementById("gate-input-email");
+    const gateInputPassword = document.getElementById("gate-input-password");
+    const btnTogglePassword = document.getElementById("btn-toggle-gate-password");
+    const gatePasswordHelp = document.getElementById("gate-password-help");
+    const gateFeedback = document.getElementById("gate-feedback");
+    const gateSubmitLabel = document.getElementById("gate-submit-label");
+    const gateSpinner = document.getElementById("gate-spinner");
+    const btnSubmit = document.getElementById("btn-submit-gate");
+
+    let gateMode = "login";
+
+    const setGateMode = (mode) => {
+      gateMode = mode;
+      const isLogin = mode === "login";
+      if (gateSubmitLabel) gateSubmitLabel.textContent = isLogin ? "Iniciar Sesión" : "Crear Cuenta";
+      if (gatePasswordHelp) {
+        if (isLogin) gatePasswordHelp.classList.add("hidden");
+        else gatePasswordHelp.classList.remove("hidden");
+      }
+      if (gateTabLogin) {
+        gateTabLogin.className = isLogin
+          ? "py-2.5 rounded-lg transition-all shadow-sm bg-slate-800 text-white flex items-center justify-center gap-1.5"
+          : "py-2.5 rounded-lg transition-all text-slate-400 hover:text-white flex items-center justify-center gap-1.5";
+      }
+      if (gateTabRegister) {
+        gateTabRegister.className = !isLogin
+          ? "py-2.5 rounded-lg transition-all shadow-sm bg-slate-800 text-white flex items-center justify-center gap-1.5"
+          : "py-2.5 rounded-lg transition-all text-slate-400 hover:text-white flex items-center justify-center gap-1.5";
+      }
+      if (gateFeedback) {
+        gateFeedback.className = "hidden";
+        gateFeedback.innerHTML = "";
+      }
+    };
+
+    gateTabLogin?.addEventListener("click", () => setGateMode("login"));
+    gateTabRegister?.addEventListener("click", () => setGateMode("register"));
+
+    btnTogglePassword?.addEventListener("click", () => {
+      if (!gateInputPassword) return;
+      const isPass = gateInputPassword.getAttribute("type") === "password";
+      gateInputPassword.setAttribute("type", isPass ? "text" : "password");
+      btnTogglePassword.innerHTML = `<i data-lucide="${isPass ? 'eye-off' : 'eye'}" class="w-4 h-4"></i>`;
+      safeRenderIcons();
+    });
+
+    gateForm?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const email = gateInputEmail?.value || "";
+      const password = gateInputPassword?.value || "";
+      const isSignUp = gateMode === "register";
+
+      if (Calculations && typeof Calculations.validarCredencialesAuth === "function") {
+        const val = Calculations.validarCredencialesAuth(email, password, isSignUp);
+        if (!val.valido) {
+          if (gateFeedback) {
+            gateFeedback.className = "p-3 rounded-xl text-xs bg-rose-950/80 text-rose-300 border border-rose-800";
+            gateFeedback.textContent = val.error;
+          }
+          return;
+        }
+      }
+
+      try {
+        if (btnSubmit) btnSubmit.disabled = true;
+        if (gateSpinner) gateSpinner.classList.remove("hidden");
+        if (gateSubmitLabel) gateSubmitLabel.textContent = isSignUp ? "Creando cuenta..." : "Verificando acceso...";
+        if (gateFeedback) gateFeedback.className = "hidden";
+
+        const res = isSignUp
+          ? await DbAdapter.signUpUser(email, password)
+          : await DbAdapter.signInUser(email, password);
+
+        if (res && res.success) {
+          state.authSession = res.session;
+          if (Storage && Storage.saveAuthSession) {
+            Storage.saveAuthSession(res.session);
+          }
+
+          if (isSignUp && Calculations && typeof Calculations.crearEstadoInicialLimpio === "function") {
+            const estadoLimpio = Calculations.crearEstadoInicialLimpio(res.session.uid, res.session.email);
+            if (Storage) {
+              Storage.saveAccounts(estadoLimpio.accounts);
+              Storage.saveTransactions(estadoLimpio.transactions);
+              Storage.saveBudgets(estadoLimpio.budgets);
+              Storage.saveGoals(estadoLimpio.goals);
+              Storage.saveCurrencies(estadoLimpio.currencies);
+            }
+          }
+
+          loadStateFromStorage();
+          evaluarAccesoAuth();
+          showToast(res.message || "Acceso concedido exitosamente.", "success");
+          triggerAutoSync({ manual: true, notify: true });
+        } else {
+          if (gateFeedback) {
+            gateFeedback.className = "p-3 rounded-xl text-xs bg-rose-950/80 text-rose-300 border border-rose-800";
+            gateFeedback.textContent = (res && res.message) ? res.message : "Error de credenciales o autenticación.";
+          }
+        }
+      } catch (err) {
+        if (gateFeedback) {
+          gateFeedback.className = "p-3 rounded-xl text-xs bg-rose-950/80 text-rose-300 border border-rose-800";
+          gateFeedback.textContent = `Error de conexión: ${err.message}`;
+        }
+      } finally {
+        if (btnSubmit) btnSubmit.disabled = false;
+        if (gateSpinner) gateSpinner.classList.add("hidden");
+        if (gateSubmitLabel) gateSubmitLabel.textContent = isSignUp ? "Crear Cuenta" : "Iniciar Sesión";
+        safeRenderIcons();
+      }
+    });
+  }
+
   // Arranque inmediato y defensivo
   function startApp() {
     initTheme();
     initNavigation();
     loadStateFromStorage();
     initFiltersAndEvents();
-    renderAuthWidget();
-    renderActiveView();
-    // Auto-sincronización multi-dispositivo en segundo plano al abrir la app
-    if (typeof DbAdapter !== "undefined" && DbAdapter && DbAdapter.getProvider() === "firebase") {
+    initAuthGateEvents();
+    const autorizado = evaluarAccesoAuth();
+    // Auto-sincronización multi-dispositivo en segundo plano si está autorizado
+    if (autorizado && typeof DbAdapter !== "undefined" && DbAdapter && DbAdapter.getProvider() === "firebase") {
       triggerAutoSync({ notify: false });
     }
   }
