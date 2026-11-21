@@ -5154,10 +5154,11 @@
 
       if (Calculations && typeof Calculations.validarCredencialesAuth === "function") {
         const val = Calculations.validarCredencialesAuth(email, password, isSignUp);
-        if (!val.valido) {
+        const esValida = Boolean(val && (val.valida || val.valido));
+        if (!esValida) {
           if (gateFeedback) {
             gateFeedback.className = "p-3 rounded-xl text-xs bg-rose-950/80 text-rose-300 border border-rose-800";
-            gateFeedback.textContent = val.error;
+            gateFeedback.textContent = val.error || "Credenciales incompletas.";
           }
           return;
         }
@@ -5197,7 +5198,11 @@
         } else {
           if (gateFeedback) {
             gateFeedback.className = "p-3 rounded-xl text-xs bg-rose-950/80 text-rose-300 border border-rose-800";
-            gateFeedback.textContent = (res && res.message) ? res.message : "Error de credenciales o autenticación.";
+            let errorMsg = (res && res.message) ? res.message : "Error de credenciales o autenticación.";
+            if (!isSignUp && errorMsg.includes("Credenciales inválidas")) {
+              errorMsg += " ¿Es tu primera vez? Puedes registrarte en la pestaña 'Crear Cuenta'.";
+            }
+            gateFeedback.textContent = errorMsg;
           }
         }
       } catch (err) {
@@ -5212,6 +5217,9 @@
         safeRenderIcons();
       }
     });
+
+    // Inicializar visualmente en modo Login
+    setGateMode("login");
   }
 
   // Arranque inmediato y defensivo

@@ -100,6 +100,13 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 3. Historial de cambios
 
+- **2026-11-21 — Corrección de Validación de Credenciales en Auth Gate (Spec 022):**
+  - Corregida discrepancia de nomenclatura en `assets/js/financeCalculations.js` (`validarCredencialesAuth` ahora retorna tanto `valida` como `valido: true/false` para compatibilidad total con ambos modales).
+  - Corregida condición de evaluación defensiva en `assets/js/app.js` (`const esValida = Boolean(val && (val.valida || val.valido))`) que causaba que credenciales válidas fueran interceptadas indebidamente antes de la petición REST.
+  - Asegurada inicialización visual en modo Login al cargar la app mediante llamada explícita a `setGateMode("login")`.
+  - Clarificado el texto de ayuda en `index.html` a `ℹ Requisito para cuentas nuevas: mínimo 6 caracteres.` y añadido mensaje orientativo para usuarios no registrados.
+  - Actualizada la versión de caché a `contapersonal-v5` en `sw.js` para invalidación inmediata de caché del navegador.
+  - Verificación global con `node --test tests/*.test.js`: 108/108 pruebas en verde.
 - **2026-11-21 — Spec 022: Acceso Obligatorio con Firebase Authentication (Auth Gate) y Limpieza Total de Datos (SDD):**
   - Creada especificación formal `specs/022-auth-gate-limpieza-datos/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
   - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/auth-gate.test.js` (5 pruebas unitarias cubriendo `puedeAccederApp`, `crearEstadoInicialLimpio`, `purgarDatosDemoLocales` y verificación de semillas demo vacías, elevando la suite completa a 108/108 pruebas en verde).

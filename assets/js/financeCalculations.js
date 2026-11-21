@@ -2187,25 +2187,26 @@
    */
   function validarCredencialesAuth(email, password, isSignUp = false) {
     if (!email || typeof email !== "string" || !email.trim()) {
-      return { valida: false, error: "Ingresa un correo electrónico válido." };
+      return { valida: false, valido: false, error: "Ingresa un correo electrónico válido." };
     }
 
     const cleanEmail = email.trim().toLowerCase();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(cleanEmail)) {
-      return { valida: false, error: "Ingresa un correo electrónico válido." };
+      return { valida: false, valido: false, error: "Ingresa un correo electrónico válido." };
     }
 
     if (!password || typeof password !== "string") {
-      return { valida: false, error: "Ingresa tu contraseña." };
+      return { valida: false, valido: false, error: "Ingresa tu contraseña." };
     }
 
     if (isSignUp && password.length < 6) {
-      return { valida: false, error: "La contraseña debe tener al menos 6 caracteres." };
+      return { valida: false, valido: false, error: "La contraseña debe tener al menos 6 caracteres." };
     }
 
     return {
       valida: true,
+      valido: true,
       email: cleanEmail,
       password
     };
