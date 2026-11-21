@@ -5202,7 +5202,18 @@
             if (!isSignUp && errorMsg.includes("Credenciales inválidas")) {
               errorMsg += " ¿Es tu primera vez? Puedes registrarte en la pestaña 'Crear Cuenta'.";
             }
-            gateFeedback.textContent = errorMsg;
+            if (errorMsg.includes("Firebase Console")) {
+              gateFeedback.innerHTML = `
+                <div>${escapeHtml(errorMsg)}</div>
+                <div class="mt-2.5 pt-2 border-t border-rose-800/60">
+                  <a href="https://console.firebase.google.com/project/mi-propia-contabilidad/authentication" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 font-bold text-emerald-300 hover:text-emerald-200 underline">
+                    <span>Abrir Firebase Console para activar Authentication →</span>
+                  </a>
+                </div>
+              `;
+            } else {
+              gateFeedback.textContent = errorMsg;
+            }
           }
         }
       } catch (err) {

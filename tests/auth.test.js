@@ -44,6 +44,7 @@ test("Spec 021 - RNF-1: traducirErrorFirebaseAuth traduce códigos estándar de 
   assert.ok(traducirErrorFirebaseAuth("WEAK_PASSWORD : Password should be at least 6 characters").includes("al menos 6 caracteres"));
   assert.ok(traducirErrorFirebaseAuth("TOO_MANY_ATTEMPTS_TRY_LATER").includes("Demasiados intentos fallidos"));
   assert.ok(traducirErrorFirebaseAuth("USER_DISABLED").includes("deshabilitada"));
+  assert.ok(traducirErrorFirebaseAuth("CONFIGURATION_NOT_FOUND").includes("Firebase Authentication no está inicializado"));
 
   // Error desconocido devuelve fallback
   assert.ok(traducirErrorFirebaseAuth("UNKNOWN_ERROR_CODE").includes("Error de autenticación"));

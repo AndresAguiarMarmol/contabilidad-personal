@@ -100,6 +100,10 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 3. Historial de cambios
 
+- **2026-11-21 — Diagnóstico y Manejo de CONFIGURATION_NOT_FOUND en Firebase Auth (Spec 022):**
+  - Mapeado el error `CONFIGURATION_NOT_FOUND` de Google Identity Toolkit en `traducirErrorFirebaseAuth` de `assets/js/financeCalculations.js` para indicar con precisión que el servicio Authentication debe ser inicializado en Firebase Console y habilitado el método de Correo/contraseña.
+  - Incorporado en `assets/js/app.js` un enlace interactivo directo hacia la consola de Firebase del proyecto (`https://console.firebase.google.com/project/mi-propia-contabilidad/authentication`) para guiar la activación en 1 clic.
+  - Verificación global con `node --test tests/*.test.js`: 108/108 pruebas en verde.
 - **2026-11-21 — Corrección de Validación de Credenciales en Auth Gate (Spec 022):**
   - Corregida discrepancia de nomenclatura en `assets/js/financeCalculations.js` (`validarCredencialesAuth` ahora retorna tanto `valida` como `valido: true/false` para compatibilidad total con ambos modales).
   - Corregida condición de evaluación defensiva en `assets/js/app.js` (`const esValida = Boolean(val && (val.valida || val.valido))`) que causaba que credenciales válidas fueran interceptadas indebidamente antes de la petición REST.

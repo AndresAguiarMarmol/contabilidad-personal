@@ -2241,6 +2241,9 @@
     if (code.includes("OPERATION_NOT_ALLOWED")) {
       return "El método de autenticación por correo y contraseña no está habilitado en Firebase Console.";
     }
+    if (code.includes("CONFIGURATION_NOT_FOUND") || code.includes("PROJECT_NOT_FOUND")) {
+      return "Firebase Authentication no está inicializado en tu proyecto 'mi-propia-contabilidad'. Debes activarlo en Firebase Console -> Authentication haciendo clic en 'Comenzar' (Get Started) y habilitando el proveedor 'Correo electrónico/contraseña'.";
+    }
 
     return `Error de autenticación: ${errorCode || "No fue posible completar la operación."}`;
   }
