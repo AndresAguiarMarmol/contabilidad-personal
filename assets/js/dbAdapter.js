@@ -303,25 +303,190 @@
       }
     },
 
-    // --- OBTENER ESTADO REMOTO DE WORKSPACE (SPEC 015) ---
+    // --- MÉTODOS DE AUTENTICACIÓN FIREBASE AUTH (SPEC 021) ---
+
+    async signUpUser(email, password, config = null) {
+      const dbConfig = config || (Storage.getDbConfig ? Storage.getDbConfig() : null);
+      if (!this.isFirebaseConfigured(dbConfig)) {
+        return { success: false, message: "Firebase no está configurado." };
+      }
+
+      const val = Calculations && Calculations.validarCredencialesAuth
+        ? Calculations.validarCredencialesAuth(email, password, true)
+        : { valida: true, email, password };
+      if (!val.valida) {
+        return { success: false, message: val.error };
+      }
+
+      const payload = Calculations && Calculations.construirPayloadAuth
+        ? Calculations.construirPayloadAuth("signUp", val.email, val.password)
+        : { email: val.email, password: val.password, returnSecureToken: true };
+
+      const url = `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${dbConfig.apiKey}`;
+
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json().catch(() => ({}));
+        if (res.ok || res.status === 200) {
+          const session = Calculations && Calculations.extraerSesionAuth
+            ? Calculations.extraerSesionAuth(data)
+            : { uid: data.localId, email: data.email, idToken: data.idToken, refreshToken: data.refreshToken };
+          if (Storage && Storage.saveAuthSession) {
+            Storage.saveAuthSession(session);
+          }
+          return { success: true, session, message: `Cuenta creada con éxito para ${session.email}.` };
+        }
+
+        const rawErr = (data.error && data.error.message) ? data.error.message : res.statusText;
+        const msg = Calculations && Calculations.traducirErrorFirebaseAuth
+          ? Calculations.traducirErrorFirebaseAuth(rawErr)
+          : rawErr;
+        return { success: false, message: msg };
+      } catch (err) {
+        return { success: false, message: `Error de red al registrar usuario: ${err.message}` };
+      }
+    },
+
+    async signInUser(email, password, config = null) {
+      const dbConfig = config || (Storage.getDbConfig ? Storage.getDbConfig() : null);
+      if (!this.isFirebaseConfigured(dbConfig)) {
+        return { success: false, message: "Firebase no está configurado." };
+      }
+
+      const val = Calculations && Calculations.validarCredencialesAuth
+        ? Calculations.validarCredencialesAuth(email, password, false)
+        : { valida: true, email, password };
+      if (!val.valida) {
+        return { success: false, message: val.error };
+      }
+
+      const payload = Calculations && Calculations.construirPayloadAuth
+        ? Calculations.construirPayloadAuth("signIn", val.email, val.password)
+        : { email: val.email, password: val.password, returnSecureToken: true };
+
+      const url = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${dbConfig.apiKey}`;
+
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json().catch(() => ({}));
+        if (res.ok || res.status === 200) {
+          const session = Calculations && Calculations.extraerSesionAuth
+            ? Calculations.extraerSesionAuth(data)
+            : { uid: data.localId, email: data.email, idToken: data.idToken, refreshToken: data.refreshToken };
+          if (Storage && Storage.saveAuthSession) {
+            Storage.saveAuthSession(session);
+          }
+          return { success: true, session, message: `Bienvenido de vuelta, ${session.email}.` };
+        }
+
+        const rawErr = (data.error && data.error.message) ? data.error.message : res.statusText;
+        const msg = Calculations && Calculations.traducirErrorFirebaseAuth
+          ? Calculations.traducirErrorFirebaseAuth(rawErr)
+          : rawErr;
+        return { success: false, message: msg };
+      } catch (err) {
+        return { success: false, message: `Error de red al iniciar sesión: ${err.message}` };
+      }
+    },
+
+    async refreshUserToken(refreshToken, config = null) {
+      const dbConfig = config || (Storage.getDbConfig ? Storage.getDbConfig() : null);
+      if (!this.isFirebaseConfigured(dbConfig) || !refreshToken) {
+        return null;
+      }
+
+      const payload = Calculations && Calculations.construirPayloadAuth
+        ? Calculations.construirPayloadAuth("refresh", null, null, refreshToken)
+        : { grant_type: "refresh_token", refresh_token: refreshToken };
+
+      const url = `https://securetoken.googleapis.com/v1/token?key=${dbConfig.apiKey}`;
+
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok || res.status === 200) {
+          const data = await res.json();
+          const currentSession = Storage && Storage.getAuthSession ? Storage.getAuthSession() : {};
+          const updatedSession = {
+            ...currentSession,
+            idToken: data.id_token,
+            refreshToken: data.refresh_token,
+            expiresAt: Date.now() + (Number(data.expires_in || 3600) * 1000)
+          };
+          if (Storage && Storage.saveAuthSession) {
+            Storage.saveAuthSession(updatedSession);
+          }
+          return updatedSession;
+        }
+        return null;
+      } catch (e) {
+        return null;
+      }
+    },
+
+    async getValidAuthToken(config = null) {
+      const session = Storage && Storage.getAuthSession ? Storage.getAuthSession() : null;
+      if (!session || !session.idToken) return null;
+
+      const isExpired = Calculations && Calculations.esTokenExpirado
+        ? Calculations.esTokenExpirado(session)
+        : false;
+
+      if (!isExpired) {
+        return session.idToken;
+      }
+
+      if (session.refreshToken) {
+        const refreshed = await this.refreshUserToken(session.refreshToken, config);
+        return refreshed ? refreshed.idToken : session.idToken;
+      }
+
+      return session.idToken;
+    },
+
+    // --- OBTENER ESTADO REMOTO DE WORKSPACE (SPEC 015 & SPEC 021) ---
     async fetchRemoteWorkspace(config) {
       const dbConfig = config || (Storage.getDbConfig ? Storage.getDbConfig() : null);
       if (!this.isFirebaseConfigured(dbConfig)) return null;
 
-      const endpoint = `https://firestore.googleapis.com/v1/projects/${dbConfig.projectId}/databases/(default)/documents/workspaces/main?key=${dbConfig.apiKey}`;
+      const session = Storage && Storage.getAuthSession ? Storage.getAuthSession() : null;
+      const authToken = await this.getValidAuthToken(dbConfig);
+
+      // Si el usuario está autenticado, su workspace reside en workspaces/{uid}
+      const docPath = (session && session.uid) ? `workspaces/${session.uid}` : "workspaces/main";
+      const endpoint = `https://firestore.googleapis.com/v1/projects/${dbConfig.projectId}/databases/(default)/documents/${docPath}?key=${dbConfig.apiKey}`;
+
+      const headers = {};
+      if (authToken) {
+        headers["Authorization"] = `Bearer ${authToken}`;
+      }
 
       try {
-        const res = await fetch(endpoint);
+        const res = await fetch(endpoint, { headers });
         if (res.status === 200) {
           const data = await res.json();
           if (data && data.fields) {
             return this.fromFirestoreFields(data.fields);
           }
         }
-        // Si no existe workspaces/main (404), intentamos recuperar el último backup en 'backups' para inicializarlo
-        if (res.status === 404) {
+        // Si no existe el workspace privado pero sí hay un backup previo o workspace main, fallback suave
+        if (res.status === 404 && docPath === "workspaces/main") {
           const backupsEndpoint = `https://firestore.googleapis.com/v1/projects/${dbConfig.projectId}/databases/(default)/documents/backups?key=${dbConfig.apiKey}&pageSize=1`;
-          const backupRes = await fetch(backupsEndpoint).catch(() => null);
+          const backupRes = await fetch(backupsEndpoint, { headers }).catch(() => null);
           if (backupRes && backupRes.status === 200) {
             const bData = await backupRes.json();
             if (bData.documents && bData.documents.length > 0) {
@@ -338,15 +503,21 @@
       }
     },
 
-    // --- GUARDAR ESTADO REMOTO DE WORKSPACE (SPEC 015) ---
+    // --- GUARDAR ESTADO REMOTO DE WORKSPACE (SPEC 015 & SPEC 021) ---
     async saveRemoteWorkspace(workspaceData, config) {
       const dbConfig = config || (Storage.getDbConfig ? Storage.getDbConfig() : null);
       if (!this.isFirebaseConfigured(dbConfig)) {
         return { success: false, message: "Firebase no está configurado." };
       }
 
+      const session = Storage && Storage.getAuthSession ? Storage.getAuthSession() : null;
+      const authToken = await this.getValidAuthToken(dbConfig);
+      const docPath = (session && session.uid) ? `workspaces/${session.uid}` : "workspaces/main";
+
       const payload = {
         updatedAt: new Date().toISOString(),
+        userUid: session ? session.uid : null,
+        userEmail: session ? session.email : null,
         accounts: Array.isArray(workspaceData.accounts) ? workspaceData.accounts : [],
         transactions: Array.isArray(workspaceData.transactions) ? workspaceData.transactions : [],
         budgets: Array.isArray(workspaceData.budgets) ? workspaceData.budgets : [],
@@ -360,18 +531,22 @@
       };
 
       const fields = this.toFirestoreFields(payload);
-      // Usamos PATCH en Firestore REST API para crear o reemplazar el documento workspaces/main
-      const endpoint = `https://firestore.googleapis.com/v1/projects/${dbConfig.projectId}/databases/(default)/documents/workspaces/main?key=${dbConfig.apiKey}`;
+      const endpoint = `https://firestore.googleapis.com/v1/projects/${dbConfig.projectId}/databases/(default)/documents/${docPath}?key=${dbConfig.apiKey}`;
+
+      const headers = { "Content-Type": "application/json" };
+      if (authToken) {
+        headers["Authorization"] = `Bearer ${authToken}`;
+      }
 
       try {
         const res = await fetch(endpoint, {
           method: "PATCH",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({ fields })
         });
 
         if (res.ok || res.status === 200) {
-          return { success: true, message: "Workspace actualizado en Cloud Firestore." };
+          return { success: true, message: `Workspace (${docPath}) actualizado en Cloud Firestore.` };
         }
         const errData = await res.json().catch(() => ({}));
         return { success: false, message: `Error (${res.status}): ${errData.error?.message || res.statusText}` };

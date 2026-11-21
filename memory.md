@@ -27,6 +27,8 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
   - Array de objetos `CurrencyItem`: `code` (código ISO 3-5 caracteres en mayúsculas), `name`, `symbol`, `rateToCLP` (número positivo indicando valor de 1 unidad en CLP), `isBase` (booleano, `true` solo para `CLP`), `updatedAt` (ISO timestamp). Monedas iniciales: `CLP` (base 1.0), `USD`, `EUR`, `ARS`.
 - **Clave:** `finance_theme`
   - Valores: `"dark"` | `"light"`. Gestiona el modo de color persistido en `<html>`.
+- **Clave:** `finance_auth_session` (Spec 021)
+  - Objeto de sesión de Firebase Authentication: `uid`, `email`, `idToken`, `refreshToken`, `expiresAt` (timestamp ms).
 - **Clave:** `finance_remote_db_config`
   - Objeto con `provider` (`"firebase"` | `"supabase"` | `"none"`), `projectId`, `apiKey`, `authDomain`, `storageBucket`, `url`, `anonKey`.
 
@@ -45,6 +47,13 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 2. Decisiones vigentes
 
+- **Autenticación con Firebase Authentication y Aislamiento por UID en Cloud Firestore (Spec 021):**
+  - Implementa registro (Sign Up) e inicio de sesión (Sign In) mediante **Firebase Authentication (Email y Contraseña)** consumiendo de forma nativa la API REST de Google Identity Toolkit v1 (`identitytoolkit.googleapis.com` y `securetoken.googleapis.com`), garantizando universalidad y portabilidad sin bundlers ni dependencias pesadas.
+  - **Aislamiento Multi-Usuario por UID:** Cada usuario autenticado sincroniza su patrimonio contable en la ruta privada `workspaces/{uid}` de Cloud Firestore. Las peticiones REST a Firestore envían el token JWT con el encabezado `Authorization: Bearer <idToken>`.
+  - **Reglas de Seguridad Blindadas (`firestore.rules`):** La regla para `workspaces/{userId}` exige estrictamente `allow read, write: if request.auth != null && request.auth.uid == userId;`, protegiendo la confidencialidad de los datos. Se preserva `workspaces/main` para modo de desarrollo o usuarios locales no autenticados, y se eliminó el comodín global `{document=**}`.
+  - **Experiencia Híbrida Offline-First:** La app permite operar localmente con `localStorage`. En la cabecera superior se ubica el widget interactivo `#auth-user-widget`, que conmuta entre el botón "Iniciar Sesión" y el avatar del usuario con su correo truncado y botón "Cerrar Sesión". Modal accesible `#auth-modal` con pestañas para Login y Registro, validación de contraseñas de al menos 6 caracteres y mapeo de errores de Firebase en español amigable.
+  - **Refresco Automático de Tokens:** Si el token expira o le quedan menos de 5 minutos de vigencia, `getValidAuthToken()` utiliza el `refreshToken` para renovar la credencial de forma transparente y persistir la sesión actualizada en `finance_auth_session`.
+  - Suite de pruebas unitarias TDD Red-Green en `tests/auth.test.js` con 5/5 pruebas aprobadas (103/103 pruebas totales del proyecto).
 - **Módulo de Reportes Contables y Financieros — Balance General y Ganancias y Pérdidas (Spec 020):**
   - Implementa el menú **Reportes** incrustado en la barra vertical de navegación (`#sidebar nav`), accesible desde el botón `data-nav-view="reports"` con icono `file-bar-chart` e insignia "Chile".
   - Genera los 2 reportes contables indispensables conforme a la legislación chilena y Principios Contables Generalmente Aceptados / IFRS para Pymes:
@@ -82,6 +91,17 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 3. Historial de cambios
 
+- **2026-11-21 — Spec 021: Autenticación con Firebase Authentication y Aislamiento por UID en Cloud Firestore (SDD):**
+  - Creada especificación formal `specs/021-firebase-authentication/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
+  - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/auth.test.js` (5 pruebas unitarias cubriendo validación sintáctica de credenciales, traducción de errores estándar de Firebase a español, construcción de payloads REST, extracción normalizada de sesión y verificación de expiración de tokens, elevando la suite completa a 103/103 pruebas en verde).
+  - Implementadas en `assets/js/financeCalculations.js` las funciones puras `validarCredencialesAuth`, `traducirErrorFirebaseAuth`, `construirPayloadAuth`, `extraerSesionAuth` y `esTokenExpirado`.
+  - Implementados en `assets/js/storage.js` los métodos `getAuthSession()`, `saveAuthSession(session)` y `clearAuthSession()` con persistencia en `finance_auth_session`.
+  - Implementados en `assets/js/dbAdapter.js` los métodos asíncronos `signUpUser()`, `signInUser()`, `refreshUserToken()` y `getValidAuthToken()`.
+  - Actualizados `fetchRemoteWorkspace()` y `saveRemoteWorkspace()` para aislar el espacio de datos en `workspaces/{uid}` y enviar el token Bearer en el encabezado de autorización.
+  - Delegada al subagente especialista `firestore-rules-author` la actualización y verificación de `firestore.rules`, restringiendo `workspaces/{userId}` a `request.auth.uid == userId` y validando la compilación sintáctica exitosa con `npx firebase deploy --only firestore:rules --dry-run`.
+  - Agregado en `index.html` el widget de usuario `#auth-user-widget` en la cabecera superior y el modal interactivo `#auth-modal` con pestañas para Iniciar Sesión y Crear Cuenta, conmutación de visibilidad de contraseña y feedback amigable.
+  - Conectados en `assets/js/app.js` los flujos reactivos de inicio de sesión, registro, cierre de sesión y auto-sincronización con el workspace privado en Cloud Firestore.
+  - Verificación global con `node --test tests/*.test.js`: 103/103 pruebas pasando al 100% sin regresiones.
 - **2026-11-20 — Spec 020: Módulo de Reportes Contables y Financieros — Balance General y Ganancias y Pérdidas (SDD):**
   - Creada especificación formal `specs/020-modulo-reportes-financieros/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
   - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/reports.test.js` (6 pruebas unitarias exhaustivas para `generarBalanceGeneral`, valoración multidivisa a CLP, `generarEstadoResultados` con discriminación operacional/financiera, soporte de partidas split, concordancia contable entre estados y `generarReporteCSV` con BOM UTF-8, elevando la suite completa del proyecto a 98/98 pruebas en verde).

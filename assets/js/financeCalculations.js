@@ -2174,6 +2174,135 @@
     return BOM + lineas.join("\r\n");
   }
 
+  // ========================================================
+  // MÓDULO DE AUTENTICACIÓN FIREBASE AUTH (SPEC 021)
+  // ========================================================
+
+  /**
+   * Valida sintácticamente las credenciales de correo y contraseña
+   * @param {string} email
+   * @param {string} password
+   * @param {boolean} isSignUp
+   * @returns {{ valida: boolean, error?: string, email?: string, password?: string }}
+   */
+  function validarCredencialesAuth(email, password, isSignUp = false) {
+    if (!email || typeof email !== "string" || !email.trim()) {
+      return { valida: false, error: "Ingresa un correo electrónico válido." };
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanEmail)) {
+      return { valida: false, error: "Ingresa un correo electrónico válido." };
+    }
+
+    if (!password || typeof password !== "string") {
+      return { valida: false, error: "Ingresa tu contraseña." };
+    }
+
+    if (isSignUp && password.length < 6) {
+      return { valida: false, error: "La contraseña debe tener al menos 6 caracteres." };
+    }
+
+    return {
+      valida: true,
+      email: cleanEmail,
+      password
+    };
+  }
+
+  /**
+   * Traduce códigos de error técnicos de Firebase Authentication a mensajes comprensibles en español
+   * @param {string} errorCode
+   * @returns {string} Mensaje traducido
+   */
+  function traducirErrorFirebaseAuth(errorCode = "") {
+    const code = String(errorCode || "").trim().toUpperCase();
+
+    if (code.includes("EMAIL_EXISTS")) {
+      return "El correo electrónico ya se encuentra registrado. Intenta iniciar sesión con tu contraseña.";
+    }
+    if (code.includes("INVALID_LOGIN_CREDENTIALS") || code.includes("EMAIL_NOT_FOUND") || code.includes("INVALID_PASSWORD")) {
+      return "Credenciales inválidas. Verifica tu correo electrónico y tu contraseña.";
+    }
+    if (code.includes("WEAK_PASSWORD")) {
+      return "La contraseña es muy débil. Debe tener al menos 6 caracteres.";
+    }
+    if (code.includes("INVALID_EMAIL")) {
+      return "El formato del correo electrónico ingresado no es válido.";
+    }
+    if (code.includes("USER_DISABLED")) {
+      return "Esta cuenta de usuario ha sido deshabilitada por el administrador.";
+    }
+    if (code.includes("TOO_MANY_ATTEMPTS_TRY_LATER")) {
+      return "Demasiados intentos fallidos. Por seguridad, espera unos minutos antes de intentar nuevamente.";
+    }
+    if (code.includes("OPERATION_NOT_ALLOWED")) {
+      return "El método de autenticación por correo y contraseña no está habilitado en Firebase Console.";
+    }
+
+    return `Error de autenticación: ${errorCode || "No fue posible completar la operación."}`;
+  }
+
+  /**
+   * Construye el cuerpo JSON adecuado para los endpoints REST de Firebase Auth
+   * @param {"signUp" | "signIn" | "refresh"} type
+   * @param {string} email
+   * @param {string} password
+   * @param {string} refreshToken
+   * @returns {Object} Payload
+   */
+  function construirPayloadAuth(type, email, password, refreshToken) {
+    if (type === "refresh") {
+      return {
+        grant_type: "refresh_token",
+        refresh_token: refreshToken || ""
+      };
+    }
+
+    return {
+      email: email ? String(email).trim().toLowerCase() : "",
+      password: password ? String(password) : "",
+      returnSecureToken: true
+    };
+  }
+
+  /**
+   * Extrae y normaliza el objeto de sesión desde la respuesta REST de Firebase Auth
+   * @param {Object} apiResponse
+   * @param {number} currentTimestampMs
+   * @returns {{ uid: string, email: string, idToken: string, refreshToken: string, expiresAt: number }}
+   */
+  function extraerSesionAuth(apiResponse = {}, currentTimestampMs = Date.now()) {
+    const uid = apiResponse.localId || apiResponse.user_id || "";
+    const email = apiResponse.email || "";
+    const idToken = apiResponse.idToken || apiResponse.id_token || "";
+    const refreshToken = apiResponse.refreshToken || apiResponse.refresh_token || "";
+    const expiresInSec = Number(apiResponse.expiresIn || apiResponse.expires_in || 3600);
+    const expiresAt = currentTimestampMs + (expiresInSec * 1000);
+
+    return {
+      uid,
+      email,
+      idToken,
+      refreshToken,
+      expiresAt
+    };
+  }
+
+  /**
+   * Determina si el token JWT actual está expirado o próximo a vencer
+   * @param {Object} session
+   * @param {number} currentTimestampMs
+   * @param {number} thresholdSeconds Umbral de seguridad en segundos (defecto: 300s = 5 min)
+   * @returns {boolean}
+   */
+  function esTokenExpirado(session, currentTimestampMs = Date.now(), thresholdSeconds = 300) {
+    if (!session || !session.idToken || !session.expiresAt) return true;
+    const safetyMarginMs = Number(thresholdSeconds || 300) * 1000;
+    return currentTimestampMs >= (session.expiresAt - safetyMarginMs);
+  }
+
   return {
     calcularPatrimonioNeto,
     calcularBalanceMes,
@@ -2213,6 +2342,11 @@
     fusionarEstadoContable,
     generarBalanceGeneral,
     generarEstadoResultados,
-    generarReporteCSV
+    generarReporteCSV,
+    validarCredencialesAuth,
+    traducirErrorFirebaseAuth,
+    construirPayloadAuth,
+    extraerSesionAuth,
+    esTokenExpirado
   };
 });

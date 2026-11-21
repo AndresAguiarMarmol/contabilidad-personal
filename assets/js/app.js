@@ -40,7 +40,9 @@
       periodType: "current-month", // "current-month" | "current-year" | "custom"
       startDate: "",
       endDate: ""
-    }
+    },
+    authSession: null,
+    authMode: "login" // "login" | "register"
   };
 
   // Formateador de moneda estándar con soporte multidivisa (Spec 018)
@@ -4472,6 +4474,107 @@
       state.deletedPlanAccounts = Storage.getDeletedPlanAccounts ? Storage.getDeletedPlanAccounts() : [];
       state.deletedBudgets = Storage.getDeletedBudgets ? Storage.getDeletedBudgets() : [];
       state.deletedGoals = Storage.getDeletedGoals ? Storage.getDeletedGoals() : [];
+      state.authSession = Storage.getAuthSession ? Storage.getAuthSession() : null;
+    }
+  }
+
+  // ========================================================
+  // WIDGET Y MODAL DE AUTENTICACIÓN FIREBASE AUTH (SPEC 021)
+  // ========================================================
+
+  function renderAuthWidget() {
+    const container = document.getElementById("auth-user-widget");
+    if (!container) return;
+
+    if (state.authSession && state.authSession.email) {
+      const email = state.authSession.email;
+      const initial = (email.charAt(0) || "U").toUpperCase();
+      container.innerHTML = `
+        <div class="flex items-center gap-1.5 px-2 py-1 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200/80 dark:border-emerald-800/80 rounded-lg text-xs">
+          <div class="w-5 h-5 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-[10px] flex-shrink-0">
+            ${escapeHtml(initial)}
+          </div>
+          <span class="max-w-[100px] md:max-w-[150px] truncate text-slate-800 dark:text-slate-200 font-medium text-[11px]" title="${escapeHtml(email)}">
+            ${escapeHtml(email)}
+          </span>
+          <button type="button" id="btn-logout" title="Cerrar Sesión" class="p-0.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded transition-colors ml-0.5">
+            <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+      `;
+
+      document.getElementById("btn-logout")?.addEventListener("click", () => {
+        solicitarCierreSesion();
+      });
+    } else {
+      container.innerHTML = `
+        <button type="button" id="btn-open-auth-modal" class="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/60 shadow-sm transition-all active:scale-95">
+          <i data-lucide="log-in" class="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400"></i>
+          <span class="hidden sm:inline">Iniciar Sesión</span>
+          <span class="sm:hidden">Acceder</span>
+        </button>
+      `;
+
+      document.getElementById("btn-open-auth-modal")?.addEventListener("click", () => {
+        openAuthModal("login");
+      });
+    }
+
+    safeRenderIcons();
+  }
+
+  function openAuthModal(mode = "login") {
+    state.authMode = mode;
+    const modal = document.getElementById("auth-modal");
+    if (!modal) return;
+
+    const tabLogin = document.getElementById("tab-auth-login");
+    const tabRegister = document.getElementById("tab-auth-register");
+    const titleEl = document.getElementById("auth-modal-title");
+    const labelSubmit = document.getElementById("auth-submit-label");
+    const feedback = document.getElementById("auth-feedback");
+    const passHelp = document.getElementById("auth-password-help");
+
+    if (feedback) {
+      feedback.className = "hidden p-3 rounded-lg text-xs";
+      feedback.innerHTML = "";
+    }
+
+    const isLogin = mode === "login";
+    if (titleEl) titleEl.textContent = isLogin ? "Iniciar Sesión en tu Cuenta" : "Crear Cuenta Personal";
+    if (labelSubmit) labelSubmit.textContent = isLogin ? "Iniciar Sesión" : "Crear Cuenta";
+
+    if (tabLogin) {
+      tabLogin.className = isLogin
+        ? "py-2 rounded-lg transition-all shadow-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+        : "py-2 rounded-lg transition-all text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white";
+    }
+    if (tabRegister) {
+      tabRegister.className = !isLogin
+        ? "py-2 rounded-lg transition-all shadow-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+        : "py-2 rounded-lg transition-all text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white";
+    }
+
+    if (passHelp) {
+      if (isLogin) {
+        passHelp.classList.add("hidden");
+      } else {
+        passHelp.classList.remove("hidden");
+      }
+    }
+
+    modal.showModal();
+    setTimeout(() => document.getElementById("auth-input-email")?.focus(), 50);
+  }
+
+  function solicitarCierreSesion() {
+    if (confirm("¿Deseas cerrar tu sesión actual? Tus datos locales seguirán disponibles en este dispositivo.")) {
+      if (Storage && Storage.clearAuthSession) {
+        Storage.clearAuthSession();
+      }
+      state.authSession = null;
+      renderAuthWidget();
+      showToast("Sesión cerrada. Operando en modo local.", "info");
     }
   }
 
@@ -4882,6 +4985,86 @@
     document.getElementById("btn-export-report-csv")?.addEventListener("click", () => {
       exportarReporteActualCSV();
     });
+
+    // EVENTOS DE AUTENTICACIÓN FIREBASE AUTH (SPEC 021)
+    const authModal = document.getElementById("auth-modal");
+    document.getElementById("auth-modal-close-btn")?.addEventListener("click", () => {
+      authModal?.close();
+    });
+
+    document.getElementById("tab-auth-login")?.addEventListener("click", () => {
+      openAuthModal("login");
+    });
+
+    document.getElementById("tab-auth-register")?.addEventListener("click", () => {
+      openAuthModal("register");
+    });
+
+    document.getElementById("btn-toggle-auth-password")?.addEventListener("click", () => {
+      const passInput = document.getElementById("auth-input-password");
+      if (passInput) {
+        passInput.type = passInput.type === "password" ? "text" : "password";
+      }
+    });
+
+    document.getElementById("auth-form")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const emailInput = document.getElementById("auth-input-email");
+      const passInput = document.getElementById("auth-input-password");
+      const feedback = document.getElementById("auth-feedback");
+      const submitBtn = document.getElementById("btn-submit-auth");
+      const submitLabel = document.getElementById("auth-submit-label");
+      const spinner = document.getElementById("auth-spinner");
+
+      const email = emailInput?.value || "";
+      const password = passInput?.value || "";
+      const isSignUp = state.authMode === "register";
+
+      if (Calculations && Calculations.validarCredencialesAuth) {
+        const val = Calculations.validarCredencialesAuth(email, password, isSignUp);
+        if (!val.valida) {
+          if (feedback) {
+            feedback.className = "p-3 rounded-lg text-xs bg-rose-50 text-rose-800 border border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800";
+            feedback.textContent = val.error;
+          }
+          return;
+        }
+      }
+
+      try {
+        if (submitBtn) submitBtn.disabled = true;
+        if (spinner) spinner.classList.remove("hidden");
+        if (submitLabel) submitLabel.textContent = isSignUp ? "Creando cuenta..." : "Verificando...";
+        if (feedback) feedback.className = "hidden";
+
+        const res = isSignUp
+          ? await DbAdapter.signUpUser(email, password)
+          : await DbAdapter.signInUser(email, password);
+
+        if (res && res.success) {
+          state.authSession = res.session;
+          authModal?.close();
+          renderAuthWidget();
+          showToast(res.message, "success");
+          // Disparar sincronización bidireccional automática del nuevo workspace privado
+          triggerAutoSync({ manual: true, notify: true });
+        } else {
+          if (feedback) {
+            feedback.className = "p-3 rounded-lg text-xs bg-rose-50 text-rose-800 border border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800";
+            feedback.textContent = (res && res.message) ? res.message : "Error durante la autenticación.";
+          }
+        }
+      } catch (err) {
+        if (feedback) {
+          feedback.className = "p-3 rounded-lg text-xs bg-rose-50 text-rose-800 border border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800";
+          feedback.textContent = `Error de conexión: ${err.message}`;
+        }
+      } finally {
+        if (submitBtn) submitBtn.disabled = false;
+        if (spinner) spinner.classList.add("hidden");
+        if (submitLabel) submitLabel.textContent = isSignUp ? "Crear Cuenta" : "Iniciar Sesión";
+      }
+    });
   }
 
   // Arranque inmediato y defensivo
@@ -4890,6 +5073,7 @@
     initNavigation();
     loadStateFromStorage();
     initFiltersAndEvents();
+    renderAuthWidget();
     renderActiveView();
     // Auto-sincronización multi-dispositivo en segundo plano al abrir la app
     if (typeof DbAdapter !== "undefined" && DbAdapter && DbAdapter.getProvider() === "firebase") {

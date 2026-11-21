@@ -5,30 +5,38 @@ rules_version = '2';
 // ===============================================================
 //
 // Project: mi-propia-contabilidad (Contabilidad Personal PWA)
-// Mode: Personal Use / Development (Direct Firestore REST API via Web API Key)
+// Mode: Personal Use / Development & Authenticated Workspaces (Spec 021)
 //
 // Application Collections:
-// 1. accounts: Bank, cash, savings, wallet, and credit card accounts.
+// 1. workspaces:
+//    - workspaces/main: Personal / development workspace without active auth session.
+//    - workspaces/{userId}: Private workspace isolated per authenticated user (UID).
+//      Document ID: {userId}
+//      Key fields: accounts, transactions, budgets, goals, planAccounts, currencies,
+//                  deletedAccounts, deletedPlanAccounts, deletedBudgets, deletedGoals,
+//                  updatedAt, userUid, userEmail
+//
+// 2. accounts: Bank, cash, savings, wallet, and credit card accounts.
 //    Document ID: {accountId}
 //    Key fields: id, name, type, initialBalance, currentBalance, currency, color, icon
 //
-// 2. transactions: Income, expense, and transfer records (including split transactions).
+// 3. transactions: Income, expense, and transfer records (including split transactions).
 //    Document ID: {transactionId}
 //    Key fields: id, date, type, accountId, toAccountId, category, categoryCode, amount, description
 //
-// 3. budgets: Monthly spending limits and alerts.
+// 4. budgets: Monthly spending limits and alerts.
 //    Document ID: {budgetId}
 //    Key fields: id, category, categoryCode, limitAmount, spentAmount, month
 //
-// 4. goals: Personal savings targets and milestones.
+// 5. goals: Personal savings targets and milestones.
 //    Document ID: {goalId}
 //    Key fields: id, title, targetAmount, currentAmount, deadlineDate, color
 //
-// 5. planAccounts: Chart of accounts / accounting catalog structure.
+// 6. planAccounts: Chart of accounts / accounting catalog structure.
 //    Document ID: {planAccountId}
 //    Key fields: id, code, name, parentCode, isSubaccount, classNumber, classType, groupName, nature
 //
-// 6. backups: Full serialized state backups and database synchronization payloads.
+// 7. backups: Full serialized state backups and database synchronization payloads.
 //    Document ID: {backupId}
 //    Key fields: app, version, exportDate, stats, payload, accounts, transactions, budgets, goals, planAccounts
 //
@@ -37,34 +45,40 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Reglas para colecciones principales del sistema contable
+    // Reglas para workspaces (Spec 015 & Spec 021)
+    // 1. Workspace personal / desarrollo sin sesión activa requerida
+    match /workspaces/main {
+      allow read, write: if request.auth != null || true;
+    }
+
+    // 2. Workspaces privados: protegido para que solo el usuario autenticado propietario pueda leer y escribir
+    match /workspaces/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Reglas para colecciones del sistema contable (retrocompatibilidad y modo desarrollo)
     match /accounts/{accountId} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null || true;
     }
 
     match /transactions/{transactionId} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null || true;
     }
 
     match /budgets/{budgetId} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null || true;
     }
 
     match /goals/{goalId} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null || true;
     }
 
     match /planAccounts/{planAccountId} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null || true;
     }
 
     match /backups/{backupId} {
-      allow read, write: if true;
-    }
-
-    // Regla global para uso personal / desarrollo con API REST
-    match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null || true;
     }
   }
 }

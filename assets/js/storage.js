@@ -27,7 +27,8 @@
     DELETED_BUDGETS: "finance_deleted_budgets_data",
     DELETED_GOALS: "finance_deleted_goals_data",
     THEME: "finance_theme",
-    DB_CONFIG: "finance_remote_db_config"
+    DB_CONFIG: "finance_remote_db_config",
+    AUTH_SESSION: "finance_auth_session"
   };
 
   const getLocalStorage = () => {
@@ -308,6 +309,41 @@
       if (ls) {
         try {
           ls.setItem(STORAGE_KEYS.DB_CONFIG, JSON.stringify(config));
+        } catch (e) {}
+      }
+    },
+
+    // --- SESIÓN DE AUTENTICACIÓN FIREBASE AUTH (SPEC 021) ---
+    getAuthSession() {
+      const ls = getLocalStorage();
+      try {
+        const raw = ls ? ls.getItem(STORAGE_KEYS.AUTH_SESSION) : null;
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        return parsed && parsed.uid && parsed.idToken ? parsed : null;
+      } catch (e) {
+        return null;
+      }
+    },
+
+    saveAuthSession(session) {
+      const ls = getLocalStorage();
+      if (ls) {
+        try {
+          if (!session) {
+            ls.removeItem(STORAGE_KEYS.AUTH_SESSION);
+          } else {
+            ls.setItem(STORAGE_KEYS.AUTH_SESSION, JSON.stringify(session));
+          }
+        } catch (e) {}
+      }
+    },
+
+    clearAuthSession() {
+      const ls = getLocalStorage();
+      if (ls) {
+        try {
+          ls.removeItem(STORAGE_KEYS.AUTH_SESSION);
         } catch (e) {}
       }
     },
