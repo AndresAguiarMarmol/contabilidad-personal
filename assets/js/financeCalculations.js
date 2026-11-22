@@ -1592,17 +1592,21 @@
     const remoteDeletedAccounts = Array.isArray(remote.deletedAccounts) ? remote.deletedAccounts : [];
     const deletedAccountsSet = new Set([...localDeletedAccounts, ...remoteDeletedAccounts]);
 
-    // 1. Fusionar transacciones sin duplicados por ID
+    const localDeletedTxs = Array.isArray(local.deletedTransactions) ? local.deletedTransactions : [];
+    const remoteDeletedTxs = Array.isArray(remote.deletedTransactions) ? remote.deletedTransactions : [];
+    const deletedTxsSet = new Set([...localDeletedTxs, ...remoteDeletedTxs]);
+
+    // 1. Fusionar transacciones sin duplicados por ID (excluyendo lápidas de eliminación - Spec 025)
     const txMap = new Map();
     let newTxsFromRemote = 0;
     const localTxIdSet = new Set(localTxs.map(t => t.id));
 
     localTxs.forEach(t => {
-      if (t && t.id) txMap.set(t.id, { ...t });
+      if (t && t.id && !deletedTxsSet.has(t.id)) txMap.set(t.id, { ...t });
     });
 
     remoteTxs.forEach(t => {
-      if (!t || !t.id) return;
+      if (!t || !t.id || deletedTxsSet.has(t.id)) return;
       if (!txMap.has(t.id)) {
         txMap.set(t.id, { ...t });
         if (!localTxIdSet.has(t.id)) {
@@ -1636,41 +1640,8 @@
       }
     });
 
-    // Recalcular contablemente el balance actual (currentBalance) de cada cuenta
-    const mergedAccounts = Array.from(accMap.values()).map(acc => {
-      let balance = Number(acc.initialBalance || 0);
-
-      mergedTransactions.forEach(tx => {
-        const amt = Number(tx.amount || 0);
-        if (tx.isSplit && Array.isArray(tx.splitLines)) {
-          if (tx.accountId === acc.id) {
-            balance -= amt;
-          }
-          tx.splitLines.forEach(line => {
-            if (line.targetAccountId === acc.id) {
-              balance += Number(line.amount || 0);
-            }
-          });
-        } else if (tx.type === "expense" && tx.accountId === acc.id) {
-          balance -= amt;
-        } else if (tx.type === "income" && tx.accountId === acc.id) {
-          balance += amt;
-        } else if (tx.type === "transfer") {
-          if (tx.accountId === acc.id) balance -= amt;
-          if (tx.toAccountId === acc.id) {
-            const credited = tx.toAmount !== undefined && tx.toAmount !== null && !isNaN(Number(tx.toAmount))
-              ? Number(tx.toAmount)
-              : amt;
-            balance += credited;
-          }
-        }
-      });
-
-      return {
-        ...acc,
-        currentBalance: balance
-      };
-    });
+    // Recalcular contablemente el balance actual (currentBalance) de cada cuenta (Spec 025)
+    const mergedAccounts = recalcularBalancesCuentas(Array.from(accMap.values()), mergedTransactions);
 
     // 3. Fusionar presupuestos (Local-First: límites modificados localmente tienen prioridad, excluyendo eliminados)
     const budgetMap = new Map();
@@ -1769,6 +1740,7 @@
         planAccounts: mergedPlanAccounts,
         currencies: mergedCurrencies,
         deletedAccounts: Array.from(deletedAccountsSet),
+        deletedTransactions: Array.from(deletedTxsSet),
         deletedPlanAccounts: Array.from(deletedPlanSet),
         deletedBudgets: Array.from(deletedBudgetsSet),
         deletedGoals: Array.from(deletedGoalsSet)
@@ -2442,7 +2414,54 @@
     return `finance_${cleanUid}_${suffix}`;
   }
 
+  // ========================================================
+  // SPEC 025: CRUD MOVIMIENTOS - RECÁLCULO DETERMINISTA DE BALANCES
+  // ========================================================
+  function recalcularBalancesCuentas(cuentas, transacciones) {
+    if (!Array.isArray(cuentas)) return [];
+    const txs = Array.isArray(transacciones) ? transacciones : [];
+
+    return cuentas.map(acc => {
+      if (!acc || typeof acc !== "object") return acc;
+      let balance = Number(acc.initialBalance || 0);
+
+      txs.forEach(tx => {
+        if (!tx || typeof tx !== "object") return;
+        const amt = Number(tx.amount || 0);
+
+        if (tx.isSplit && Array.isArray(tx.splitLines)) {
+          if (tx.accountId === acc.id) {
+            balance -= amt;
+          }
+          tx.splitLines.forEach(line => {
+            if (line && line.targetAccountId === acc.id) {
+              balance += Number(line.amount || 0);
+            }
+          });
+        } else if (tx.type === "expense" && tx.accountId === acc.id) {
+          balance -= amt;
+        } else if (tx.type === "income" && tx.accountId === acc.id) {
+          balance += amt;
+        } else if (tx.type === "transfer") {
+          if (tx.accountId === acc.id) balance -= amt;
+          if (tx.toAccountId === acc.id) {
+            const credited = tx.toAmount !== undefined && tx.toAmount !== null && !isNaN(Number(tx.toAmount))
+              ? Number(tx.toAmount)
+              : amt;
+            balance += credited;
+          }
+        }
+      });
+
+      return {
+        ...acc,
+        currentBalance: balance
+      };
+    });
+  }
+
   return {
+    recalcularBalancesCuentas,
     calcularPatrimonioNeto,
     calcularBalanceMes,
     calcularEjecucionPresupuesto,

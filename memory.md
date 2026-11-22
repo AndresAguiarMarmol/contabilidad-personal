@@ -20,11 +20,12 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
   - Array de objetos `SavingsGoal`: `id`, `title`, `targetAmount`, `currentAmount`, `deadlineDate`, `color`.
 - **Clave:** `finance_plan_accounts_data`
   - Array de objetos `AccountPlanItem` personalizados: `id`, `code`, `name`, `parentCode` (código de la cuenta base padre para subcuentas), `isSubaccount` (booleano), `classNumber` (1..5), `classType`, `groupName`, `nature` ("debit" | "credit"), `balance`, `periodMovement`, `isSystem`.
-- **Claves de Lápidas (Tombstones - Spec 016 & Spec 017):**
+- **Claves de Lápidas (Tombstones - Spec 016, Spec 017 & Spec 025):**
   - `finance_deleted_accounts_data`: Array de IDs de cuentas financieras eliminadas (`deletedAccounts`).
   - `finance_deleted_plan_accounts_data`: Array de códigos e IDs de subcuentas eliminadas.
   - `finance_deleted_budgets_data`: Array de IDs de presupuestos eliminados.
   - `finance_deleted_goals_data`: Array de IDs de metas eliminadas.
+  - `finance_deleted_transactions_data`: Array de IDs de transacciones eliminadas (`deletedTransactions`).
 - **Clave:** `finance_currencies_data` (Spec 018)
   - Array de objetos `CurrencyItem`: `code` (código ISO 3-5 caracteres en mayúsculas), `name`, `symbol`, `rateToCLP` (número positivo indicando valor de 1 unidad en CLP), `isBase` (booleano, `true` solo para `CLP`), `updatedAt` (ISO timestamp). Monedas iniciales: `CLP` (base 1.0), `USD`, `EUR`, `ARS`.
 - **Clave:** `finance_theme`
@@ -49,6 +50,12 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 2. Decisiones vigentes
 
+- **CRUD Completo de Movimientos en el Libro de Movimientos y Recálculo Contable (Spec 025):**
+  - **Edición y Eliminación en Fila:** En la tabla del Libro de Movimientos (`#view-transactions`), se agrega la columna de "Acciones" con botones accesibles e identificados para Editar (`.btn-edit-tx`) y Eliminar (`.btn-delete-tx`) cada transacción.
+  - **Recálculo Determinista de Balances (`recalcularBalancesCuentas`):** Al editar o eliminar un movimiento (estándar o dividido en split), no se aplican diferenciales frágiles acumulativos. En su lugar, la función pura `Calculations.recalcularBalancesCuentas(cuentas, transacciones)` reconstruye atómica y deterministamente el `currentBalance` de cada cuenta a partir de su `initialBalance` y la totalidad de los movimientos cronológicos restantes, garantizando ausencia absoluta de descuadres de centavos.
+  - **Lápidas de Movimientos (`deletedTransactions`) y Prevención de Resurrección:** Toda transacción eliminada genera una lápida en `finance_deleted_transactions_data` (particionada por UID). Durante la sincronización bidireccional (`fusionarEstadoContable` y `DbAdapter.syncBidirectional`), las lápidas remotas y locales se unifican y cualquier movimiento marcado es purgado activamente, evitando que transacciones eliminadas en un dispositivo o sesión vuelvan a aparecer tras sincronizar con Cloud Firestore.
+  - **Sincronización Reactiva con Presupuestos:** Toda modificación o supresión de movimientos actualiza en tiempo real los montos gastados en los presupuestos del mes (`sincronizarPresupuestosConTransacciones`) y persiste el estado en `localStorage` y en la nube.
+  - Suite de pruebas unitarias TDD Red-Green en `tests/transactions-crud.test.js` con 5/5 pruebas aprobadas (124/124 pruebas totales del proyecto).
 - **Aislamiento Estricto Multi-Usuario por UID en Almacenamiento Local y Sync en la Nube (Spec 024):**
   - **Partición por UID en `localStorage` (Namespacing):** Todas las claves privadas (`accounts`, `transactions`, `budgets`, `goals`, `planAccounts`, `currencies` y lápidas de eliminación `deleted*`) son derivadas dinámicamente mediante la función pura `Calculations.obtenerClaveStorage(claveBase, uid)` bajo el patrón `finance_${uid}_${claveBase}`.
   - **Conmutación Limpia de Sesión:** `Storage.setActiveUid(uid)` fija el espacio activo para lecturas y escrituras. Al cerrar sesión (`solicitarCierreSesion`), se restablece `Storage.setActiveUid(null)`, se purgan todas las entidades en la memoria activa (`state`) y se bloquea la app con `#auth-gate-screen`, impidiendo cualquier fuga de datos al usuario que inicie sesión a continuación en el mismo dispositivo o navegador.
@@ -112,6 +119,16 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 3. Historial de cambios
 
+- **2026-11-22 — Spec 025: CRUD Completo de Movimientos en Libro de Movimientos (SDD):**
+  - Creada especificación formal `specs/025-crud-movimientos/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
+  - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/transactions-crud.test.js` (5 pruebas exhaustivas verificando recálculo contable de saldos `recalcularBalancesCuentas` con ingresos, gastos, transferencias y splits, edición de movimientos con ajuste contable en cuentas involucradas, eliminación de movimientos con restauración de fondos, prevención de resurrección de transacciones eliminadas mediante lápidas `deletedTransactions` en `fusionarEstadoContable`, y robustez ante listas vacías o valores nulos, elevando la suite completa a 124/124 pruebas en verde).
+  - Implementada en `assets/js/financeCalculations.js` la función pura `recalcularBalancesCuentas(cuentas, transacciones)` y adaptada `fusionarEstadoContable` para consolidar lápidas de movimientos eliminados.
+  - Implementado en `assets/js/storage.js` el soporte para `DELETED_TRANSACTIONS` (`finance_deleted_transactions_data`), con sus métodos `getDeletedTransactions()` y `saveDeletedTransactions(list)`, e integrado en respaldos JSON y reinicios de datos.
+  - Actualizado `assets/js/dbAdapter.js` para persistir `deletedTransactions` en el documento del workspace en Cloud Firestore y respetar las lápidas en la sincronización bidireccional.
+  - Agregada en `index.html` la columna `<th class="py-3 px-4 text-center">Acciones</th>` en la tabla `#transactions-table-body`.
+  - Actualizado `assets/js/app.js` en `renderTransactions()` para renderizar los botones de acción rápida Editar (`.btn-edit-tx`) y Eliminar (`.btn-delete-tx`), adaptado `openTransactionModal()` para edición con precarga y recálculo de balances, e implementado `solicitarEliminarTransaccion(txId)` con diálogo de confirmación, registro de lápida y reajuste automático de saldos y presupuestos.
+  - Actualizada la versión del Service Worker a `contapersonal-v8` en `sw.js`.
+  - Verificación global con `node --test tests/*.test.js`: 124/124 pruebas pasando al 100% sin regresiones.
 - **2026-11-22 — Spec 024: Aislamiento Estricto Multi-Usuario por UID en Almacenamiento Local y Sync en la Nube (SDD):**
   - Creada especificación formal `specs/024-aislamiento-multi-usuario-uid/` (`spec.md` aprobada en formato EARS, `plan.md`, `tasks.md`).
   - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/user-isolation.test.js` (5 pruebas unitarias cubriendo derivación pura de claves `obtenerClaveStorage`, partición por UID activo en `Storage`, independencia de cuentas y lápidas entre usuarios en un mismo dispositivo, purga al cerrar sesión y salvaguarda en `DbAdapter.syncBidirectional`, elevando la suite completa a 119/119 pruebas en verde).

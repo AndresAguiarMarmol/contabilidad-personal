@@ -23,6 +23,7 @@
     PLAN_ACCOUNTS: "finance_plan_accounts_data",
     CURRENCIES: "finance_currencies_data",
     DELETED_ACCOUNTS: "finance_deleted_accounts_data",
+    DELETED_TRANSACTIONS: "finance_deleted_transactions_data",
     DELETED_PLAN_ACCOUNTS: "finance_deleted_plan_accounts_data",
     DELETED_BUDGETS: "finance_deleted_budgets_data",
     DELETED_GOALS: "finance_deleted_goals_data",
@@ -293,6 +294,26 @@
       }
     },
 
+    getDeletedTransactions() {
+      const ls = getLocalStorage();
+      const key = this.resolveKey(STORAGE_KEYS.DELETED_TRANSACTIONS);
+      try {
+        const raw = ls ? ls.getItem(key) : null;
+        return raw ? JSON.parse(raw) : [];
+      } catch (e) {
+        return [];
+      }
+    },
+    saveDeletedTransactions(list) {
+      const ls = getLocalStorage();
+      const key = this.resolveKey(STORAGE_KEYS.DELETED_TRANSACTIONS);
+      if (ls) {
+        try {
+          ls.setItem(key, JSON.stringify(Array.isArray(list) ? list : []));
+        } catch (e) {}
+      }
+    },
+
     getDeletedPlanAccounts() {
       const ls = getLocalStorage();
       const key = this.resolveKey(STORAGE_KEYS.DELETED_PLAN_ACCOUNTS);
@@ -460,6 +481,7 @@
       this.saveGoals([]);
       this.savePlanAccounts([]);
       this.saveDeletedAccounts([]);
+      this.saveDeletedTransactions([]);
       this.saveDeletedPlanAccounts([]);
       this.saveDeletedBudgets([]);
       this.saveDeletedGoals([]);
@@ -478,6 +500,7 @@
         planAccounts: this.getPlanAccounts(),
         currencies: this.getCurrencies(),
         deletedAccounts: this.getDeletedAccounts(),
+        deletedTransactions: this.getDeletedTransactions(),
         deletedPlanAccounts: this.getDeletedPlanAccounts(),
         deletedBudgets: this.getDeletedBudgets(),
         deletedGoals: this.getDeletedGoals()
@@ -505,6 +528,7 @@
           if (Array.isArray(data.planAccounts)) this.savePlanAccounts(data.planAccounts);
           if (Array.isArray(data.currencies)) this.saveCurrencies(data.currencies);
           if (Array.isArray(data.deletedAccounts)) this.saveDeletedAccounts(data.deletedAccounts);
+          if (Array.isArray(data.deletedTransactions)) this.saveDeletedTransactions(data.deletedTransactions);
           if (Array.isArray(data.deletedPlanAccounts)) this.saveDeletedPlanAccounts(data.deletedPlanAccounts);
           if (Array.isArray(data.deletedBudgets)) this.saveDeletedBudgets(data.deletedBudgets);
           if (Array.isArray(data.deletedGoals)) this.saveDeletedGoals(data.deletedGoals);
@@ -539,6 +563,7 @@
           ls.removeItem(this.resolveKey(STORAGE_KEYS.PLAN_ACCOUNTS));
           ls.removeItem(this.resolveKey(STORAGE_KEYS.CURRENCIES));
           ls.removeItem(this.resolveKey(STORAGE_KEYS.DELETED_ACCOUNTS));
+          ls.removeItem(this.resolveKey(STORAGE_KEYS.DELETED_TRANSACTIONS));
           ls.removeItem(this.resolveKey(STORAGE_KEYS.DELETED_PLAN_ACCOUNTS));
           ls.removeItem(this.resolveKey(STORAGE_KEYS.DELETED_BUDGETS));
           ls.removeItem(this.resolveKey(STORAGE_KEYS.DELETED_GOALS));
@@ -558,6 +583,7 @@
           ls.removeItem("finance_plan_accounts_data");
           ls.removeItem("finance_currencies_data");
           ls.removeItem("finance_deleted_accounts_data");
+          ls.removeItem("finance_deleted_transactions_data");
           ls.removeItem("finance_deleted_plan_accounts_data");
           ls.removeItem("finance_deleted_budgets_data");
           ls.removeItem("finance_deleted_goals_data");

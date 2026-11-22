@@ -21,6 +21,7 @@
     deletedPlanAccounts: [],
     deletedBudgets: [],
     deletedGoals: [],
+    deletedTransactions: [],
     selectedAccountId: null,
     chartOfAccountsFilter: {
       search: "",
@@ -1354,7 +1355,7 @@
       : state.transactions;
 
     if (filtered.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-slate-400">No hay movimientos que coincidan con los filtros aplicados.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" class="py-8 text-center text-slate-400">No hay movimientos que coincidan con los filtros aplicados.</td></tr>`;
       return;
     }
 
@@ -1444,9 +1445,36 @@
           <td class="py-3 px-4 text-right font-bold tabular-nums ${isIncome ? 'text-emerald-600 dark:text-emerald-400' : isTransfer ? 'text-blue-600 dark:text-blue-400' : 'text-rose-600 dark:text-rose-400'}">
             ${amountDisplay}
           </td>
+          <td class="py-3 px-4 text-center whitespace-nowrap">
+            <div class="flex items-center justify-center gap-1">
+              <button type="button" class="btn-edit-tx p-1.5 text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="Editar movimiento" data-tx-id="${escapeHtml(tx.id)}">
+                <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+              </button>
+              <button type="button" class="btn-delete-tx p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="Eliminar movimiento" data-tx-id="${escapeHtml(tx.id)}">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          </td>
         </tr>
       `;
     }).join("");
+
+    tbody.querySelectorAll(".btn-edit-tx").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-tx-id");
+        const tx = (state.transactions || []).find(t => t.id === id);
+        if (tx) openTransactionModal(tx.type || "expense", tx);
+      });
+    });
+
+    tbody.querySelectorAll(".btn-delete-tx").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-tx-id");
+        solicitarEliminarTransaccion(id);
+      });
+    });
+
+    safeRenderIcons();
   }
 
   // ========================================================
@@ -2003,21 +2031,84 @@
     return EXPENSE_CATEGORIES.map(c => ({ code: "", name: c, label: c, classNumber: 5 }));
   }
 
-  function openTransactionModal(initialType = "expense") {
+  // ========================================================
+  // SPEC 025: ELIMINACIÓN DE MOVIMIENTO CON RECÁLCULO CONTABLE
+  // ========================================================
+  function solicitarEliminarTransaccion(txId) {
+    const tx = (state.transactions || []).find(t => t.id === txId);
+    if (!tx) return;
+
+    const desc = tx.description || "este movimiento";
+    const monto = formatMoney(tx.amount);
+    const mensaje = `¿Estás seguro de que deseas eliminar el movimiento "${desc}" (${monto})?\n\nLos saldos de las cuentas afectadas y presupuestos mensuales serán recalculados automáticamente.`;
+
+    if (confirm(mensaje)) {
+      if (!Array.isArray(state.deletedTransactions)) {
+        state.deletedTransactions = [];
+      }
+      if (!state.deletedTransactions.includes(tx.id)) {
+        state.deletedTransactions.push(tx.id);
+      }
+
+      state.transactions = state.transactions.filter(t => t.id !== tx.id);
+
+      if (Calculations && Calculations.recalcularBalancesCuentas) {
+        state.accounts = Calculations.recalcularBalancesCuentas(state.accounts, state.transactions);
+      }
+
+      if (Calculations && Calculations.sincronizarPresupuestosConTransacciones) {
+        state.budgets = Calculations.sincronizarPresupuestosConTransacciones(state.budgets, state.transactions);
+      }
+
+      if (Storage) {
+        Storage.saveAccounts(state.accounts);
+        Storage.saveTransactions(state.transactions);
+        Storage.saveBudgets(state.budgets);
+        if (Storage.saveDeletedTransactions) {
+          Storage.saveDeletedTransactions(state.deletedTransactions);
+        }
+      }
+
+      renderActiveView();
+      showToast("Movimiento eliminado y saldos recalculados con éxito.", "info");
+      triggerAutoSync({ notify: false });
+    }
+  }
+
+  function openTransactionModal(initialType = "expense", txToEdit = null) {
     const modal = document.getElementById("app-modal");
     const modalTitle = document.getElementById("modal-title");
     const modalBody = document.getElementById("modal-body");
     if (!modal || !modalTitle || !modalBody) return;
 
-    modalTitle.textContent = "Registrar Nuevo Movimiento";
+    modalTitle.textContent = txToEdit ? "Editar Movimiento" : "Registrar Nuevo Movimiento";
 
     const today = new Date().toISOString().slice(0, 10);
-    let selectedType = initialType;
-    let isSplitActive = false;
+    let selectedType = txToEdit ? (txToEdit.type || initialType) : initialType;
+    let isSplitActive = Boolean(txToEdit && txToEdit.isSplit);
     let splitLines = [
       { id: "spl-1", description: "", amount: "", target: "" },
       { id: "spl-2", description: "", amount: "", target: "" }
     ];
+
+    if (txToEdit && txToEdit.isSplit && Array.isArray(txToEdit.splitLines) && txToEdit.splitLines.length > 0) {
+      splitLines = txToEdit.splitLines.map((l, idx) => {
+        let target = "";
+        if (l.targetAccountId) {
+          target = `acc:${l.targetAccountId}`;
+        } else if (l.categoryCode) {
+          target = `plan:${l.categoryCode}`;
+        } else if (l.category) {
+          target = `cat:${l.category}`;
+        }
+        return {
+          id: l.id || `spl-${idx + 1}`,
+          description: l.description || "",
+          amount: l.amount !== undefined ? l.amount : "",
+          target
+        };
+      });
+    }
 
     // Generar opciones de cuenta origen
     const accountOptions = state.accounts.map((acc) => {
@@ -2170,7 +2261,7 @@
           </button>
           <button type="submit" id="tx-form-submit" class="px-5 py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all flex items-center gap-1.5 active:scale-95">
             <i data-lucide="check" class="w-3.5 h-3.5"></i>
-            <span>Guardar Movimiento</span>
+            <span>${txToEdit ? 'Actualizar Movimiento' : 'Guardar Movimiento'}</span>
           </button>
         </div>
       </form>
@@ -2518,6 +2609,39 @@
     // Inicializar estado del tab
     updateFormTabs(selectedType);
 
+    if (txToEdit) {
+      if (amountInput) amountInput.value = txToEdit.amount || "";
+      const dateEl = document.getElementById("tx-input-date");
+      if (dateEl && txToEdit.date) dateEl.value = txToEdit.date.slice(0, 10);
+      const descEl = document.getElementById("tx-input-desc");
+      if (descEl) descEl.value = txToEdit.description || "";
+      if (selAccount && txToEdit.accountId) selAccount.value = txToEdit.accountId;
+      const methodEl = document.getElementById("tx-input-method");
+      if (methodEl && txToEdit.paymentMethod) methodEl.value = txToEdit.paymentMethod;
+
+      if (selectedType === "transfer") {
+        updateDestinationAccounts();
+        if (selToAccount && txToEdit.toAccountId) selToAccount.value = txToEdit.toAccountId;
+        updateCurrencyConversionUI();
+        const fxRate = document.getElementById("tx-fx-rate");
+        const fxToAmount = document.getElementById("tx-fx-to-amount");
+        if (fxRate && txToEdit.exchangeRate) fxRate.value = txToEdit.exchangeRate;
+        if (fxToAmount && txToEdit.toAmount) fxToAmount.value = txToEdit.toAmount;
+      } else if (!isSplitActive) {
+        if (selCategory && txToEdit.category) {
+          selCategory.value = txToEdit.category;
+        }
+      }
+
+      if (isSplitActive) {
+        const toggleSplit = document.getElementById("tx-toggle-split");
+        if (toggleSplit) {
+          toggleSplit.checked = true;
+          toggleSplit.dispatchEvent(new Event("change"));
+        }
+      }
+    }
+
     // Manejo de envío del formulario (submit)
     const form = document.getElementById("form-new-tx");
     form?.addEventListener("submit", (e) => {
@@ -2583,8 +2707,9 @@
           };
         });
 
+        const txId = (txToEdit && txToEdit.id) ? txToEdit.id : `TX-${Date.now()}`;
         const tx = {
-          id: `TX-${Date.now()}`,
+          id: txId,
           date: dateVal ? new Date(dateVal).toISOString() : new Date().toISOString(),
           type: selectedType,
           amount: amountVal,
@@ -2604,22 +2729,24 @@
           return;
         }
 
-        // Aplicar impacto atómico en cuentas usando lógica pura (Spec 004 / RF-4)
-        if (Calculations && Calculations.aplicarMovimientoSplitEnCuentas) {
-          state.accounts = Calculations.aplicarMovimientoSplitEnCuentas(state.accounts, tx);
+        if (txToEdit) {
+          const idx = state.transactions.findIndex(t => t.id === txToEdit.id);
+          if (idx >= 0) {
+            state.transactions[idx] = tx;
+          } else {
+            state.transactions.unshift(tx);
+          }
+        } else {
+          state.transactions.unshift(tx);
         }
 
-        // Si alguna línea es gasto puro de consumo, actualizar presupuesto de categoría
-        parsedSplitLines.forEach(l => {
-          if (!l.targetAccountId && l.category) {
-            const matchingBudget = state.budgets.find(b => b.category === l.category || (l.categoryCode && b.categoryCode === l.categoryCode));
-            if (matchingBudget) {
-              matchingBudget.spentAmount = (Number(matchingBudget.spentAmount) || 0) + l.amount;
-            }
-          }
-        });
-
-        state.transactions.unshift(tx);
+        // Recalcular contablemente balances de cuentas y presupuestos
+        if (Calculations && Calculations.recalcularBalancesCuentas) {
+          state.accounts = Calculations.recalcularBalancesCuentas(state.accounts, state.transactions);
+        }
+        if (Calculations && Calculations.sincronizarPresupuestosConTransacciones) {
+          state.budgets = Calculations.sincronizarPresupuestosConTransacciones(state.budgets, state.transactions);
+        }
 
         if (Storage) {
           Storage.saveAccounts(state.accounts);
@@ -2629,7 +2756,7 @@
 
         modal.close();
         renderActiveView();
-        showToast(`Movimiento dividido de ${formatMoney(tx.amount)} registrado con éxito (${tx.splitLines.length} partidas).`, "success");
+        showToast(txToEdit ? "Movimiento dividido actualizado con éxito." : `Movimiento dividido de ${formatMoney(tx.amount)} registrado con éxito (${tx.splitLines.length} partidas).`, "success");
         triggerAutoSync({ notify: false });
         return;
       }
@@ -2711,8 +2838,9 @@
         }
       }
 
+      const txId = (txToEdit && txToEdit.id) ? txToEdit.id : `TX-${Date.now()}`;
       const tx = {
-        id: `TX-${Date.now()}`,
+        id: txId,
         date: dateVal ? new Date(dateVal).toISOString() : new Date().toISOString(),
         type: selectedType,
         amount: amountVal,
@@ -2733,20 +2861,23 @@
         return;
       }
 
-      // Aplicar impacto atómico en cuentas usando lógica pura
-      if (Calculations && Calculations.aplicarTransaccionEnCuentas) {
-        state.accounts = Calculations.aplicarTransaccionEnCuentas(state.accounts, tx);
+      if (txToEdit) {
+        const idx = state.transactions.findIndex(t => t.id === txToEdit.id);
+        if (idx >= 0) {
+          state.transactions[idx] = tx;
+        } else {
+          state.transactions.unshift(tx);
+        }
+      } else {
+        state.transactions.unshift(tx);
       }
 
-      // Añadir movimiento al historial (al inicio)
-      state.transactions.unshift(tx);
-
-      // Si es un gasto, actualizar el gasto acumulado en el presupuesto correspondiente
-      if (tx.type === "expense") {
-        const matchingBudget = state.budgets.find(b => b.category === tx.category);
-        if (matchingBudget) {
-          matchingBudget.spentAmount = (Number(matchingBudget.spentAmount) || 0) + tx.amount;
-        }
+      // Recalcular contablemente balances de cuentas y presupuestos
+      if (Calculations && Calculations.recalcularBalancesCuentas) {
+        state.accounts = Calculations.recalcularBalancesCuentas(state.accounts, state.transactions);
+      }
+      if (Calculations && Calculations.sincronizarPresupuestosConTransacciones) {
+        state.budgets = Calculations.sincronizarPresupuestosConTransacciones(state.budgets, state.transactions);
       }
 
       // Persistir todo en Storage
@@ -2762,10 +2893,10 @@
 
       let successMsg = "";
       if (tx.type === "transfer" && tx.toAmount && sourceAcc && destAcc) {
-        successMsg = `Transferencia de ${formatMoney(tx.amount, sourceAcc.currency)} a ${formatMoney(tx.toAmount, destAcc.currency)} registrada con éxito.`;
+        successMsg = `Transferencia de ${formatMoney(tx.amount, sourceAcc.currency)} a ${formatMoney(tx.toAmount, destAcc.currency)} ${txToEdit ? 'actualizada' : 'registrada'} con éxito.`;
       } else {
         const typeWord = tx.type === "income" ? "Ingreso" : tx.type === "transfer" ? "Transferencia" : "Gasto";
-        successMsg = `${typeWord} de ${formatMoney(tx.amount)} registrado con éxito.`;
+        successMsg = `${typeWord} de ${formatMoney(tx.amount)} ${txToEdit ? 'actualizado' : 'registrado'} con éxito.`;
       }
       showToast(successMsg, "success");
       triggerAutoSync({ notify: false });
@@ -4537,6 +4668,7 @@
       state.deletedPlanAccounts = Storage.getDeletedPlanAccounts ? Storage.getDeletedPlanAccounts() : [];
       state.deletedBudgets = Storage.getDeletedBudgets ? Storage.getDeletedBudgets() : [];
       state.deletedGoals = Storage.getDeletedGoals ? Storage.getDeletedGoals() : [];
+      state.deletedTransactions = Storage.getDeletedTransactions ? Storage.getDeletedTransactions() : [];
       state.authSession = Storage.getAuthSession ? Storage.getAuthSession() : null;
     }
   }
@@ -4646,6 +4778,7 @@
       state.deletedPlanAccounts = [];
       state.deletedBudgets = [];
       state.deletedGoals = [];
+      state.deletedTransactions = [];
       evaluarAccesoAuth();
       showToast("Sesión cerrada. Aplicación bloqueada.", "info");
     }
@@ -4703,6 +4836,7 @@
           if (res.mergedState.deletedPlanAccounts) state.deletedPlanAccounts = res.mergedState.deletedPlanAccounts;
           if (res.mergedState.deletedBudgets) state.deletedBudgets = res.mergedState.deletedBudgets;
           if (res.mergedState.deletedGoals) state.deletedGoals = res.mergedState.deletedGoals;
+          if (res.mergedState.deletedTransactions) state.deletedTransactions = res.mergedState.deletedTransactions;
         } else {
           loadStateFromStorage();
         }
