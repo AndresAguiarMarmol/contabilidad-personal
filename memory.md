@@ -50,6 +50,10 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 2. Decisiones vigentes
 
+- **Ergonomía Móvil del Dashboard y Alineación Inferior del Footer (Spec 028):**
+  - **Cuadrícula Compacta de 2 Columnas en Móvil:** El contenedor de métricas clave del Dashboard (`dash-net-worth`, `dash-month-income`, `dash-month-expense`, `dash-savings-rate`) y de alertas de presupuestos (`dash-budget-progress-list`) se configura con `grid-cols-2 sm:grid-cols-2 lg:grid-cols-4` y padding responsivo `p-3 sm:p-5`, permitiendo ver 2 tarjetas por fila de un vistazo en iPhone vertical sin ocupar toda la pantalla.
+  - **Fijación Inferior del Footer (Sticky Bottom en PC):** El contenedor `<main>` adopta `flex flex-col min-h-0` y `#app-footer` incorpora `mt-auto flex-shrink-0`. Con vistas de contenido corto en pantallas panorámicas de PC, el pie de página se asienta de forma natural al ras del borde inferior de la ventana en lugar de situarse en el centro vertical.
+  - Suite de pruebas unitarias TDD Red-Green en `tests/dashboard-responsive-footer.test.js` con 4/4 pruebas aprobadas (137/137 pruebas totales del proyecto).
 - **Pie de Página Formal: Créditos, Versión y Contacto (Spec 027):**
   - **Identidad y Versión en Footer:** Inclusión de bloque de pie de página (`#app-footer`) al final del contenedor de vistas de la aplicación y en la pantalla de bienvenida/autenticación (`#auth-gate-screen`), detallando autoría (*Análisis y Diseño: Andres Aguiar*), versión y ciudad (*Versión: V1.0 — Santiago de Chile*).
   - **Enlace Directo y Seguro a WhatsApp:** Hipervínculo interactivo hacia `https://wa.me/56933395447` con `target="_blank" rel="noopener noreferrer"`, preservando el estado de la sesión de la app sin recargas y garantizando accesibilidad en modo claro y oscuro.
@@ -128,6 +132,12 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 3. Historial de cambios
 
+- **2026-11-22 — Spec 028: Ergonomía Móvil del Dashboard y Alineación Inferior del Footer (SDD):**
+  - Creada especificación formal `specs/028-ergonomia-dashboard-footer/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
+  - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/dashboard-responsive-footer.test.js` (4 pruebas verificando cuadrícula de 2 columnas en móvil `grid-cols-2`, compactación de tarjetas `p-3 sm:p-5`, cuadrícula responsiva de presupuestos y layout flexbox con `mt-auto` en `#app-footer` y `flex-col` en `<main>`, elevando la suite completa a 137/137 pruebas en verde).
+  - Actualizado `index.html` ajustando el grid y dimensiones de métricas en `#view-dashboard` para visualización de 2 por fila en iPhone y aplicando `mt-auto` + `flex flex-col` para garantizar el posicionamiento inferior del footer en PC.
+  - Actualizada la versión del Service Worker a `contapersonal-v11` en `sw.js`.
+  - Verificación global con `node --test tests/*.test.js`: 137/137 pruebas pasando al 100% sin regresiones.
 - **2026-11-22 — Spec 027: Footer de Créditos, Versión y Contacto (SDD):**
   - Creada especificación formal `specs/027-footer-creditos/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
   - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/footer-credits.test.js` (4 pruebas exhaustivas verificando autoría "Análisis y Diseño: Andres Aguiar", versión "V1.0 — Santiago de Chile", enlace funcional y seguro a WhatsApp `https://wa.me/56933395447`, y presencia en `#app-footer` y `#auth-gate-screen`, elevando la suite completa a 133/133 pruebas en verde).
