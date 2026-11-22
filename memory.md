@@ -50,6 +50,10 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 2. Decisiones vigentes
 
+- **Pie de Página Formal: Créditos, Versión y Contacto (Spec 027):**
+  - **Identidad y Versión en Footer:** Inclusión de bloque de pie de página (`#app-footer`) al final del contenedor de vistas de la aplicación y en la pantalla de bienvenida/autenticación (`#auth-gate-screen`), detallando autoría (*Análisis y Diseño: Andres Aguiar*), versión y ciudad (*Versión: V1.0 — Santiago de Chile*).
+  - **Enlace Directo y Seguro a WhatsApp:** Hipervínculo interactivo hacia `https://wa.me/56933395447` con `target="_blank" rel="noopener noreferrer"`, preservando el estado de la sesión de la app sin recargas y garantizando accesibilidad en modo claro y oscuro.
+  - Suite de pruebas unitarias TDD Red-Green en `tests/footer-credits.test.js` con 4/4 pruebas aprobadas (133/133 pruebas totales del proyecto).
 - **Edición de Saldo Inicial en Cuentas Financieras y Recálculo Determinista (Spec 026):**
   - **Campo Saldo Inicial en Modal de Edición:** En `openAccountEditModal` (`#form-edit-account`), se añade el campo interactivo `#acc-edit-input-balance` precargado con `account.initialBalance` (o su valor absoluto en tarjetas de crédito), con etiquetas y ayudas contextuales reactivas según el tipo de cuenta.
   - **Validación y Normalización de Saldo Inicial:** Se extiende `Calculations.validarEdicionCuenta` para validar que `initialBalance` sea numérico y finito, y se implementa `Calculations.normalizarSaldoInicialCuenta(type, initialBalance)` que preserva activos y convierte automáticamente los importes positivos en tarjetas de crédito a deuda negativa contable.
@@ -124,6 +128,12 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 3. Historial de cambios
 
+- **2026-11-22 — Spec 027: Footer de Créditos, Versión y Contacto (SDD):**
+  - Creada especificación formal `specs/027-footer-creditos/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
+  - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/footer-credits.test.js` (4 pruebas exhaustivas verificando autoría "Análisis y Diseño: Andres Aguiar", versión "V1.0 — Santiago de Chile", enlace funcional y seguro a WhatsApp `https://wa.me/56933395447`, y presencia en `#app-footer` y `#auth-gate-screen`, elevando la suite completa a 133/133 pruebas en verde).
+  - Incorporado en `index.html` el elemento semántico `<footer id="app-footer">` al final de `<main>` y el bloque correspondiente en `#auth-gate-screen` con diseño responsive Tailwind para temas claro y oscuro.
+  - Actualizada la versión del Service Worker a `contapersonal-v10` en `sw.js`.
+  - Verificación global con `node --test tests/*.test.js`: 133/133 pruebas pasando al 100% sin regresiones.
 - **2026-11-22 — Spec 026: Edición de Saldo Inicial en Cuentas Financieras (SDD):**
   - Creada especificación formal `specs/026-edicion-saldo-inicial-cuentas/` (`spec.md` aprobada en formato EARS, `plan.md`, `tasks.md`).
   - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/account-initial-balance-edit.test.js` (5 pruebas exhaustivas verificando validación de saldo inicial en `validarEdicionCuenta`, normalización de pasivo en `normalizarSaldoInicialCuenta`, recálculo inmediato en cuentas sin movimientos y en cuentas con movimientos mixtos de ingresos/gastos/transferencias, y tratamiento de tarjetas de crédito, elevando la suite completa a 129/129 pruebas en verde).
