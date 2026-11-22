@@ -50,6 +50,10 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 2. Decisiones vigentes
 
+- **Header de Aplicación con Identidad de Marca y Menú a la Derecha (Spec 030):**
+  - **Identidad de Marca a la Izquierda:** La barra superior `<header>` muestra en su lateral izquierdo la marca permanente *ContaPersonal* con isotipo de billetera en gradiente y el subtítulo *Finanzas Personales*, preservando `#page-title` y `#page-subtitle` en el DOM para trazabilidad visual.
+  - **Botón de Menú a la Derecha e Interacción Híbrida:** El botón de navegación `#btn-open-sidebar` se ubica en el extremo derecho de las acciones rápidas del header. En móviles abre el drawer de navegación y en desktop (`>= 768px`) permite alternar la visibilidad de la barra lateral (`md:hidden`), adaptándose a la ergonomía de una sola mano.
+  - Suite de pruebas unitarias TDD Red-Green en `tests/header-layout.test.js` con 3/3 pruebas aprobadas (143/143 pruebas totales del proyecto).
 - **Ergonomía Móvil en Cuentas Bancarias y Billeteras (Spec 029):**
   - **Cuadrícula de 2 Columnas en Móvil:** El contenedor `#accounts-grid` se configura con `grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-4`, permitiendo desplegar 2 tarjetas de cuenta por fila en iPhone en vista vertical.
   - **Proporción y Padding Compacto (`.account-card`):** Se adaptan las tarjetas a `p-3 sm:p-5`, iconos de cabecera `w-7 h-7 sm:w-10 sm:h-10`, botones de acción rápida de edición/eliminación `p-1 sm:p-1.5` y saldos tipográficos con `truncate` (`text-sm sm:text-xl font-bold tabular-nums`), garantizando lectura limpia, sin desbordes y permitiendo visualizar entre 4 y 6 cuentas de una sola vez sin scroll excesivo.
@@ -136,6 +140,12 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 3. Historial de cambios
 
+- **2026-11-22 — Spec 030: Header de Aplicación con Identidad de Marca y Menú a la Derecha (SDD):**
+  - Creada especificación formal `specs/030-header-marca-menu-derecha/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
+  - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/header-layout.test.js` (3 pruebas verificando marca "ContaPersonal" y subtítulo "Finanzas Personales" a la izquierda, botón `#btn-open-sidebar` a la derecha con texto "Menú" y preservación de selectores `#page-title` y `#page-subtitle`, elevando la suite completa a 143/143 pruebas en verde).
+  - Actualizado `index.html` reestructurando `<header>` con branding a la izquierda y menú a la derecha, y adaptado `assets/js/app.js` en `initNavigation()` para soportar drawer en móvil y alternancia de sidebar en PC.
+  - Actualizada la versión del Service Worker a `contapersonal-v13` en `sw.js`.
+  - Verificación global con `node --test tests/*.test.js`: 143/143 pruebas pasando al 100% sin regresiones.
 - **2026-11-22 — Spec 029: Ergonomía Móvil de Cuentas Financieras (2 por Fila en iPhone) (SDD):**
   - Creada especificación formal `specs/029-ergonomia-cuentas-movil/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
   - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/accounts-responsive.test.js` (3 pruebas verificando cuadrícula responsiva `grid-cols-2` en `#accounts-grid`, padding adaptado `p-3 sm:p-5` y proporciones de iconos `w-7 h-7 sm:w-10 sm:h-10`, elevando la suite completa a 140/140 pruebas en verde).

@@ -273,7 +273,14 @@
       }
     });
 
-    document.getElementById("btn-open-sidebar")?.addEventListener("click", openMobileSidebar);
+    document.getElementById("btn-open-sidebar")?.addEventListener("click", () => {
+      const sidebar = document.getElementById("sidebar");
+      if (typeof window !== "undefined" && window.innerWidth < 768) {
+        openMobileSidebar();
+      } else if (sidebar) {
+        sidebar.classList.toggle("md:hidden");
+      }
+    });
     document.getElementById("btn-close-sidebar")?.addEventListener("click", closeMobileSidebar);
     document.getElementById("sidebar-backdrop")?.addEventListener("click", closeMobileSidebar);
   }
