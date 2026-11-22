@@ -50,6 +50,10 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 2. Decisiones vigentes
 
+- **Ergonomía Móvil en Cuentas Bancarias y Billeteras (Spec 029):**
+  - **Cuadrícula de 2 Columnas en Móvil:** El contenedor `#accounts-grid` se configura con `grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-4`, permitiendo desplegar 2 tarjetas de cuenta por fila en iPhone en vista vertical.
+  - **Proporción y Padding Compacto (`.account-card`):** Se adaptan las tarjetas a `p-3 sm:p-5`, iconos de cabecera `w-7 h-7 sm:w-10 sm:h-10`, botones de acción rápida de edición/eliminación `p-1 sm:p-1.5` y saldos tipográficos con `truncate` (`text-sm sm:text-xl font-bold tabular-nums`), garantizando lectura limpia, sin desbordes y permitiendo visualizar entre 4 y 6 cuentas de una sola vez sin scroll excesivo.
+  - Suite de pruebas unitarias TDD Red-Green en `tests/accounts-responsive.test.js` con 3/3 pruebas aprobadas (140/140 pruebas totales del proyecto).
 - **Ergonomía Móvil del Dashboard y Alineación Inferior del Footer (Spec 028):**
   - **Cuadrícula Compacta de 2 Columnas en Móvil:** El contenedor de métricas clave del Dashboard (`dash-net-worth`, `dash-month-income`, `dash-month-expense`, `dash-savings-rate`) y de alertas de presupuestos (`dash-budget-progress-list`) se configura con `grid-cols-2 sm:grid-cols-2 lg:grid-cols-4` y padding responsivo `p-3 sm:p-5`, permitiendo ver 2 tarjetas por fila de un vistazo en iPhone vertical sin ocupar toda la pantalla.
   - **Fijación Inferior del Footer (Sticky Bottom en PC):** El contenedor `<main>` adopta `flex flex-col min-h-0` y `#app-footer` incorpora `mt-auto flex-shrink-0`. Con vistas de contenido corto en pantallas panorámicas de PC, el pie de página se asienta de forma natural al ras del borde inferior de la ventana en lugar de situarse en el centro vertical.
@@ -132,6 +136,12 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 3. Historial de cambios
 
+- **2026-11-22 — Spec 029: Ergonomía Móvil de Cuentas Financieras (2 por Fila en iPhone) (SDD):**
+  - Creada especificación formal `specs/029-ergonomia-cuentas-movil/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
+  - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/accounts-responsive.test.js` (3 pruebas verificando cuadrícula responsiva `grid-cols-2` en `#accounts-grid`, padding adaptado `p-3 sm:p-5` y proporciones de iconos `w-7 h-7 sm:w-10 sm:h-10`, elevando la suite completa a 140/140 pruebas en verde).
+  - Actualizado `index.html` en `#accounts-grid` para 2 columnas por fila en móviles y `assets/js/app.js` en `renderAccounts()` compactando botones, badges, iconos y saldos sin desbordes.
+  - Actualizada la versión del Service Worker a `contapersonal-v12` en `sw.js`.
+  - Verificación global con `node --test tests/*.test.js`: 140/140 pruebas pasando al 100% sin regresiones.
 - **2026-11-22 — Spec 028: Ergonomía Móvil del Dashboard y Alineación Inferior del Footer (SDD):**
   - Creada especificación formal `specs/028-ergonomia-dashboard-footer/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
   - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/dashboard-responsive-footer.test.js` (4 pruebas verificando cuadrícula de 2 columnas en móvil `grid-cols-2`, compactación de tarjetas `p-3 sm:p-5`, cuadrícula responsiva de presupuestos y layout flexbox con `mt-auto` en `#app-footer` y `flex-col` en `<main>`, elevando la suite completa a 137/137 pruebas en verde).
