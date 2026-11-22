@@ -1028,7 +1028,33 @@
       return { valida: false, error: `Ya existe otra cuenta registrada con el nombre "${name.trim()}".` };
     }
 
+    if (datosCuenta.initialBalance !== undefined && datosCuenta.initialBalance !== null) {
+      const rawBal = datosCuenta.initialBalance;
+      if (typeof rawBal === "string" && rawBal.trim() === "") {
+        return { valida: false, error: "El saldo inicial debe ser un número válido." };
+      }
+      const num = Number(rawBal);
+      if (isNaN(num) || !isFinite(num)) {
+        return { valida: false, error: "El saldo inicial debe ser un número válido." };
+      }
+    }
+
     return { valida: true };
+  }
+
+  /**
+   * Normaliza el saldo inicial según las reglas contables de la aplicación (Spec 026 / RF-4)
+   * En tarjetas de crédito, un saldo inicial positivo representa deuda por lo que se convierte a negativo.
+   * @param {string} type 
+   * @param {number|string} initialBalance 
+   * @returns {number}
+   */
+  function normalizarSaldoInicialCuenta(type, initialBalance) {
+    let balance = Number(initialBalance) || 0;
+    if (type === "credit_card" && balance > 0) {
+      balance = -Math.abs(balance);
+    }
+    return balance;
   }
 
   /**
@@ -2484,6 +2510,7 @@
     calcularResumenCuenta,
     clasificarPlanDeCuentas,
     validarEdicionCuenta,
+    normalizarSaldoInicialCuenta,
     puedeEliminarCuenta,
     purgarMovimientosDeCuenta,
     CURRENCIES_BASE,

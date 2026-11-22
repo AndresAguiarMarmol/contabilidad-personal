@@ -3115,6 +3115,17 @@
             </select>
           </div>
 
+          <!-- Saldo Inicial (Spec 026) -->
+          <div class="space-y-1">
+            <label id="acc-edit-balance-label" class="font-semibold text-slate-700 dark:text-slate-300">
+              ${account.type === "credit_card" ? "Saldo Adeudado Inicial ($) *" : "Saldo Inicial ($) *"}
+            </label>
+            <input type="number" id="acc-edit-input-balance" value="${account.type === 'credit_card' ? Math.abs(account.initialBalance ?? 0) : (account.initialBalance ?? 0)}" step="any" placeholder="0" required class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-bold tabular-nums focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            <p id="acc-edit-balance-hint" class="text-[10px] text-slate-400">
+              ${account.type === "credit_card" ? "Monto adeudado actual en la tarjeta (se computará como deuda / pasivo)." : "Capital con el que inició la cuenta."}
+            </p>
+          </div>
+
           <!-- Moneda -->
           <div class="space-y-1">
             <label class="font-semibold text-slate-700 dark:text-slate-300">Moneda *</label>
@@ -3155,6 +3166,21 @@
 
     safeRenderIcons();
 
+    const editTypeSelect = document.getElementById("acc-edit-input-type");
+    const editBalanceLabel = document.getElementById("acc-edit-balance-label");
+    const editBalanceHint = document.getElementById("acc-edit-balance-hint");
+
+    editTypeSelect?.addEventListener("change", (e) => {
+      const selectedType = e.target.value;
+      if (selectedType === "credit_card") {
+        if (editBalanceLabel) editBalanceLabel.textContent = "Saldo Adeudado Inicial ($) *";
+        if (editBalanceHint) editBalanceHint.textContent = "Monto adeudado actual en la tarjeta (se computará como deuda / pasivo).";
+      } else {
+        if (editBalanceLabel) editBalanceLabel.textContent = "Saldo Inicial ($) *";
+        if (editBalanceHint) editBalanceHint.textContent = "Capital con el que inició la cuenta.";
+      }
+    });
+
     document.getElementById("acc-edit-form-cancel")?.addEventListener("click", () => modal.close());
 
     const form = document.getElementById("form-edit-account");
@@ -3167,6 +3193,12 @@
       const currencyVal = document.getElementById("acc-edit-input-currency")?.value || "CLP";
       const colorVal = document.getElementById("acc-edit-input-color")?.value || account.color;
       const excludeVal = Boolean(document.getElementById("acc-edit-input-exclude")?.checked);
+      const rawBalanceVal = document.getElementById("acc-edit-input-balance")?.value;
+      const balanceVal = Number(rawBalanceVal);
+
+      const normalizedInitialBalance = Calculations && typeof Calculations.normalizarSaldoInicialCuenta === "function"
+        ? Calculations.normalizarSaldoInicialCuenta(typeVal, balanceVal)
+        : (typeVal === "credit_card" && balanceVal > 0 ? -Math.abs(balanceVal) : balanceVal);
 
       const editData = {
         name: nameVal,
@@ -3174,7 +3206,8 @@
         codigoContable: codeVal,
         currency: currencyVal,
         color: colorVal,
-        isExcludedFromTotal: excludeVal
+        isExcludedFromTotal: excludeVal,
+        initialBalance: normalizedInitialBalance
       };
 
       const validacion = Calculations
@@ -3192,8 +3225,16 @@
       account.currency = currencyVal;
       account.color = colorVal;
       account.isExcludedFromTotal = excludeVal;
+      account.initialBalance = normalizedInitialBalance;
       if (codeVal) {
         account.codigoContable = codeVal;
+      }
+
+      // Recalcular balances atómicamente con base en el nuevo saldo inicial y movimientos
+      if (Calculations && typeof Calculations.recalcularBalancesCuentas === "function") {
+        state.accounts = Calculations.recalcularBalancesCuentas(state.accounts, state.transactions);
+      } else {
+        account.currentBalance = account.initialBalance;
       }
 
       // Actualizar icono según tipo

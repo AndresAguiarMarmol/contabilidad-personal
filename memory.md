@@ -50,6 +50,11 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 2. Decisiones vigentes
 
+- **Edición de Saldo Inicial en Cuentas Financieras y Recálculo Determinista (Spec 026):**
+  - **Campo Saldo Inicial en Modal de Edición:** En `openAccountEditModal` (`#form-edit-account`), se añade el campo interactivo `#acc-edit-input-balance` precargado con `account.initialBalance` (o su valor absoluto en tarjetas de crédito), con etiquetas y ayudas contextuales reactivas según el tipo de cuenta.
+  - **Validación y Normalización de Saldo Inicial:** Se extiende `Calculations.validarEdicionCuenta` para validar que `initialBalance` sea numérico y finito, y se implementa `Calculations.normalizarSaldoInicialCuenta(type, initialBalance)` que preserva activos y convierte automáticamente los importes positivos en tarjetas de crédito a deuda negativa contable.
+  - **Recálculo Atómico de Saldos:** Al guardar la edición, el sistema recalcula deterministamente el `currentBalance` de las cuentas con `Calculations.recalcularBalancesCuentas(state.accounts, state.transactions)`, manteniendo intacto el historial de transacciones, actualizando los indicadores patrimoniales y persistiendo en `localStorage` y Cloud Firestore.
+  - Suite de pruebas unitarias TDD Red-Green en `tests/account-initial-balance-edit.test.js` con 5/5 pruebas aprobadas (129/129 pruebas totales del proyecto).
 - **CRUD Completo de Movimientos en el Libro de Movimientos y Recálculo Contable (Spec 025):**
   - **Edición y Eliminación en Fila:** En la tabla del Libro de Movimientos (`#view-transactions`), se agrega la columna de "Acciones" con botones accesibles e identificados para Editar (`.btn-edit-tx`) y Eliminar (`.btn-delete-tx`) cada transacción.
   - **Recálculo Determinista de Balances (`recalcularBalancesCuentas`):** Al editar o eliminar un movimiento (estándar o dividido en split), no se aplican diferenciales frágiles acumulativos. En su lugar, la función pura `Calculations.recalcularBalancesCuentas(cuentas, transacciones)` reconstruye atómica y deterministamente el `currentBalance` de cada cuenta a partir de su `initialBalance` y la totalidad de los movimientos cronológicos restantes, garantizando ausencia absoluta de descuadres de centavos.
@@ -119,6 +124,13 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 3. Historial de cambios
 
+- **2026-11-22 — Spec 026: Edición de Saldo Inicial en Cuentas Financieras (SDD):**
+  - Creada especificación formal `specs/026-edicion-saldo-inicial-cuentas/` (`spec.md` aprobada en formato EARS, `plan.md`, `tasks.md`).
+  - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/account-initial-balance-edit.test.js` (5 pruebas exhaustivas verificando validación de saldo inicial en `validarEdicionCuenta`, normalización de pasivo en `normalizarSaldoInicialCuenta`, recálculo inmediato en cuentas sin movimientos y en cuentas con movimientos mixtos de ingresos/gastos/transferencias, y tratamiento de tarjetas de crédito, elevando la suite completa a 129/129 pruebas en verde).
+  - Implementada en `assets/js/financeCalculations.js` la función pura `normalizarSaldoInicialCuenta(type, initialBalance)` y extendida `validarEdicionCuenta`.
+  - Actualizado `assets/js/app.js` en `openAccountEditModal` para incluir `#acc-edit-input-balance` con ayuda y etiqueta contextual reactiva, conectando el recálculo atómico de balances con `recalcularBalancesCuentas`, persistencia en `Storage.saveAccounts` y auto-sincronización con Firestore.
+  - Actualizada la versión del Service Worker a `contapersonal-v9` en `sw.js`.
+  - Verificación global con `node --test tests/*.test.js`: 129/129 pruebas pasando al 100% sin regresiones.
 - **2026-11-22 — Spec 025: CRUD Completo de Movimientos en Libro de Movimientos (SDD):**
   - Creada especificación formal `specs/025-crud-movimientos/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
   - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/transactions-crud.test.js` (5 pruebas exhaustivas verificando recálculo contable de saldos `recalcularBalancesCuentas` con ingresos, gastos, transferencias y splits, edición de movimientos con ajuste contable en cuentas involucradas, eliminación de movimientos con restauración de fondos, prevención de resurrección de transacciones eliminadas mediante lápidas `deletedTransactions` en `fusionarEstadoContable`, y robustez ante listas vacías o valores nulos, elevando la suite completa a 124/124 pruebas en verde).
