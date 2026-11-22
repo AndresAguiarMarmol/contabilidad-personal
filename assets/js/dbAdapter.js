@@ -555,7 +555,7 @@
       }
     },
 
-    // --- SINCRONIZACIÓN BIDIRECCIONAL COMPLETA (SPEC 015) ---
+    // --- SINCRONIZACIÓN BIDIRECCIONAL COMPLETA (SPEC 015 & SPEC 024) ---
     async syncBidirectional(customConfig = null) {
       const config = customConfig || (Storage.getDbConfig ? Storage.getDbConfig() : null);
       if (!this.isFirebaseConfigured(config)) {
@@ -564,6 +564,19 @@
           provider: "none",
           message: "Operando en modo Local Storage (sin base de datos remota configurada)."
         };
+      }
+
+      // Validar sesión activa obligatoria para aislar por UID (Spec 024)
+      const session = Storage && Storage.getAuthSession ? Storage.getAuthSession() : null;
+      if (!session || !session.uid) {
+        return {
+          synced: false,
+          provider: "none",
+          message: "No hay sesión activa autenticada para sincronizar con la nube."
+        };
+      }
+      if (Storage && Storage.setActiveUid) {
+        Storage.setActiveUid(session.uid);
       }
 
       const localState = {

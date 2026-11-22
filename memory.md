@@ -8,8 +8,9 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 ## 1. Estructura de datos y persistencia
 
 ### A. Persistencia en `localStorage` (Modo Offline / Local por defecto)
+- **Aislamiento Multi-Usuario por UID (Spec 024):** Todas las claves de almacenamiento contable privado se particionan y prefijan dinámicamente con el UID del usuario autenticado (`finance_${uid}_accounts_data`, `finance_${uid}_transactions_data`, `finance_${uid}_budgets_data`, `finance_${uid}_goals_data`, `finance_${uid}_plan_accounts_data`, `finance_${uid}_currencies_data`, `finance_${uid}_deleted_*`) mediante la función pura `Calculations.obtenerClaveStorage(claveBase, uid)` y `Storage.resolveKey()`. Esto garantiza confidencialidad y aislamiento total entre diferentes usuarios (ej. esposos/familiares) que compartan el mismo dispositivo o navegador. Al cerrar sesión o conmutar de usuario, el puntero activo se restablece y se purgan las memorias para evitar cualquier lectura o fusión cruzada.
 - **Estado Inicial Limpio (Spec 022):** Todas las semillas de prueba (`INITIAL_ACCOUNTS`, `INITIAL_TRANSACTIONS`, `INITIAL_BUDGETS`, `INITIAL_GOALS`) quedan vacías `[]` por defecto. `Storage` y `Calculations.purgarDatosDemoLocales` descartan automáticamente registros demo históricos (`ACC-001`..`005`, `TX-2026-001`..`012`, etc.) al cargar datos locales para garantizar un inicio 100% limpio para usuarios reales. Se preserva intacto el catálogo contable base (Plan de Cuentas chileno, Clases 1 a 5 con balance $0) y las monedas referenciales (`CLP`, `USD`, `EUR`, `ARS`).
-- **Clave:** `finance_accounts_data`
+- **Clave:** `finance_accounts_data` (o `finance_${uid}_accounts_data`)
   - Array de objetos `Account`: `id`, `name`, `type` (`"bank"` | `"cash"` | `"wallet"` | `"savings"` | `"credit_card"`), `initialBalance`, `currentBalance`, `currency`, `color`, `icon`, `isExcludedFromTotal`.
 - **Clave:** `finance_transactions_data`
   - Array de objetos `Transaction`: `id`, `date`, `type` (`"income"` | `"expense"` | `"transfer"`), `accountId`, `toAccountId`, `category`, `categoryCode` (código contable del plan, ej. `5.2.01`), `amount`, `description`, `paymentMethod`, `isRecurring`, `isSplit` (booleano opcional), `splitLines` (array de partidas: `{ id, description, amount, category, categoryCode, targetAccountId }`).
@@ -48,6 +49,11 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 2. Decisiones vigentes
 
+- **Aislamiento Estricto Multi-Usuario por UID en Almacenamiento Local y Sync en la Nube (Spec 024):**
+  - **Partición por UID en `localStorage` (Namespacing):** Todas las claves privadas (`accounts`, `transactions`, `budgets`, `goals`, `planAccounts`, `currencies` y lápidas de eliminación `deleted*`) son derivadas dinámicamente mediante la función pura `Calculations.obtenerClaveStorage(claveBase, uid)` bajo el patrón `finance_${uid}_${claveBase}`.
+  - **Conmutación Limpia de Sesión:** `Storage.setActiveUid(uid)` fija el espacio activo para lecturas y escrituras. Al cerrar sesión (`solicitarCierreSesion`), se restablece `Storage.setActiveUid(null)`, se purgan todas las entidades en la memoria activa (`state`) y se bloquea la app con `#auth-gate-screen`, impidiendo cualquier fuga de datos al usuario que inicie sesión a continuación en el mismo dispositivo o navegador.
+  - **Auto-Sync Blindado y Descontaminación Segura:** `DbAdapter.syncBidirectional()` valida la existencia de una sesión autenticada con UID antes de sincronizar. Sincroniza únicamente el almacenamiento del usuario activo con su documento privado `workspaces/{uid}` en Cloud Firestore. Las lápidas de eliminación son 100% independientes por UID, lo que permite a cada usuario eliminar cuentas mezcladas por error en su perfil sin que se eliminen ni afecten en el perfil del otro usuario.
+  - Suite de pruebas unitarias TDD Red-Green en `tests/user-isolation.test.js` con 5/5 pruebas aprobadas (119/119 pruebas totales del proyecto).
 - **Buscador y Filtrado en Tiempo Real de Cuentas Financieras (Spec 023):**
   - **Barra de Búsqueda Permanente:** En la cabecera de la sección "Cuentas Bancarias, Billeteras y Tarjetas" (`#view-accounts`), se incorpora una barra de búsqueda siempre visible (`#accounts-search-input`) con icono de lupa, botón de limpieza (`#btn-clear-accounts-search`) y contador dinámico de resultados.
   - **Filtrado Reactivo e Insensible a Diacríticos:** Implementada la función pura `Calculations.filtrarCuentasFinancieras(cuentas, termino)` que normaliza textos con NFD para eliminar tildes y acentos, buscando por nombre de la cuenta, tipo de cuenta (en español o clave técnica) y código de divisa (`CLP`, `USD`, `EUR`, `ARS`).
@@ -106,6 +112,15 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 3. Historial de cambios
 
+- **2026-11-22 — Spec 024: Aislamiento Estricto Multi-Usuario por UID en Almacenamiento Local y Sync en la Nube (SDD):**
+  - Creada especificación formal `specs/024-aislamiento-multi-usuario-uid/` (`spec.md` aprobada en formato EARS, `plan.md`, `tasks.md`).
+  - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/user-isolation.test.js` (5 pruebas unitarias cubriendo derivación pura de claves `obtenerClaveStorage`, partición por UID activo en `Storage`, independencia de cuentas y lápidas entre usuarios en un mismo dispositivo, purga al cerrar sesión y salvaguarda en `DbAdapter.syncBidirectional`, elevando la suite completa a 119/119 pruebas en verde).
+  - Implementada en `assets/js/financeCalculations.js` la función pura `obtenerClaveStorage(claveBase, uid)` distinguiendo claves globales (`finance_theme`, `finance_auth_session`, `finance_remote_db_config`) de claves de patrimonio contable personal.
+  - Implementada en `assets/js/storage.js` la resolución dinámica de claves `resolveKey`, gestión de `activeUserUid`, `setActiveUid`, `getActiveUid`, `limpiarClavesGlobalesLegacy` y adaptación de todos los métodos de lectura/escritura (`accounts`, `transactions`, `budgets`, `goals`, `planAccounts`, `currencies`, `deleted*`).
+  - Actualizado `assets/js/app.js` en `solicitarCierreSesion()` para purgar completamente la memoria activa (`state`) y resetear el UID activo en `Storage`, y en los manejadores de autenticación (Login y Registro) para fijar el UID activo y purgar claves legacy previas a cargar datos y sincronizar con Firestore.
+  - Actualizado `assets/js/dbAdapter.js` en `syncBidirectional()` para verificar la presencia de sesión con UID válido y asegurar la sincronización exclusiva sobre `workspaces/{uid}`.
+  - Actualizada la versión del Service Worker a `contapersonal-v7` en `sw.js`.
+  - Verificación global con `node --test tests/*.test.js`: 119/119 pruebas pasando al 100% sin regresiones.
 - **2026-11-22 — Spec 023: Buscador y Filtro de Cuentas Financieras, Billeteras y Tarjetas (SDD):**
   - Creada especificación formal `specs/023-buscador-cuentas-financieras/` (`spec.md` aprobada en formato EARS, `plan.md`, `tasks.md`).
   - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/accounts-search.test.js` (6 pruebas unitarias cubriendo retorno completo con término vacío, coincidencia por nombre, insensibilidad a tildes/mayúsculas, búsqueda por tipo de cuenta, búsqueda por código de divisa, array vacío sin coincidencias y robustez ante datos corruptos o anómalos, elevando la suite completa a 114/114 pruebas en verde).

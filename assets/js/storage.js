@@ -42,12 +42,40 @@
     return null;
   };
 
+  let activeUserUid = null;
+
   const Storage = {
+    // --- GESTIÓN DE UID ACTIVO (SPEC 024) ---
+    setActiveUid(uid) {
+      activeUserUid = (typeof uid === "string" && uid.trim().length > 0) ? uid.trim() : null;
+    },
+
+    getActiveUid() {
+      if (activeUserUid) return activeUserUid;
+      const session = this.getAuthSession();
+      if (session && session.uid) {
+        activeUserUid = session.uid;
+        return activeUserUid;
+      }
+      return null;
+    },
+
+    resolveKey(baseKey) {
+      const uid = this.getActiveUid();
+      if (calculations && typeof calculations.obtenerClaveStorage === "function") {
+        return calculations.obtenerClaveStorage(baseKey, uid);
+      }
+      if (!uid) return baseKey;
+      const suffix = baseKey.startsWith("finance_") ? baseKey.slice("finance_".length) : baseKey;
+      return `finance_${uid}_${suffix}`;
+    },
+
     // --- CUENTAS ---
     getAccounts() {
       const ls = getLocalStorage();
+      const key = this.resolveKey(STORAGE_KEYS.ACCOUNTS);
       try {
-        const raw = ls ? ls.getItem(STORAGE_KEYS.ACCOUNTS) : null;
+        const raw = ls ? ls.getItem(key) : null;
         if (!raw) {
           const defaults = mockData.INITIAL_ACCOUNTS || [];
           this.saveAccounts(defaults);
@@ -70,9 +98,10 @@
 
     saveAccounts(accounts) {
       const ls = getLocalStorage();
+      const key = this.resolveKey(STORAGE_KEYS.ACCOUNTS);
       if (ls) {
         try {
-          ls.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify(accounts));
+          ls.setItem(key, JSON.stringify(accounts));
         } catch (e) {}
       }
     },
@@ -80,8 +109,9 @@
     // --- TRANSACCIONES ---
     getTransactions() {
       const ls = getLocalStorage();
+      const key = this.resolveKey(STORAGE_KEYS.TRANSACTIONS);
       try {
-        const raw = ls ? ls.getItem(STORAGE_KEYS.TRANSACTIONS) : null;
+        const raw = ls ? ls.getItem(key) : null;
         if (!raw) {
           const defaults = mockData.INITIAL_TRANSACTIONS || [];
           this.saveTransactions(defaults);
@@ -104,9 +134,10 @@
 
     saveTransactions(transactions) {
       const ls = getLocalStorage();
+      const key = this.resolveKey(STORAGE_KEYS.TRANSACTIONS);
       if (ls) {
         try {
-          ls.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(transactions));
+          ls.setItem(key, JSON.stringify(transactions));
         } catch (e) {}
       }
     },
@@ -114,8 +145,9 @@
     // --- PRESUPUESTOS ---
     getBudgets() {
       const ls = getLocalStorage();
+      const key = this.resolveKey(STORAGE_KEYS.BUDGETS);
       try {
-        const raw = ls ? ls.getItem(STORAGE_KEYS.BUDGETS) : null;
+        const raw = ls ? ls.getItem(key) : null;
         if (!raw) {
           const defaults = mockData.INITIAL_BUDGETS || [];
           this.saveBudgets(defaults);
@@ -138,9 +170,10 @@
 
     saveBudgets(budgets) {
       const ls = getLocalStorage();
+      const key = this.resolveKey(STORAGE_KEYS.BUDGETS);
       if (ls) {
         try {
-          ls.setItem(STORAGE_KEYS.BUDGETS, JSON.stringify(budgets));
+          ls.setItem(key, JSON.stringify(budgets));
         } catch (e) {}
       }
     },
@@ -148,8 +181,9 @@
     // --- METAS DE AHORRO ---
     getGoals() {
       const ls = getLocalStorage();
+      const key = this.resolveKey(STORAGE_KEYS.GOALS);
       try {
-        const raw = ls ? ls.getItem(STORAGE_KEYS.GOALS) : null;
+        const raw = ls ? ls.getItem(key) : null;
         if (!raw) {
           const defaults = mockData.INITIAL_GOALS || [];
           this.saveGoals(defaults);
@@ -172,9 +206,10 @@
 
     saveGoals(goals) {
       const ls = getLocalStorage();
+      const key = this.resolveKey(STORAGE_KEYS.GOALS);
       if (ls) {
         try {
-          ls.setItem(STORAGE_KEYS.GOALS, JSON.stringify(goals));
+          ls.setItem(key, JSON.stringify(goals));
         } catch (e) {}
       }
     },
@@ -182,8 +217,9 @@
     // --- CUENTAS PLAN DE CUENTAS PERSONAL ---
     getPlanAccounts() {
       const ls = getLocalStorage();
+      const key = this.resolveKey(STORAGE_KEYS.PLAN_ACCOUNTS);
       try {
-        const raw = ls ? ls.getItem(STORAGE_KEYS.PLAN_ACCOUNTS) : null;
+        const raw = ls ? ls.getItem(key) : null;
         return raw ? JSON.parse(raw) : [];
       } catch (e) {
         console.warn("Error leyendo cuentas del plan contable:", e);
@@ -193,9 +229,10 @@
 
     savePlanAccounts(planAccounts) {
       const ls = getLocalStorage();
+      const key = this.resolveKey(STORAGE_KEYS.PLAN_ACCOUNTS);
       if (ls) {
         try {
-          ls.setItem(STORAGE_KEYS.PLAN_ACCOUNTS, JSON.stringify(planAccounts));
+          ls.setItem(key, JSON.stringify(planAccounts));
         } catch (e) {}
       }
     },
@@ -203,8 +240,9 @@
     // --- MONEDAS Y TASAS DE CAMBIO (SPEC 018) ---
     getCurrencies() {
       const ls = getLocalStorage();
+      const key = this.resolveKey(STORAGE_KEYS.CURRENCIES);
       try {
-        const raw = ls ? ls.getItem(STORAGE_KEYS.CURRENCIES) : null;
+        const raw = ls ? ls.getItem(key) : null;
         if (!raw) {
           const defaults = calculations && calculations.CURRENCIES_BASE
             ? calculations.CURRENCIES_BASE
@@ -226,18 +264,20 @@
 
     saveCurrencies(currencies) {
       const ls = getLocalStorage();
+      const key = this.resolveKey(STORAGE_KEYS.CURRENCIES);
       if (ls) {
         try {
-          ls.setItem(STORAGE_KEYS.CURRENCIES, JSON.stringify(Array.isArray(currencies) ? currencies : []));
+          ls.setItem(key, JSON.stringify(Array.isArray(currencies) ? currencies : []));
         } catch (e) {}
       }
     },
 
-    // --- LÁPIDAS DE ELIMINACIÓN (TOMBSTONES - SPEC 016 & SPEC 017) ---
+    // --- LÁPIDAS DE ELIMINACIÓN (TOMBSTONES - SPEC 016 & SPEC 017 & SPEC 024) ---
     getDeletedAccounts() {
       const ls = getLocalStorage();
+      const key = this.resolveKey(STORAGE_KEYS.DELETED_ACCOUNTS);
       try {
-        const raw = ls ? ls.getItem(STORAGE_KEYS.DELETED_ACCOUNTS) : null;
+        const raw = ls ? ls.getItem(key) : null;
         return raw ? JSON.parse(raw) : [];
       } catch (e) {
         return [];
@@ -245,17 +285,19 @@
     },
     saveDeletedAccounts(list) {
       const ls = getLocalStorage();
+      const key = this.resolveKey(STORAGE_KEYS.DELETED_ACCOUNTS);
       if (ls) {
         try {
-          ls.setItem(STORAGE_KEYS.DELETED_ACCOUNTS, JSON.stringify(Array.isArray(list) ? list : []));
+          ls.setItem(key, JSON.stringify(Array.isArray(list) ? list : []));
         } catch (e) {}
       }
     },
 
     getDeletedPlanAccounts() {
       const ls = getLocalStorage();
+      const key = this.resolveKey(STORAGE_KEYS.DELETED_PLAN_ACCOUNTS);
       try {
-        const raw = ls ? ls.getItem(STORAGE_KEYS.DELETED_PLAN_ACCOUNTS) : null;
+        const raw = ls ? ls.getItem(key) : null;
         return raw ? JSON.parse(raw) : [];
       } catch (e) {
         return [];
@@ -263,17 +305,19 @@
     },
     saveDeletedPlanAccounts(list) {
       const ls = getLocalStorage();
+      const key = this.resolveKey(STORAGE_KEYS.DELETED_PLAN_ACCOUNTS);
       if (ls) {
         try {
-          ls.setItem(STORAGE_KEYS.DELETED_PLAN_ACCOUNTS, JSON.stringify(Array.isArray(list) ? list : []));
+          ls.setItem(key, JSON.stringify(Array.isArray(list) ? list : []));
         } catch (e) {}
       }
     },
 
     getDeletedBudgets() {
       const ls = getLocalStorage();
+      const key = this.resolveKey(STORAGE_KEYS.DELETED_BUDGETS);
       try {
-        const raw = ls ? ls.getItem(STORAGE_KEYS.DELETED_BUDGETS) : null;
+        const raw = ls ? ls.getItem(key) : null;
         return raw ? JSON.parse(raw) : [];
       } catch (e) {
         return [];
@@ -281,17 +325,19 @@
     },
     saveDeletedBudgets(list) {
       const ls = getLocalStorage();
+      const key = this.resolveKey(STORAGE_KEYS.DELETED_BUDGETS);
       if (ls) {
         try {
-          ls.setItem(STORAGE_KEYS.DELETED_BUDGETS, JSON.stringify(Array.isArray(list) ? list : []));
+          ls.setItem(key, JSON.stringify(Array.isArray(list) ? list : []));
         } catch (e) {}
       }
     },
 
     getDeletedGoals() {
       const ls = getLocalStorage();
+      const key = this.resolveKey(STORAGE_KEYS.DELETED_GOALS);
       try {
-        const raw = ls ? ls.getItem(STORAGE_KEYS.DELETED_GOALS) : null;
+        const raw = ls ? ls.getItem(key) : null;
         return raw ? JSON.parse(raw) : [];
       } catch (e) {
         return [];
@@ -299,9 +345,10 @@
     },
     saveDeletedGoals(list) {
       const ls = getLocalStorage();
+      const key = this.resolveKey(STORAGE_KEYS.DELETED_GOALS);
       if (ls) {
         try {
-          ls.setItem(STORAGE_KEYS.DELETED_GOALS, JSON.stringify(Array.isArray(list) ? list : []));
+          ls.setItem(key, JSON.stringify(Array.isArray(list) ? list : []));
         } catch (e) {}
       }
     },
@@ -363,8 +410,10 @@
       if (ls) {
         try {
           if (!session) {
+            activeUserUid = null;
             ls.removeItem(STORAGE_KEYS.AUTH_SESSION);
           } else {
+            if (session.uid) activeUserUid = session.uid;
             ls.setItem(STORAGE_KEYS.AUTH_SESSION, JSON.stringify(session));
           }
         } catch (e) {}
@@ -372,6 +421,7 @@
     },
 
     clearAuthSession() {
+      activeUserUid = null;
       const ls = getLocalStorage();
       if (ls) {
         try {
@@ -477,20 +527,40 @@
       return { assets: 0, liabilities: 0, netWorth: 0 };
     },
 
-    // --- LIMPIEZA TOTAL DE DATOS LOCALES (SPEC 022) ---
+    // --- LIMPIEZA TOTAL DE DATOS LOCALES (SPEC 022 & SPEC 024) ---
     limpiarTodoElEstadoLocal() {
       const ls = getLocalStorage();
       if (ls) {
         try {
-          ls.removeItem(STORAGE_KEYS.ACCOUNTS);
-          ls.removeItem(STORAGE_KEYS.TRANSACTIONS);
-          ls.removeItem(STORAGE_KEYS.BUDGETS);
-          ls.removeItem(STORAGE_KEYS.GOALS);
-          ls.removeItem(STORAGE_KEYS.PLAN_ACCOUNTS);
-          ls.removeItem(STORAGE_KEYS.DELETED_ACCOUNTS);
-          ls.removeItem(STORAGE_KEYS.DELETED_PLAN_ACCOUNTS);
-          ls.removeItem(STORAGE_KEYS.DELETED_BUDGETS);
-          ls.removeItem(STORAGE_KEYS.DELETED_GOALS);
+          ls.removeItem(this.resolveKey(STORAGE_KEYS.ACCOUNTS));
+          ls.removeItem(this.resolveKey(STORAGE_KEYS.TRANSACTIONS));
+          ls.removeItem(this.resolveKey(STORAGE_KEYS.BUDGETS));
+          ls.removeItem(this.resolveKey(STORAGE_KEYS.GOALS));
+          ls.removeItem(this.resolveKey(STORAGE_KEYS.PLAN_ACCOUNTS));
+          ls.removeItem(this.resolveKey(STORAGE_KEYS.CURRENCIES));
+          ls.removeItem(this.resolveKey(STORAGE_KEYS.DELETED_ACCOUNTS));
+          ls.removeItem(this.resolveKey(STORAGE_KEYS.DELETED_PLAN_ACCOUNTS));
+          ls.removeItem(this.resolveKey(STORAGE_KEYS.DELETED_BUDGETS));
+          ls.removeItem(this.resolveKey(STORAGE_KEYS.DELETED_GOALS));
+        } catch (e) {}
+      }
+    },
+
+    // --- PURGA DE CLAVES GLOBALES OBSOLETAS SIN NAMESPACE (SPEC 024) ---
+    limpiarClavesGlobalesLegacy() {
+      const ls = getLocalStorage();
+      if (ls) {
+        try {
+          ls.removeItem("finance_accounts_data");
+          ls.removeItem("finance_transactions_data");
+          ls.removeItem("finance_budgets_data");
+          ls.removeItem("finance_goals_data");
+          ls.removeItem("finance_plan_accounts_data");
+          ls.removeItem("finance_currencies_data");
+          ls.removeItem("finance_deleted_accounts_data");
+          ls.removeItem("finance_deleted_plan_accounts_data");
+          ls.removeItem("finance_deleted_budgets_data");
+          ls.removeItem("finance_deleted_goals_data");
         } catch (e) {}
       }
     }

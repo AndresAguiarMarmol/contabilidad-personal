@@ -4632,14 +4632,20 @@
 
   function solicitarCierreSesion() {
     if (confirm("¿Deseas cerrar tu sesión? La aplicación se bloqueará hasta que vuelvas a identificarte con Firebase Authentication.")) {
-      if (Storage && Storage.clearAuthSession) {
-        Storage.clearAuthSession();
+      if (Storage) {
+        if (Storage.clearAuthSession) Storage.clearAuthSession();
+        if (Storage.setActiveUid) Storage.setActiveUid(null);
       }
       state.authSession = null;
       state.accounts = [];
       state.transactions = [];
       state.budgets = [];
       state.goals = [];
+      state.planAccounts = [];
+      state.deletedAccounts = [];
+      state.deletedPlanAccounts = [];
+      state.deletedBudgets = [];
+      state.deletedGoals = [];
       evaluarAccesoAuth();
       showToast("Sesión cerrada. Aplicación bloqueada.", "info");
     }
@@ -5148,7 +5154,14 @@
 
         if (res && res.success) {
           state.authSession = res.session;
+          if (Storage) {
+            if (Storage.saveAuthSession) Storage.saveAuthSession(res.session);
+            if (Storage.setActiveUid) Storage.setActiveUid(res.session.uid);
+            if (Storage.limpiarClavesGlobalesLegacy) Storage.limpiarClavesGlobalesLegacy();
+          }
           authModal?.close();
+          loadStateFromStorage();
+          evaluarAccesoAuth();
           renderAuthWidget();
           showToast(res.message, "success");
           // Disparar sincronización bidireccional automática del nuevo workspace privado
@@ -5255,8 +5268,10 @@
 
         if (res && res.success) {
           state.authSession = res.session;
-          if (Storage && Storage.saveAuthSession) {
-            Storage.saveAuthSession(res.session);
+          if (Storage) {
+            if (Storage.saveAuthSession) Storage.saveAuthSession(res.session);
+            if (Storage.setActiveUid) Storage.setActiveUid(res.session.uid);
+            if (Storage.limpiarClavesGlobalesLegacy) Storage.limpiarClavesGlobalesLegacy();
           }
 
           if (isSignUp && Calculations && typeof Calculations.crearEstadoInicialLimpio === "function") {
@@ -5316,6 +5331,12 @@
   function startApp() {
     initTheme();
     initNavigation();
+    if (Storage && Storage.getAuthSession) {
+      const session = Storage.getAuthSession();
+      if (session && session.uid && Storage.setActiveUid) {
+        Storage.setActiveUid(session.uid);
+      }
+    }
     loadStateFromStorage();
     initFiltersAndEvents();
     initAuthGateEvents();

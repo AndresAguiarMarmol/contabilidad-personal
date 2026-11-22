@@ -2419,6 +2419,29 @@
     });
   }
 
+  // ========================================================
+  // SPEC 024: AISLAMIENTO MULTI-USUARIO POR UID (NAMESPACING)
+  // ========================================================
+  const GLOBAL_STORAGE_KEYS = new Set([
+    "finance_theme",
+    "finance_remote_db_config",
+    "finance_auth_session"
+  ]);
+
+  function obtenerClaveStorage(claveBase, uid) {
+    if (!claveBase || typeof claveBase !== "string") return "";
+    // Claves globales de configuración del navegador/dispositivo
+    if (GLOBAL_STORAGE_KEYS.has(claveBase)) {
+      return claveBase;
+    }
+    const cleanUid = (typeof uid === "string" && uid.trim().length > 0) ? uid.trim() : null;
+    if (!cleanUid) {
+      return claveBase.startsWith("finance_") ? claveBase : `finance_${claveBase}`;
+    }
+    const suffix = claveBase.startsWith("finance_") ? claveBase.slice("finance_".length) : claveBase;
+    return `finance_${cleanUid}_${suffix}`;
+  }
+
   return {
     calcularPatrimonioNeto,
     calcularBalanceMes,
@@ -2467,6 +2490,7 @@
     puedeAccederApp,
     crearEstadoInicialLimpio,
     purgarDatosDemoLocales,
-    filtrarCuentasFinancieras
+    filtrarCuentasFinancieras,
+    obtenerClaveStorage
   };
 });
