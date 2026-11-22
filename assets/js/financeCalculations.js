@@ -2371,6 +2371,54 @@
     });
   }
 
+  /**
+   * Normaliza una cadena para búsquedas insensibles a mayúsculas y diacríticos (Spec 023)
+   * @param {string} texto
+   * @returns {string}
+   */
+  function normalizarTextoBusqueda(texto = "") {
+    return String(texto || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim();
+  }
+
+  /**
+   * Filtra un conjunto de cuentas financieras en base a un término de búsqueda (Spec 023)
+   * @param {Array} cuentas
+   * @param {string} termino
+   * @returns {Array} Cuentas filtradas
+   */
+  function filtrarCuentasFinancieras(cuentas = [], termino = "") {
+    if (!Array.isArray(cuentas)) return [];
+    const termNorm = normalizarTextoBusqueda(termino);
+    if (!termNorm) return [...cuentas];
+
+    const typeLabels = {
+      bank: "cuenta bancaria banco corriente vista",
+      cash: "efectivo caja billetera efectivo",
+      wallet: "billetera digital mercadopago mach prepago",
+      savings: "ahorro inversion deposito fondo mutuo",
+      credit_card: "tarjeta de credito pasivo deuda visa mastercard"
+    };
+
+    return cuentas.filter(acc => {
+      if (!acc || typeof acc !== "object") return false;
+      const nameNorm = normalizarTextoBusqueda(acc.name);
+      const currNorm = normalizarTextoBusqueda(acc.currency);
+      const typeKeyNorm = normalizarTextoBusqueda(acc.type);
+      const typeLabelNorm = normalizarTextoBusqueda(typeLabels[acc.type] || "");
+
+      return (
+        nameNorm.includes(termNorm) ||
+        currNorm.includes(termNorm) ||
+        typeKeyNorm.includes(termNorm) ||
+        typeLabelNorm.includes(termNorm)
+      );
+    });
+  }
+
   return {
     calcularPatrimonioNeto,
     calcularBalanceMes,
@@ -2418,6 +2466,7 @@
     esTokenExpirado,
     puedeAccederApp,
     crearEstadoInicialLimpio,
-    purgarDatosDemoLocales
+    purgarDatosDemoLocales,
+    filtrarCuentasFinancieras
   };
 });

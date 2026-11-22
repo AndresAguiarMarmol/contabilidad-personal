@@ -41,6 +41,7 @@
       startDate: "",
       endDate: ""
     },
+    accountsSearchTerm: "",
     authSession: null,
     authMode: "login" // "login" | "register"
   };
@@ -421,9 +422,71 @@
     const container = document.getElementById("accounts-grid");
     if (!container) return;
 
-    const accounts = state.accounts;
+    const accounts = state.accounts || [];
+    const searchTerm = state.accountsSearchTerm || "";
+    const isSearching = Boolean(searchTerm.trim());
 
-    container.innerHTML = accounts.map((acc) => {
+    // Filtrar cuentas usando lógica pura de cálculos (Spec 023)
+    const filtered = Calculations && Calculations.filtrarCuentasFinancieras
+      ? Calculations.filtrarCuentasFinancieras(accounts, searchTerm)
+      : accounts;
+
+    // Actualizar controles visuales de la barra de búsqueda
+    const clearBtn = document.getElementById("btn-clear-accounts-search");
+    const countBadge = document.getElementById("accounts-search-count-badge");
+    const emptySearch = document.getElementById("accounts-empty-search");
+    const emptySearchMsg = document.getElementById("accounts-empty-search-msg");
+
+    if (clearBtn) {
+      if (isSearching) clearBtn.classList.remove("hidden");
+      else clearBtn.classList.add("hidden");
+    }
+
+    if (countBadge) {
+      if (isSearching) {
+        countBadge.classList.remove("hidden");
+        countBadge.textContent = `${filtered.length} de ${accounts.length} ${filtered.length === 1 ? 'cuenta' : 'cuentas'}`;
+      } else {
+        countBadge.classList.add("hidden");
+      }
+    }
+
+    // Manejo de estado sin resultados
+    if (isSearching && filtered.length === 0) {
+      if (emptySearch) emptySearch.classList.remove("hidden");
+      if (emptySearchMsg) emptySearchMsg.textContent = `No hay cuentas que coincidan con "${escapeHtml(searchTerm)}".`;
+      container.classList.add("hidden");
+      safeRenderIcons();
+      return;
+    }
+
+    if (emptySearch) emptySearch.classList.add("hidden");
+    container.classList.remove("hidden");
+
+    if (accounts.length === 0) {
+      container.innerHTML = `
+        <div class="col-span-full bg-white dark:bg-slate-900 p-8 rounded-xl border border-slate-200 dark:border-slate-800 text-center space-y-3">
+          <div class="w-12 h-12 mx-auto rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+            <i data-lucide="landmark" class="w-6 h-6"></i>
+          </div>
+          <div class="space-y-1">
+            <h3 class="text-sm font-bold text-slate-800 dark:text-slate-200">Aún no tienes cuentas registradas</h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400">Comienza creando tu primera cuenta bancaria, billetera o tarjeta de crédito.</p>
+          </div>
+          <button type="button" id="btn-empty-add-account" class="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-all">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            <span>Crear Primera Cuenta</span>
+          </button>
+        </div>
+      `;
+      document.getElementById("btn-empty-add-account")?.addEventListener("click", () => {
+        openAccountModal();
+      });
+      safeRenderIcons();
+      return;
+    }
+
+    container.innerHTML = filtered.map((acc) => {
       const isCredit = acc.type === "credit_card";
       const balanceColor = isCredit 
         ? (acc.currentBalance < 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-900 dark:text-white")
@@ -4663,6 +4726,22 @@
   // FILTROS Y EVENTOS GLOBALES
   // ========================================================
   function initFiltersAndEvents() {
+    // Buscador de Cuentas Financieras (Spec 023)
+    const accSearchInput = document.getElementById("accounts-search-input");
+    accSearchInput?.addEventListener("input", (e) => {
+      state.accountsSearchTerm = e.target.value;
+      renderAccounts();
+    });
+
+    const clearAccountsSearch = () => {
+      state.accountsSearchTerm = "";
+      if (accSearchInput) accSearchInput.value = "";
+      renderAccounts();
+      accSearchInput?.focus();
+    };
+    document.getElementById("btn-clear-accounts-search")?.addEventListener("click", clearAccountsSearch);
+    document.getElementById("btn-reset-accounts-filter")?.addEventListener("click", clearAccountsSearch);
+
     document.getElementById("tx-search")?.addEventListener("input", (e) => {
       state.filters.txSearch = e.target.value.trim();
       renderTransactions();

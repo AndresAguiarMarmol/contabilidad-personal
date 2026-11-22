@@ -48,6 +48,12 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 2. Decisiones vigentes
 
+- **Buscador y Filtrado en Tiempo Real de Cuentas Financieras (Spec 023):**
+  - **Barra de Búsqueda Permanente:** En la cabecera de la sección "Cuentas Bancarias, Billeteras y Tarjetas" (`#view-accounts`), se incorpora una barra de búsqueda siempre visible (`#accounts-search-input`) con icono de lupa, botón de limpieza (`#btn-clear-accounts-search`) y contador dinámico de resultados.
+  - **Filtrado Reactivo e Insensible a Diacríticos:** Implementada la función pura `Calculations.filtrarCuentasFinancieras(cuentas, termino)` que normaliza textos con NFD para eliminar tildes y acentos, buscando por nombre de la cuenta, tipo de cuenta (en español o clave técnica) y código de divisa (`CLP`, `USD`, `EUR`, `ARS`).
+  - **Manejo de Estado Sin Coincidencias:** Si el término de búsqueda no arroja resultados, se presenta el panel `#accounts-empty-search` con mensaje contextual y botón para restablecer la búsqueda en un clic.
+  - **Preservación Operativa:** Las tarjetas de cuentas filtradas conservan toda la interactividad (ingreso a Detalle de Cuenta al hacer clic, edición modal y eliminación en cascada con salvaguardas).
+  - Suite de pruebas unitarias TDD Red-Green en `tests/accounts-search.test.js` con 6/6 pruebas aprobadas (114/114 pruebas totales del proyecto).
 - **Acceso Obligatorio con Firebase Authentication (Auth Gate) y Limpieza Total de Datos (Spec 022):**
   - **Bloqueo Completo sin Sesión (Auth Gate Screen):** El contenedor principal de la aplicación (`#app-container`) permanece oculto por defecto (`hidden`) mientras no exista una sesión válida y confirmada con Firebase Authentication (`puedeAccederApp(state.authSession)`).
   - En su lugar, se despliega a pantalla completa `#auth-gate-screen` con tarjeta centrada corporativa y pestañas para Iniciar Sesión o Crear Cuenta (con validación de contraseña $\ge 6$ caracteres y formato de correo electrónico).
@@ -100,6 +106,14 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 3. Historial de cambios
 
+- **2026-11-22 — Spec 023: Buscador y Filtro de Cuentas Financieras, Billeteras y Tarjetas (SDD):**
+  - Creada especificación formal `specs/023-buscador-cuentas-financieras/` (`spec.md` aprobada en formato EARS, `plan.md`, `tasks.md`).
+  - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/accounts-search.test.js` (6 pruebas unitarias cubriendo retorno completo con término vacío, coincidencia por nombre, insensibilidad a tildes/mayúsculas, búsqueda por tipo de cuenta, búsqueda por código de divisa, array vacío sin coincidencias y robustez ante datos corruptos o anómalos, elevando la suite completa a 114/114 pruebas en verde).
+  - Implementada en `assets/js/financeCalculations.js` la función pura `filtrarCuentasFinancieras(cuentas, termino)` y la utilidad `normalizarTextoBusqueda()`.
+  - Agregada en `index.html` la barra de búsqueda permanente en `#view-accounts` con `#accounts-search-input`, icono `search`, botón de limpieza `#btn-clear-accounts-search`, insignia de conteo `#accounts-search-count-badge` y el contenedor interactivo de estado vacío `#accounts-empty-search` con botón de restauración rápida.
+  - Conectados en `assets/js/app.js` los eventos reactivos en `initFiltersAndEvents()`, controlando la visibilidad del botón de limpieza, contador de cuentas filtradas y preservando los listeners de navegación a detalle de cuenta, edición y borrado.
+  - Actualizada la versión del Service Worker a `contapersonal-v6` en `sw.js`.
+  - Verificación global con `node --test tests/*.test.js`: 114/114 pruebas pasando al 100% sin regresiones.
 - **2026-11-21 — Diagnóstico y Manejo de CONFIGURATION_NOT_FOUND en Firebase Auth (Spec 022):**
   - Mapeado el error `CONFIGURATION_NOT_FOUND` de Google Identity Toolkit en `traducirErrorFirebaseAuth` de `assets/js/financeCalculations.js` para indicar con precisión que el servicio Authentication debe ser inicializado en Firebase Console y habilitado el método de Correo/contraseña.
   - Incorporado en `assets/js/app.js` un enlace interactivo directo hacia la consola de Firebase del proyecto (`https://console.firebase.google.com/project/mi-propia-contabilidad/authentication`) para guiar la activación en 1 clic.
