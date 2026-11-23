@@ -185,7 +185,7 @@
             });
             pdf.addImage(compressedJpeg, "JPEG", 0, 0, w, h);
             const pdfDataUri = pdf.output("datauristring");
-            callback(null, pdfDataUri);
+            callback(null, pdfDataUri, canvas);
             return;
           } catch (err) {
             console.warn("Fallo jsPDF, usando compresión base:", err);
@@ -193,7 +193,7 @@
         }
 
         // Fallback: Si no está jsPDF cargado, enviar el JPEG comprimido DataURL
-        callback(null, compressedJpeg);
+        callback(null, compressedJpeg, canvas);
       };
       img.onerror = function (err) {
         callback(err || new Error("Error cargando imagen."));
@@ -204,6 +204,59 @@
       callback(err || new Error("Error leyendo archivo."));
     };
     reader.readAsDataURL(file);
+  }
+
+  // ========================================================
+  // EXTRACCIÓN DE TEXTO Y DATOS DE FACTURAS/BOLETAS (SPEC 034)
+  // ========================================================
+  async function extraerTextoDesdePdf(dataUrl) {
+    if (!dataUrl) return "";
+    try {
+      if (typeof window !== "undefined" && window.pdfjsLib) {
+        let pdfData;
+        if (dataUrl.startsWith("data:")) {
+          const base64 = dataUrl.split(",")[1];
+          const binaryStr = window.atob(base64);
+          const len = binaryStr.length;
+          pdfData = new Uint8Array(len);
+          for (let i = 0; i < len; i++) {
+            pdfData[i] = binaryStr.charCodeAt(i);
+          }
+        } else {
+          pdfData = dataUrl;
+        }
+
+        const loadingTask = window.pdfjsLib.getDocument({ data: pdfData });
+        const pdfDoc = await loadingTask.promise;
+        let fullText = "";
+        const maxPages = Math.min(pdfDoc.numPages, 5);
+        for (let p = 1; p <= maxPages; p++) {
+          const page = await pdfDoc.getPage(p);
+          const content = await page.getTextContent();
+          const pageText = content.items.map(item => item.str).join(" ");
+          fullText += pageText + "\n";
+        }
+        return fullText;
+      }
+    } catch (err) {
+      console.warn("Error leyendo texto de PDF:", err);
+    }
+    return "";
+  }
+
+  async function extraerTextoDesdeImagen(imageOrCanvas) {
+    if (!imageOrCanvas) return "";
+    try {
+      if (typeof window !== "undefined" && window.Tesseract) {
+        const worker = await window.Tesseract.createWorker("spa");
+        const res = await worker.recognize(imageOrCanvas);
+        await worker.terminate();
+        return res?.data?.text || "";
+      }
+    } catch (err) {
+      console.warn("Error en OCR Tesseract.js:", err);
+    }
+    return "";
   }
 
   // ========================================================
@@ -2384,6 +2437,21 @@
               </button>
             </div>
 
+            <!-- Banner Informativo de Autocompletado desde PDF / OCR (Spec 034) -->
+            <div id="tx-auto-extracted-banner" class="hidden p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-200 text-xs">
+              <div class="flex items-start gap-2.5">
+                <div class="w-6 h-6 rounded-lg bg-emerald-100 dark:bg-emerald-900/60 text-emerald-600 dark:text-emerald-300 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <span class="font-bold block">Campos autocompletados desde el comprobante</span>
+                  <p class="text-[11px] text-emerald-700 dark:text-emerald-300/90 mt-0.5" id="tx-auto-extracted-details">
+                    Se detectaron datos automáticamente. Por favor revísalos y confírmalos antes de guardar.
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <!-- Indicador de procesamiento / Spinner -->
             <div id="tx-invoice-processing" class="hidden p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs flex items-center gap-2">
               <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
@@ -2856,9 +2924,84 @@
     const btnViewPreview = document.getElementById("btn-view-preview-invoice");
     const btnRemoveInvoice = document.getElementById("btn-remove-invoice");
     const processingEl = document.getElementById("tx-invoice-processing");
+    const processingText = document.getElementById("tx-invoice-processing-text");
+    const autoExtractedBanner = document.getElementById("tx-auto-extracted-banner");
+    const autoExtractedDetails = document.getElementById("tx-auto-extracted-details");
 
     btnCamera?.addEventListener("click", () => inputCamera?.click());
     btnUpload?.addEventListener("click", () => inputFile?.click());
+
+    async function procesarTextoYAutocompletar(texto) {
+      if (!texto || !Calculations || typeof Calculations.extraerDatosDesdeTextoComprobante !== "function") return;
+      const catalog = getPlanCatalog();
+      const datos = Calculations.extraerDatosDesdeTextoComprobante(texto, catalog);
+      const camposDetectados = [];
+
+      // 1. Fecha
+      if (datos.fecha) {
+        const inputDate = document.getElementById("tx-input-date");
+        if (inputDate) {
+          inputDate.value = datos.fecha;
+          camposDetectados.push(`Fecha: ${datos.fecha}`);
+        }
+      }
+
+      // 2. Monto
+      if (datos.monto && Number(datos.monto) > 0) {
+        const inputAmount = document.getElementById("tx-input-amount");
+        if (inputAmount) {
+          inputAmount.value = datos.monto;
+          camposDetectados.push(`Monto: ${formatCurrency(datos.monto)}`);
+        }
+      }
+
+      // 3. Proveedor
+      if (datos.proveedor) {
+        const inputSupplier = document.getElementById("tx-input-supplier");
+        if (inputSupplier) {
+          inputSupplier.value = datos.proveedor;
+          camposDetectados.push(`Proveedor: ${datos.proveedor}`);
+        }
+        const inputDesc = document.getElementById("tx-input-desc");
+        if (inputDesc && !inputDesc.value.trim()) {
+          inputDesc.value = `Pago ${datos.proveedor}`;
+        }
+      }
+
+      // 4. Medio de Pago
+      if (datos.tipoPago) {
+        const inputMethod = document.getElementById("tx-input-method");
+        if (inputMethod) {
+          inputMethod.value = datos.tipoPago;
+          camposDetectados.push(`Medio de pago: ${datos.tipoPago}`);
+        }
+      }
+
+      // 5. Categoría
+      if (datos.categoriaCodigo || datos.categoria) {
+        const selCat = document.getElementById("tx-input-category");
+        if (selCat) {
+          const matchingOpt = Array.from(selCat.options).find(opt =>
+            (datos.categoriaCodigo && opt.value === datos.categoriaCodigo) ||
+            (datos.categoria && (opt.value === datos.categoria || opt.text.toLowerCase().includes(datos.categoria.toLowerCase())))
+          );
+          if (matchingOpt) {
+            selCat.value = matchingOpt.value;
+            camposDetectados.push(`Categoría: ${matchingOpt.text}`);
+          }
+        }
+      }
+
+      // Mostrar banner de confirmación si se detectaron campos
+      if (camposDetectados.length > 0 && autoExtractedBanner) {
+        if (autoExtractedDetails) {
+          autoExtractedDetails.textContent = `Detectados: ${camposDetectados.join(" | ")}. Revisa los valores antes de guardar.`;
+        }
+        autoExtractedBanner.classList.remove("hidden");
+        safeRenderIcons();
+        showToast("Datos del comprobante extraídos y cargados automáticamente.", "success");
+      }
+    }
 
     function manejarArchivoSeleccionado(file) {
       if (!file) return;
@@ -2866,15 +3009,28 @@
       const dateVal = document.getElementById("tx-input-date")?.value || "";
 
       if (file.type === "application/pdf") {
-        if (processingEl) processingEl.classList.remove("hidden");
+        if (processingEl) {
+          if (processingText) processingText.textContent = "Extrayendo y analizando datos del PDF...";
+          processingEl.classList.remove("hidden");
+        }
         const reader = new FileReader();
-        reader.onload = (e) => {
+        reader.onload = async (e) => {
           currentInvoicePdf = e.target.result;
           currentInvoiceName = file.name || (Calculations ? Calculations.generarNombreComprobante(descVal, dateVal) : "comprobante.pdf");
           if (previewName) previewName.textContent = currentInvoiceName;
           if (previewContainer) previewContainer.classList.remove("hidden");
-          if (processingEl) processingEl.classList.add("hidden");
-          safeRenderIcons();
+
+          try {
+            const texto = await extraerTextoDesdePdf(currentInvoicePdf);
+            if (texto) {
+              await procesarTextoYAutocompletar(texto);
+            }
+          } catch (errExt) {
+            console.warn("Extracción de PDF falló:", errExt);
+          } finally {
+            if (processingEl) processingEl.classList.add("hidden");
+            safeRenderIcons();
+          }
         };
         reader.onerror = () => {
           if (processingEl) processingEl.classList.add("hidden");
@@ -2882,10 +3038,13 @@
         };
         reader.readAsDataURL(file);
       } else if (file.type.startsWith("image/")) {
-        if (processingEl) processingEl.classList.remove("hidden");
-        convertirImagenAPdf(file, (err, pdfDataUri) => {
-          if (processingEl) processingEl.classList.add("hidden");
+        if (processingEl) {
+          if (processingText) processingText.textContent = "Procesando foto, convirtiendo a PDF y analizando...";
+          processingEl.classList.remove("hidden");
+        }
+        convertirImagenAPdf(file, async (err, pdfDataUri, canvas) => {
           if (err || !pdfDataUri) {
+            if (processingEl) processingEl.classList.add("hidden");
             showToast("No se pudo procesar la foto a PDF.", "error");
             return;
           }
@@ -2894,6 +3053,21 @@
           if (previewName) previewName.textContent = currentInvoiceName;
           if (previewContainer) previewContainer.classList.remove("hidden");
           safeRenderIcons();
+
+          try {
+            let texto = "";
+            if (canvas && typeof extraerTextoDesdeImagen === "function") {
+              texto = await extraerTextoDesdeImagen(canvas);
+            }
+            if (texto) {
+              await procesarTextoYAutocompletar(texto);
+            }
+          } catch (errOcr) {
+            console.warn("OCR falló:", errOcr);
+          } finally {
+            if (processingEl) processingEl.classList.add("hidden");
+            safeRenderIcons();
+          }
           showToast("Foto optimizada y convertida a PDF con éxito.", "success");
         });
       } else {
@@ -2917,6 +3091,7 @@
       if (inputCamera) inputCamera.value = "";
       if (inputFile) inputFile.value = "";
       if (previewContainer) previewContainer.classList.add("hidden");
+      if (autoExtractedBanner) autoExtractedBanner.classList.add("hidden");
     });
 
     btnViewPreview?.addEventListener("click", () => {

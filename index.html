@@ -44,6 +44,17 @@
   <!-- jsPDF CDN para generación y conversión de comprobantes a PDF (Spec 033) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
+  <!-- PDF.js CDN para lectura de texto en comprobantes PDF (Spec 034) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    if (typeof window !== "undefined" && window.pdfjsLib) {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    }
+  </script>
+
+  <!-- Tesseract.js CDN para OCR en fotos o comprobantes escaneados (Spec 034) -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
   <!-- Estilos complementarios -->
   <link rel="stylesheet" href="assets/css/styles.css">
 </head>

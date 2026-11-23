@@ -50,6 +50,18 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 2. Decisiones vigentes
 
+- **Extracción Automática de Datos desde Comprobantes PDF / Fotos y Autocompletado (Spec 034):**
+  - **Lectura Inteligente de Comprobantes Digitales y Escaneados:** Integración cliente-side de `PDF.js` (para PDFs con flujo de texto digital) y `Tesseract.js` (para OCR de fotos y comprobantes escaneados sin capas de texto nativo), procesando directamente en el navegador del usuario sin enviar archivos a servidores externos ni incurrir en costos de APIs terceras.
+  - **Funciones Puras de Detección Semántica (`financeCalculations.js`):**
+    - `parsearFechaComprobante(texto)`: Reconoce fechas numéricas (`DD/MM/YYYY`, `DD-MM-YYYY`, `YYYY-MM-DD`) y textuales en español (*23 de noviembre de 2026*), convirtiendo a formato estándar `YYYY-MM-DD`.
+    - `parsearMontoComprobante(texto)`: Identifica palabras clave de total (`TOTAL A PAGAR`, `TOTAL VENTA`, `MONTO TOTAL`, `TOTAL:`) descartando subtotales para extraer el valor final con exactitud matemática.
+    - `inferirProveedorComprobante(texto)`: Identifica proveedores y cadenas habituales chilenas e internacionales (*Enel*, *CGE*, *Aguas Andinas*, *Líder*, *Walmart*, *Falabella*, *Ripley*, *Copec*, *Shell*, *Jumbo*, *Santa Isabel*, *Uber*, etc.) y detecta razones sociales (*S.A.*, *SpA*, *Ltda.*).
+    - `inferirMedioPagoComprobante(texto)`: Identifica `debit`, `credit`, `transfer` o `cash`.
+    - `inferirCategoriaComprobante(texto, proveedor, catalogo)`: Mapea términos del comprobante hacia cuentas de gastos (Clase 5) del Plan de Cuentas activo.
+    - `extraerDatosDesdeTextoComprobante(texto, catalogo)`: Consolida los 5 campos en un único objeto estructurado.
+  - **Autocompletado Reactivo con Banner de Validación:** Al adjuntar un PDF o tomar una foto en el modal de transacciones, los campos del formulario (`#tx-input-date`, `#tx-input-amount`, `#tx-input-supplier`, `#tx-input-method`, `#tx-input-category` y `#tx-input-desc`) se autocompletan instantáneamente y se despliega el banner `#tx-auto-extracted-banner` para que el usuario revise y confirme antes de guardar en la base de datos y Firestore.
+  - Suite de pruebas unitarias TDD Red-Green en `tests/pdf-data-extraction.test.js` con 7/7 pruebas aprobadas (164/164 pruebas totales del proyecto).
+
 - **Registro de Proveedor, Factura/Boleta PDF y Conversión de Fotos en Transacciones (Spec 033):**
   - **Campo Proveedor en Base de Datos y Modelo (`supplier`):** Incorporación de columna `supplier TEXT` en `schema.sql` y campo reactivo en el objeto `Transaction`. En el formulario de movimientos se integra el campo interactivo `#tx-input-supplier`, normalizado mediante la función pura `Calculations.normalizarProveedor`, permitiendo asociar compras y gastos al comercio o beneficiario correspondiente (ej. *Supermercado Líder*, *Enel*, *Falabella*).
   - **Campo Factura/Boleta en Base de Datos y Modelo (`invoicePdf` / `invoiceName`):** Incorporación de columnas `invoice_pdf TEXT` e `invoice_name TEXT` en `schema.sql` y persistencia en `localStorage` y Cloud Firestore (`workspaces/{uid}`). En el Libro de Movimientos y Detalle de Cuenta se presenta el botón interactivo `.btn-view-invoice` con icono PDF para abrir o descargar el documento.
@@ -156,6 +168,14 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 ---
 
 ## 3. Historial de cambios
+
+- **2026-11-23 — Spec 034: Extracción de Datos desde Factura / Boleta PDF y Autocompletado de Campos (SDD):**
+  - Creada especificación formal `specs/034-extraccion-datos-pdf-factura/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
+  - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/pdf-data-extraction.test.js` (7 pruebas cubriendo parseo de fecha, importe total descartando subtotales, inferencia de proveedor, medio de pago, categoría en el plan de cuentas, consolidación y presencia de librerías y componentes UI, alcanzando 164/164 pruebas en verde).
+  - Implementadas en `assets/js/financeCalculations.js` las funciones puras `parsearFechaComprobante`, `parsearMontoComprobante`, `inferirProveedorComprobante`, `inferirMedioPagoComprobante`, `inferirCategoriaComprobante` y `extraerDatosDesdeTextoComprobante`.
+  - Integradas las librerías CDN `PDF.js` y `Tesseract.js` en `index.html`.
+  - Integrada la extracción cliente-side (`extraerTextoDesdePdf`, `extraerTextoDesdeImagen`) y autocompletado reactivo en `openTransactionModal` de `assets/js/app.js` con banner informativo `#tx-auto-extracted-banner`.
+  - Actualizado el Service Worker `sw.js` a la versión de caché `contapersonal-v17`.
 
 - **2026-11-23 — Spec 033: Registro de Proveedor, Factura/Boleta PDF y Conversión de Fotos en Transacciones (SDD):**
   - Creada especificación formal `specs/033-proveedor-factura-boleta-pdf/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).

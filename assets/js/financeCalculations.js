@@ -229,6 +229,289 @@
     return slug ? `comprobante_${slug}_${cleanDate}.${ext}` : `comprobante_${cleanDate}.${ext}`;
   }
 
+  // ========================================================
+  // MOTOR DE EXTRACCIÓN SEMÁNTICA DESDE COMPROBANTES (SPEC 034)
+  // ========================================================
+
+  const MESES_ES = {
+    enero: "01", ene: "01",
+    febrero: "02", feb: "02",
+    marzo: "03", mar: "03",
+    abril: "04", abr: "04",
+    mayo: "05", may: "05",
+    junio: "06", jun: "06",
+    julio: "07", jul: "07",
+    agosto: "08", ago: "08",
+    septiembre: "09", sep: "09", sept: "09",
+    octubre: "10", oct: "10",
+    noviembre: "11", nov: "11",
+    diciembre: "12", dic: "12"
+  };
+
+  /**
+   * Extrae y normaliza fechas en formatos chilenos e internacionales a YYYY-MM-DD (Spec 034 / RF-1)
+   * @param {string} texto 
+   * @returns {string|null}
+   */
+  function parsearFechaComprobante(texto) {
+    if (!texto || typeof texto !== "string") return null;
+
+    // 1. Formato DD/MM/YYYY o DD-MM-YYYY o DD.MM.YYYY
+    const ddmmyyyy = texto.match(/\b([0-2]?[0-9]|3[01])[\/\-\.](0?[1-9]|1[0-2])[\/\-\.](20\d\d)\b/);
+    if (ddmmyyyy) {
+      const d = ddmmyyyy[1].padStart(2, "0");
+      const m = ddmmyyyy[2].padStart(2, "0");
+      const y = ddmmyyyy[3];
+      return `${y}-${m}-${d}`;
+    }
+
+    // 2. Formato YYYY-MM-DD o YYYY/MM/DD
+    const yyyymmdd = texto.match(/\b(20\d\d)[\/\-\.](0?[1-9]|1[0-2])[\/\-\.]([0-2]?[0-9]|3[01])\b/);
+    if (yyyymmdd) {
+      const y = yyyymmdd[1];
+      const m = yyyymmdd[2].padStart(2, "0");
+      const d = yyyymmdd[3].padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+
+    // 3. Formato textual en español: "23 de Noviembre de 2026"
+    const textDate = texto.match(/\b([0-2]?[0-9]|3[01])\s+(?:de\s+)?([a-záéíóúñ]{3,12})(?:\s+de)?\s+(20\d\d)\b/i);
+    if (textDate) {
+      const d = textDate[1].padStart(2, "0");
+      const rawMonth = textDate[2].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const m = MESES_ES[rawMonth];
+      const y = textDate[3];
+      if (m) {
+        return `${y}-${m}-${d}`;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Extrae el importe total monetario de un comprobante (Spec 034 / RF-1)
+   * @param {string} texto 
+   * @returns {number|null}
+   */
+  function parsearMontoComprobante(texto) {
+    if (!texto || typeof texto !== "string") return null;
+
+    const lineas = texto.split(/\r?\n/);
+    const keywordsTotal = [
+      "total a pagar", "monto total", "total venta", "total clp",
+      "saldo total", "importe total", "total neto", "total $", "total:"
+    ];
+
+    let montoEncontrado = null;
+
+    for (const linea of lineas) {
+      const lineaLower = linea.toLowerCase();
+      // Omitir líneas que sean expresamente subtotales
+      if (lineaLower.includes("subtotal") || lineaLower.includes("sub-total")) continue;
+
+      const coincideKeyword = keywordsTotal.some(kw => lineaLower.includes(kw));
+
+      if (coincideKeyword) {
+        const matches = linea.match(/(?:\$\s*)?([0-9]{1,3}(?:\.[0-9]{3})+(?:,[0-9]{2})?|[0-9]{1,3}(?:,[0-9]{3})+(?:\.[0-9]{2})?|\b[0-9]{3,9}\b)/g);
+        if (matches && matches.length > 0) {
+          const rawNum = matches[matches.length - 1].replace(/\$/g, "").trim();
+          let cleaned = rawNum;
+          if (cleaned.includes(".") && !cleaned.includes(",")) {
+            cleaned = cleaned.replace(/\./g, "");
+          } else if (cleaned.includes(",") && !cleaned.includes(".")) {
+            cleaned = cleaned.replace(/,/g, "");
+          } else if (cleaned.includes(".") && cleaned.includes(",")) {
+            if (cleaned.indexOf(".") < cleaned.indexOf(",")) {
+              cleaned = cleaned.replace(/\./g, "").replace(",", ".");
+            } else {
+              cleaned = cleaned.replace(/,/g, "");
+            }
+          }
+          const num = Number(cleaned);
+          if (!isNaN(num) && num > 0) {
+            montoEncontrado = Math.round(num);
+            break;
+          }
+        }
+      }
+    }
+
+    // Fallback: buscar "TOTAL" seguido de importe en todo el texto
+    if (montoEncontrado === null) {
+      const matchTotal = texto.match(/TOTAL[^\d\n\r]*\$?\s*([0-9]{1,3}(?:\.[0-9]{3})+|[0-9]{3,9})/i);
+      if (matchTotal) {
+        const cleaned = matchTotal[1].replace(/\./g, "");
+        const num = Number(cleaned);
+        if (!isNaN(num) && num > 0) montoEncontrado = Math.round(num);
+      }
+    }
+
+    return montoEncontrado;
+  }
+
+  /**
+   * Infiere el nombre del comercio o proveedor a partir del texto (Spec 034 / RF-1)
+   * @param {string} texto 
+   * @returns {string|null}
+   */
+  function inferirProveedorComprobante(texto) {
+    if (!texto || typeof texto !== "string") return null;
+
+    const comercios = [
+      { key: "enel", name: "Enel" },
+      { key: "cge", name: "CGE" },
+      { key: "aguas andinas", name: "Aguas Andinas" },
+      { key: "esval", name: "Esval" },
+      { key: "essbio", name: "Essbio" },
+      { key: "metrogas", name: "Metrogas" },
+      { key: "gasco", name: "Gasco" },
+      { key: "lipigas", name: "Lipigas" },
+      { key: "abastible", name: "Abastible" },
+      { key: "lider", name: "Líder" },
+      { key: "líder", name: "Líder" },
+      { key: "walmart", name: "Walmart Chile" },
+      { key: "jumbo", name: "Jumbo" },
+      { key: "santa isabel", name: "Santa Isabel" },
+      { key: "unimarc", name: "Unimarc" },
+      { key: "tottus", name: "Tottus" },
+      { key: "falabella", name: "Falabella" },
+      { key: "ripley", name: "Ripley" },
+      { key: "paris", name: "Paris" },
+      { key: "cencosud", name: "Cencosud" },
+      { key: "sodimac", name: "Sodimac" },
+      { key: "easy", name: "Easy" },
+      { key: "copec", name: "Copec" },
+      { key: "shell", name: "Shell" },
+      { key: "petrobras", name: "Petrobras" },
+      { key: "farmacias ahumada", name: "Farmacias Ahumada" },
+      { key: "cruz verde", name: "Cruz Verde" },
+      { key: "salcobrand", name: "Salcobrand" },
+      { key: "movistar", name: "Movistar" },
+      { key: "entel", name: "Entel" },
+      { key: "claro", name: "Claro" },
+      { key: "wom", name: "WOM" },
+      { key: "vtr", name: "VTR" },
+      { key: "uber", name: "Uber" },
+      { key: "cabify", name: "Cabify" },
+      { key: "didi", name: "DiDi" },
+      { key: "pedidosya", name: "PedidosYa" },
+      { key: "mercado libre", name: "Mercado Libre" }
+    ];
+
+    const textoLower = texto.toLowerCase();
+    for (const c of comercios) {
+      if (textoLower.includes(c.key)) {
+        return c.name;
+      }
+    }
+
+    // Heurística de cabecera: líneas con S.A., SpA, Ltda
+    const lineas = texto.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    for (const l of lineas.slice(0, 5)) {
+      if (/s\.?a\.?|spa|ltda|eirl/i.test(l) && !/boleta|factura|electronica/i.test(l)) {
+        return l.replace(/r\.?u\.?t\.?.*$/i, "").trim();
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Infiere el medio de pago utilizado a partir del texto (Spec 034 / RF-1)
+   * @param {string} texto 
+   * @returns {"debit"|"credit"|"transfer"|"cash"|null}
+   */
+  function inferirMedioPagoComprobante(texto) {
+    if (!texto || typeof texto !== "string") return null;
+    const t = texto.toLowerCase();
+
+    if (t.includes("debito") || t.includes("débito") || t.includes("redcompra") || t.includes("cuenta corriente")) {
+      return "debit";
+    }
+    if (t.includes("credito") || t.includes("crédito") || t.includes("visa") || t.includes("mastercard") || t.includes("amex") || t.includes("magna")) {
+      return "credit";
+    }
+    if (t.includes("transferencia") || t.includes("tef")) {
+      return "transfer";
+    }
+    if (t.includes("efectivo") || t.includes("cash")) {
+      return "cash";
+    }
+
+    return null;
+  }
+
+  /**
+   * Infiere la categoría contable del gasto desde el texto y proveedor (Spec 034 / RF-1)
+   * @param {string} texto 
+   * @param {string|null} proveedor 
+   * @param {Array} catalogo 
+   * @returns {{ code: string, name: string }}
+   */
+  function inferirCategoriaComprobante(texto, proveedor, catalogo) {
+    const combined = `${texto || ""} ${proveedor || ""}`.toLowerCase();
+
+    let searchTerms = [];
+    if (/luz|enel|cge|electricidad|energia|aguas andinas|esval|essbio|agua potable|gas|metrogas|gasco|lipigas|abastible/i.test(combined)) {
+      searchTerms = ["servicios basicos", "luz", "agua", "gas", "electricidad"];
+    } else if (/lider|líder|supermercado|jumbo|unimarc|santa isabel|tottus|abarrotes|alimentos/i.test(combined)) {
+      searchTerms = ["alimentacion", "supermercado", "comida"];
+    } else if (/copec|shell|petrobras|combustible|bencina|gasolina/i.test(combined)) {
+      searchTerms = ["combustible", "transporte", "vehiculo"];
+    } else if (/farmacia|ahumada|cruz verde|salcobrand|salud|medicamento|medico|clinica/i.test(combined)) {
+      searchTerms = ["salud", "farmacia", "medico"];
+    } else if (/falabella|ripley|paris|zara|h&m|vestuario|ropa|calzado/i.test(combined)) {
+      searchTerms = ["vestuario", "ropa", "calzado", "tienda"];
+    } else if (/movistar|entel|claro|wom|vtr|internet|telefonia|celular/i.test(combined)) {
+      searchTerms = ["internet", "telefonia", "comunicacion", "servicios"];
+    } else if (/restaurante|cafe|bar|comida rapida|mcdonalds|burger|starbucks/i.test(combined)) {
+      searchTerms = ["restaurante", "salidas", "ocio", "alimentacion"];
+    }
+
+    if (Array.isArray(catalogo) && catalogo.length > 0) {
+      for (const term of searchTerms) {
+        const found = catalogo.find(item => {
+          if (item.classNumber !== 5) return false;
+          const nameClean = (item.name || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          return nameClean.includes(term);
+        });
+        if (found) return found;
+      }
+      const primerGasto = catalogo.find(item => item.classNumber === 5);
+      if (primerGasto) return primerGasto;
+    }
+
+    return { code: "5.1.01", name: "Servicios Básicos (Luz, Agua, Gas)" };
+  }
+
+  /**
+   * Consolida la extracción semántica desde el texto de un comprobante (Spec 034 / RF-1)
+   * @param {string} texto 
+   * @param {Array} catalogo 
+   * @returns {{ fecha: string|null, monto: number|null, proveedor: string|null, tipoPago: string|null, categoria: string|null, categoriaCodigo: string|null }}
+   */
+  function extraerDatosDesdeTextoComprobante(texto, catalogo) {
+    if (!texto || typeof texto !== "string") {
+      return { fecha: null, monto: null, proveedor: null, tipoPago: null, categoria: null, categoriaCodigo: null };
+    }
+
+    const fecha = parsearFechaComprobante(texto);
+    const monto = parsearMontoComprobante(texto);
+    const proveedor = inferirProveedorComprobante(texto);
+    const tipoPago = inferirMedioPagoComprobante(texto);
+    const catObj = inferirCategoriaComprobante(texto, proveedor, catalogo);
+
+    return {
+      fecha,
+      monto,
+      proveedor,
+      tipoPago,
+      categoria: catObj ? catObj.name : null,
+      categoriaCodigo: catObj ? catObj.code : null
+    };
+  }
+
   /**
    * Aplica el impacto de un movimiento en las cuentas de forma atómica e inmutable (RF-5, RF-6, RF-7)
    * @param {Array} accounts 
@@ -2553,6 +2836,12 @@
     clasificarPlanDeCuentas,
     normalizarProveedor,
     generarNombreComprobante,
+    parsearFechaComprobante,
+    parsearMontoComprobante,
+    inferirProveedorComprobante,
+    inferirMedioPagoComprobante,
+    inferirCategoriaComprobante,
+    extraerDatosDesdeTextoComprobante,
     validarEdicionCuenta,
     normalizarSaldoInicialCuenta,
     puedeEliminarCuenta,
