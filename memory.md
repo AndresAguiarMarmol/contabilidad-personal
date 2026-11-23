@@ -50,6 +50,12 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 2. Decisiones vigentes
 
+- **Header de Aplicación en 2 Líneas para Ergonomía Móvil y Zonas Seguras (Spec 032):**
+  - **Estructura en Dos Líneas (`flex-col`):** La barra superior `<header>` se organiza verticalmente en dos filas independientes para evitar saturación horizontal y cortes en pantallas reducidas de smartphones (iPhone):
+    1. **Línea 1 (Superior):** Aloja la identidad corporativa permanente (*ContaPersonal — Finanzas Personales*) con isotipo a la izquierda y el widget de sesión/usuario (`#auth-user-widget`) a la derecha.
+    2. **Línea 2 (Inferior):** Aloja el contexto de la vista activa (`#page-title` y `#page-subtitle` ahora visibles en móvil) a la izquierda, y los botones de acción rápida (`#btn-quick-sync`, `#btn-quick-new-tx` y `#btn-open-sidebar` de menú) a la derecha, con división visual sutil.
+  - **Altura Dinámica Adaptativa:** La cabecera expande su altura de forma fluida preservando `padding-top: env(safe-area-inset-top)` mediante `.header-safe` y `flex-shrink-0`, eliminando cualquier riesgo de solapamiento con el notch o Dynamic Island.
+  - Suite de pruebas unitarias TDD Red-Green en `tests/header-two-lines.test.js` con 4/4 pruebas aprobadas (151/151 pruebas totales del proyecto).
 - **Estabilidad y Visibilidad de Header y Footer en iPhone / iOS Safari (Spec 031):**
   - **Meta Viewport con Zonas Seguras:** Se configuró `<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">` para habilitar el uso de variables de entorno de safe areas en WebKit.
   - **Viewport Dinámico (`100dvh` y `-webkit-fill-available`):** Se definió en `styles.css` para `html`, `body` y `#app-container`, impidiendo que el contenedor de la aplicación exceda el área visible de la pantalla cuando la barra de navegación o de herramientas de Safari se expande.
@@ -146,6 +152,12 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 3. Historial de cambios
 
+- **2026-11-22 — Spec 032: Header de Aplicación en 2 Líneas (SDD):**
+  - Creada especificación formal `specs/032-header-dos-lineas/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
+  - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/header-two-lines.test.js` (4 pruebas verificando estructura flex-col de 2 filas, marca institucional + auth widget en Fila 1, título de vista + acciones y menú en Fila 2, y visibilidad permanente de `#page-title` en móvil, elevando la suite completa a 151/151 pruebas en verde).
+  - Actualizado `index.html` organizando `<header>` en dos filas y adaptado [styles.css](file:///d:/Carpetas/Desarrollos/Desarrollos%20WEB/Contabilidad%20Personal/assets/css/styles.css).
+  - Actualizada la versión del Service Worker a `contapersonal-v15` en `sw.js`.
+  - Verificación global con `node --test tests/*.test.js`: 151/151 pruebas pasando al 100% sin regresiones.
 - **2026-11-22 — Spec 031: Estabilidad y Visibilidad de Header y Footer en iPhone (iOS Safari) (SDD):**
   - Creada especificación formal `specs/031-viewport-ios-header-footer/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
   - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/ios-viewport-header-footer.test.js` (4 pruebas verificando `viewport-fit=cover`, soporte `100dvh` / `-webkit-fill-available`, `.header-safe` con `env(safe-area-inset-top)`, optimización de botones móviles en `<header>`, y `.footer-safe` con `env(safe-area-inset-bottom)` y `main-scroll-safe`, elevando la suite completa a 147/147 pruebas en verde).

@@ -255,51 +255,57 @@
   <!-- ======================================================== -->
   <div class="flex-1 flex flex-col h-full min-h-0 overflow-hidden">
     
-    <!-- Top Header (Spec 030 & Spec 031: Marca a la izquierda, Menú a la derecha, Safe Area en iOS) -->
-    <header class="min-h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-2.5 sm:px-4 md:px-6 flex-shrink-0 gap-1.5 sm:gap-2 header-safe">
-      <!-- Lado Izquierdo: Identidad de Marca solicitada -->
-      <div class="flex items-center gap-2 min-w-0 flex-shrink">
-        <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white shadow-sm flex-shrink-0">
-          <i data-lucide="wallet" class="w-4 h-4"></i>
-        </div>
-        <div class="min-w-0">
-          <span class="font-bold text-xs sm:text-base tracking-tight text-slate-900 dark:text-white truncate block">
-            Conta<span class="text-emerald-600 dark:text-emerald-400">Personal</span>
-          </span>
-          <span class="block text-[9px] sm:text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
-            Finanzas Personales
-          </span>
+    <!-- Top Header en 2 Líneas (Spec 030, Spec 031 & Spec 032: Safe Area iOS) -->
+    <header class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex flex-col justify-center px-3 sm:px-4 md:px-6 flex-shrink-0 gap-2 py-2 sm:py-2.5 header-safe">
+      <!-- Línea 1: Marca Institucional y Widget de Usuario -->
+      <div class="flex items-center justify-between w-full">
+        <!-- Lado Izquierdo: Identidad de Marca solicitada -->
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white shadow-sm flex-shrink-0">
+            <i data-lucide="wallet" class="w-4 h-4"></i>
+          </div>
+          <div class="min-w-0">
+            <span class="font-bold text-sm sm:text-base tracking-tight text-slate-900 dark:text-white truncate block">
+              Conta<span class="text-emerald-600 dark:text-emerald-400">Personal</span>
+            </span>
+            <span class="block text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
+              Finanzas Personales
+            </span>
+          </div>
         </div>
 
-        <!-- Título de vista activa preservado (visible en pantallas grandes) -->
-        <div class="hidden xl:flex flex-col pl-4 border-l border-slate-200 dark:border-slate-800 ml-1">
-          <h1 id="page-title" class="text-xs font-bold text-slate-700 dark:text-slate-200 leading-tight">Dashboard Patrimonial</h1>
-          <p id="page-subtitle" class="text-[10px] text-slate-400 truncate max-w-[240px]">Resumen de patrimonio neto, ingresos y gastos</p>
+        <!-- Lado Derecho Línea 1: Widget de Sesión de Usuario (Firebase Auth Spec 021) -->
+        <div id="auth-user-widget" class="flex items-center flex-shrink-0">
+          <!-- Render dinámico: botón Iniciar Sesión o perfil con email/avatar y Cerrar Sesión -->
         </div>
       </div>
 
-      <!-- Lado Derecho: Acciones Rápidas y Botón de Menú -->
-      <div class="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-        <!-- Widget de Sesión de Usuario (Firebase Auth Spec 021) -->
-        <div id="auth-user-widget" class="flex items-center">
-          <!-- Render dinámico: botón Iniciar Sesión o perfil con email/avatar y Cerrar Sesión -->
+      <!-- Línea 2: Título de Vista Activa y Acciones Rápidas con Menú -->
+      <div class="flex items-center justify-between w-full pt-1.5 border-t border-slate-100 dark:border-slate-800/60">
+        <!-- Lado Izquierdo Línea 2: Contexto y Título de vista activa -->
+        <div class="flex flex-col min-w-0 pr-2">
+          <h1 id="page-title" class="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight truncate">Dashboard Patrimonial</h1>
+          <p id="page-subtitle" class="text-[10px] text-slate-400 truncate max-w-[180px] sm:max-w-xs">Resumen de patrimonio neto, ingresos y gastos</p>
         </div>
 
-        <button id="btn-quick-sync" title="Sincronizar con la nube (Firebase)" class="flex items-center gap-1.5 p-1.5 sm:px-2 sm:py-1.5 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 shadow-sm transition-all active:scale-95">
-          <i id="quick-sync-icon" data-lucide="cloud" class="w-4 h-4 text-emerald-600 dark:text-emerald-400"></i>
-          <span id="quick-sync-text" class="hidden sm:inline">Sincronizar</span>
-        </button>
+        <!-- Lado Derecho Línea 2: Acciones Rápidas y Botón de Menú -->
+        <div class="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+          <button id="btn-quick-sync" title="Sincronizar con la nube (Firebase)" class="flex items-center gap-1.5 p-1.5 sm:px-2 sm:py-1.5 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 shadow-sm transition-all active:scale-95">
+            <i id="quick-sync-icon" data-lucide="cloud" class="w-4 h-4 text-emerald-600 dark:text-emerald-400"></i>
+            <span id="quick-sync-text" class="hidden sm:inline">Sincronizar</span>
+          </button>
 
-        <button id="btn-quick-new-tx" title="Nuevo Movimiento" class="flex items-center gap-1.5 p-1.5 sm:px-2.5 sm:py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all shadow-emerald-600/20 active:scale-95">
-          <i data-lucide="plus-circle" class="w-4 h-4"></i>
-          <span class="hidden sm:inline">Nuevo Movimiento</span>
-        </button>
+          <button id="btn-quick-new-tx" title="Nuevo Movimiento" class="flex items-center gap-1.5 p-1.5 sm:px-2.5 sm:py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all shadow-emerald-600/20 active:scale-95">
+            <i data-lucide="plus-circle" class="w-4 h-4"></i>
+            <span class="hidden sm:inline">Nuevo Movimiento</span>
+          </button>
 
-        <!-- Botón Menú a la derecha (Spec 030) -->
-        <button id="btn-open-sidebar" class="flex items-center gap-1 px-2 py-1.5 sm:px-2.5 sm:py-1.5 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm transition-all text-xs font-semibold active:scale-95" title="Abrir / Alternar Menú de Navegación">
-          <i data-lucide="menu" class="w-4 h-4 text-slate-600 dark:text-slate-300"></i>
-          <span>Menú</span>
-        </button>
+          <!-- Botón Menú a la derecha (Spec 030) -->
+          <button id="btn-open-sidebar" class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm transition-all text-xs font-semibold active:scale-95" title="Abrir / Alternar Menú de Navegación">
+            <i data-lucide="menu" class="w-4 h-4 text-slate-600 dark:text-slate-300"></i>
+            <span>Menú</span>
+          </button>
+        </div>
       </div>
     </header>
 

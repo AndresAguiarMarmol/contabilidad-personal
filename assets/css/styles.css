@@ -9,10 +9,9 @@ body,
   height: -webkit-fill-available;
 }
 
-/* Safe Area Insets para iPhone (Spec 031) */
+/* Safe Area Insets para iPhone (Spec 031 & Spec 032) */
 .header-safe {
   padding-top: env(safe-area-inset-top, 0px);
-  min-height: calc(4rem + env(safe-area-inset-top, 0px));
 }
 
 .footer-safe {
