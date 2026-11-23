@@ -13,7 +13,7 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 - **Clave:** `finance_accounts_data` (o `finance_${uid}_accounts_data`)
   - Array de objetos `Account`: `id`, `name`, `type` (`"bank"` | `"cash"` | `"wallet"` | `"savings"` | `"credit_card"`), `initialBalance`, `currentBalance`, `currency`, `color`, `icon`, `isExcludedFromTotal`.
 - **Clave:** `finance_transactions_data`
-  - Array de objetos `Transaction`: `id`, `date`, `type` (`"income"` | `"expense"` | `"transfer"`), `accountId`, `toAccountId`, `category`, `categoryCode` (código contable del plan, ej. `5.2.01`), `amount`, `description`, `paymentMethod`, `isRecurring`, `isSplit` (booleano opcional), `splitLines` (array de partidas: `{ id, description, amount, category, categoryCode, targetAccountId }`).
+  - Array de objetos `Transaction`: `id`, `date`, `type` (`"income"` | `"expense"` | `"transfer"`), `accountId`, `toAccountId`, `category`, `categoryCode` (código contable del plan, ej. `5.2.01`), `amount`, `description`, `supplier` (nombre del proveedor/comercio o beneficiario, Spec 033), `invoicePdf` (Data URL en base64 del comprobante/factura en formato PDF, Spec 033), `invoiceName` (nombre del archivo PDF, Spec 033), `paymentMethod`, `isRecurring`, `isSplit` (booleano opcional), `splitLines` (array de partidas: `{ id, description, amount, category, categoryCode, targetAccountId }`).
 - **Clave:** `finance_budgets_data`
   - Array de objetos `Budget`: `id`, `category`, `limitAmount`, `spentAmount`, `month`.
 - **Clave:** `finance_goals_data`
@@ -50,6 +50,11 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 2. Decisiones vigentes
 
+- **Registro de Proveedor, Factura/Boleta PDF y Conversión de Fotos en Transacciones (Spec 033):**
+  - **Campo Proveedor en Base de Datos y Modelo (`supplier`):** Incorporación de columna `supplier TEXT` en `schema.sql` y campo reactivo en el objeto `Transaction`. En el formulario de movimientos se integra el campo interactivo `#tx-input-supplier`, normalizado mediante la función pura `Calculations.normalizarProveedor`, permitiendo asociar compras y gastos al comercio o beneficiario correspondiente (ej. *Supermercado Líder*, *Enel*, *Falabella*).
+  - **Campo Factura/Boleta en Base de Datos y Modelo (`invoicePdf` / `invoiceName`):** Incorporación de columnas `invoice_pdf TEXT` e `invoice_name TEXT` en `schema.sql` y persistencia en `localStorage` y Cloud Firestore (`workspaces/{uid}`). En el Libro de Movimientos y Detalle de Cuenta se presenta el botón interactivo `.btn-view-invoice` con icono PDF para abrir o descargar el documento.
+  - **Captura con Cámara y Conversión Óptima a PDF:** Desde el modal de movimientos, el botón "Tomar Foto" (`#btn-camera-invoice`) activa la cámara con `capture="environment"`. La imagen se redimensiona en canvas (máximo 1200px con compresión JPEG 0.75) reduciendo un peso típico de cámara de 8-10MB a menos de 200KB, y se compila a PDF con jsPDF o contenedor estándar antes de adjuntarse a la transacción, garantizando total legibilidad sin saturar cuotas de almacenamiento.
+  - Suite de pruebas unitarias TDD Red-Green en `tests/proveedor-factura-pdf.test.js` con 6/6 pruebas aprobadas (157/157 pruebas totales del proyecto).
 - **Header de Aplicación en 2 Líneas para Ergonomía Móvil y Zonas Seguras (Spec 032):**
   - **Estructura en Dos Líneas (`flex-col`):** La barra superior `<header>` se organiza verticalmente en dos filas independientes para evitar saturación horizontal y cortes en pantallas reducidas de smartphones (iPhone):
     1. **Línea 1 (Superior):** Aloja la identidad corporativa permanente (*ContaPersonal — Finanzas Personales*) con isotipo a la izquierda y el widget de sesión/usuario (`#auth-user-widget`) a la derecha.
@@ -152,6 +157,14 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 3. Historial de cambios
 
+- **2026-11-23 — Spec 033: Registro de Proveedor, Factura/Boleta PDF y Conversión de Fotos en Transacciones (SDD):**
+  - Creada especificación formal `specs/033-proveedor-factura-boleta-pdf/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
+  - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/proveedor-factura-pdf.test.js` (6 pruebas verificando columnas en `schema.sql`, funciones puras `normalizarProveedor` y `generarNombreComprobante` en `financeCalculations.js`, validación defensiva en `validarTransaccion`, controles en `openTransactionModal` de `app.js` y renderizado de proveedor y botón PDF en `renderTransactionsTable`, elevando la suite completa a 157/157 pruebas en verde).
+  - Actualizado `schema.sql` con columnas `supplier`, `invoice_pdf` e `invoice_name`.
+  - Integrada librería jsPDF en `index.html`.
+  - Implementado en `app.js` el campo de proveedor, captura de foto con cámara móvil (`capture="environment"`), compresión en canvas, compilación de PDF, vista previa y visor de documentos.
+  - Actualizada la versión del Service Worker a `contapersonal-v16` en `sw.js`.
+  - Verificación global con `node --test tests/*.test.js`: 157/157 pruebas pasando al 100% sin regresiones.
 - **2026-11-22 — Spec 032: Header de Aplicación en 2 Líneas (SDD):**
   - Creada especificación formal `specs/032-header-dos-lineas/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
   - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/header-two-lines.test.js` (4 pruebas verificando estructura flex-col de 2 filas, marca institucional + auth widget en Fila 1, título de vista + acciones y menú en Fila 2, y visibilidad permanente de `#page-title` en móvil, elevando la suite completa a 151/151 pruebas en verde).

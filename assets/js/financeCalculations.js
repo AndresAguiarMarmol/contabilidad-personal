@@ -184,7 +184,49 @@
       }
     }
 
+    if (tx.supplier !== undefined && tx.supplier !== null && typeof tx.supplier !== "string") {
+      return { valida: false, error: "El proveedor debe ser un texto válido." };
+    }
+
+    if (tx.invoicePdf !== undefined && tx.invoicePdf !== null && typeof tx.invoicePdf !== "string") {
+      return { valida: false, error: "El comprobante debe ser un archivo o enlace válido." };
+    }
+
     return { valida: true };
+  }
+
+  /**
+   * Normaliza y valida el nombre del proveedor o beneficiario (Spec 033)
+   * @param {string|null|undefined} supplier 
+   * @returns {string|null} Cadena limpia o null
+   */
+  function normalizarProveedor(supplier) {
+    if (typeof supplier !== "string") return null;
+    const trimmed = supplier.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
+  /**
+   * Genera un nombre de archivo estándar para comprobantes y facturas/boletas PDF (Spec 033)
+   * @param {string} txDesc 
+   * @param {string} date 
+   * @param {string} [extension="pdf"] 
+   * @returns {string}
+   */
+  function generarNombreComprobante(txDesc, date, extension = "pdf") {
+    const cleanDate = date ? String(date).split("T")[0] : new Date().toISOString().split("T")[0];
+    let slug = "";
+    if (txDesc && typeof txDesc === "string") {
+      slug = txDesc
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "");
+    }
+    const ext = extension ? extension.replace(/^\./, "").toLowerCase() : "pdf";
+    return slug ? `comprobante_${slug}_${cleanDate}.${ext}` : `comprobante_${cleanDate}.${ext}`;
   }
 
   /**
@@ -2509,6 +2551,8 @@
     obtenerMovimientosDeCuenta,
     calcularResumenCuenta,
     clasificarPlanDeCuentas,
+    normalizarProveedor,
+    generarNombreComprobante,
     validarEdicionCuenta,
     normalizarSaldoInicialCuenta,
     puedeEliminarCuenta,

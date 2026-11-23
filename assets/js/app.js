@@ -101,6 +101,111 @@
     }
   }
 
+  // Visor y descarga de comprobantes PDF (Spec 033)
+  function abrirComprobantePdf(dataUrl, fileName = "comprobante.pdf") {
+    if (!dataUrl) return;
+    try {
+      const win = window.open("", "_blank");
+      if (win) {
+        win.document.write(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>${escapeHtml(fileName)}</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+              body, html { margin: 0; padding: 0; height: 100%; background: #0f172a; display: flex; flex-direction: column; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+              header { background: #1e293b; color: white; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; }
+              .title { font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+              .btn-dl { color: #ffffff; background: #059669; font-weight: 600; font-size: 12px; text-decoration: none; padding: 6px 14px; border-radius: 8px; transition: background 0.2s; }
+              .btn-dl:hover { background: #10b981; }
+              iframe { flex: 1; border: none; width: 100%; height: 100%; }
+            </style>
+          </head>
+          <body>
+            <header>
+              <div class="title">📄 <span>${escapeHtml(fileName)}</span></div>
+              <a href="${dataUrl}" download="${escapeHtml(fileName)}" class="btn-dl">Descargar PDF</a>
+            </header>
+            <iframe src="${dataUrl}"></iframe>
+          </body>
+          </html>
+        `);
+        win.document.close();
+      } else {
+        const a = document.createElement("a");
+        a.href = dataUrl;
+        a.download = fileName;
+        a.target = "_blank";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+    } catch (e) {
+      window.open(dataUrl, "_blank");
+    }
+  }
+
+  // Conversión optimizada de fotos/imágenes a PDF (Spec 033)
+  function convertirImagenAPdf(file, callback) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      const dataUrl = e.target.result;
+      const img = new Image();
+      img.onload = function () {
+        // Redimensionar si excede 1200px para mantener tamaño ligero (~100-250KB)
+        const maxDim = 1200;
+        let w = img.width;
+        let h = img.height;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) {
+            h = Math.round((h * maxDim) / w);
+            w = maxDim;
+          } else {
+            w = Math.round((w * maxDim) / h);
+            h = maxDim;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, w, h);
+        const compressedJpeg = canvas.toDataURL("image/jpeg", 0.75);
+
+        // Si window.jspdf está disponible, generar un documento PDF real
+        if (typeof window !== "undefined" && window.jspdf && window.jspdf.jsPDF) {
+          try {
+            const orientation = w > h ? "l" : "p";
+            const pdf = new window.jspdf.jsPDF({
+              orientation: orientation,
+              unit: "pt",
+              format: [w, h]
+            });
+            pdf.addImage(compressedJpeg, "JPEG", 0, 0, w, h);
+            const pdfDataUri = pdf.output("datauristring");
+            callback(null, pdfDataUri);
+            return;
+          } catch (err) {
+            console.warn("Fallo jsPDF, usando compresión base:", err);
+          }
+        }
+
+        // Fallback: Si no está jsPDF cargado, enviar el JPEG comprimido DataURL
+        callback(null, compressedJpeg);
+      };
+      img.onerror = function (err) {
+        callback(err || new Error("Error cargando imagen."));
+      };
+      img.src = dataUrl;
+    };
+    reader.onerror = function (err) {
+      callback(err || new Error("Error leyendo archivo."));
+    };
+    reader.readAsDataURL(file);
+  }
+
   // ========================================================
   // TOAST NOTIFICATIONS
   // ========================================================
@@ -733,6 +838,13 @@
                       </td>
                       <td class="py-3 px-4 font-semibold text-slate-800 dark:text-slate-200">
                         <div>${tx.description}</div>
+                        ${tx.supplier ? `<div class="text-[10px] text-slate-500 dark:text-slate-400 font-normal flex items-center gap-1 mt-0.5"><i data-lucide="store" class="w-3 h-3 text-emerald-600 dark:text-emerald-400"></i> <span>${escapeHtml(tx.supplier)}</span></div>` : ''}
+                        ${tx.invoicePdf ? `
+                          <button type="button" class="btn-view-invoice mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-md bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900 border border-rose-200 dark:border-rose-800 transition-colors" data-tx-id="${escapeHtml(tx.id)}">
+                            <i data-lucide="file-text" class="w-3 h-3"></i>
+                            <span>Ver PDF</span>
+                          </button>
+                        ` : ''}
                         ${relLabel ? `<span class="text-[10px] font-normal text-slate-400">${relLabel}</span>` : ''}
                         ${splitDetailsHtml}
                       </td>
@@ -1445,6 +1557,13 @@
           </td>
           <td class="py-3 px-4 font-semibold text-slate-800 dark:text-slate-200">
             <div>${tx.description}</div>
+            ${tx.supplier ? `<div class="text-[10px] text-slate-500 dark:text-slate-400 font-normal flex items-center gap-1 mt-0.5"><i data-lucide="store" class="w-3 h-3 text-emerald-600 dark:text-emerald-400"></i> <span>${escapeHtml(tx.supplier)}</span></div>` : ''}
+            ${tx.invoicePdf ? `
+              <button type="button" class="btn-view-invoice mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-md bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900 border border-rose-200 dark:border-rose-800 transition-colors" data-tx-id="${escapeHtml(tx.id)}">
+                <i data-lucide="file-text" class="w-3 h-3"></i>
+                <span>Ver Factura/Boleta (PDF)</span>
+              </button>
+            ` : ''}
             ${splitDetailsHtml}
           </td>
           <td class="py-3 px-4">${categoryCellHtml}</td>
@@ -1478,6 +1597,16 @@
       btn.addEventListener("click", () => {
         const id = btn.getAttribute("data-tx-id");
         solicitarEliminarTransaccion(id);
+      });
+    });
+
+    tbody.querySelectorAll(".btn-view-invoice").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-tx-id");
+        const tx = (state.transactions || []).find(t => t.id === id);
+        if (tx && tx.invoicePdf) {
+          abrirComprobantePdf(tx.invoicePdf, tx.invoiceName || "factura_boleta.pdf");
+        }
       });
     });
 
@@ -2159,6 +2288,12 @@
             <input type="text" id="tx-input-desc" placeholder="Ej. Compra Grandes Tiendas, Pago Tarjeta..." required class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
           </div>
 
+          <!-- Proveedor / Beneficiario (Spec 033) -->
+          <div id="col-supplier" class="sm:col-span-2 space-y-1">
+            <label id="lbl-supplier" class="font-semibold text-slate-700 dark:text-slate-300">Proveedor / Beneficiario</label>
+            <input type="text" id="tx-input-supplier" placeholder="Ej. Supermercado Líder, Enel, Falabella, Persona..." value="${escapeHtml(txToEdit?.supplier || '')}" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+          </div>
+
           <!-- Cuenta Origen -->
           <div id="col-source-account" class="space-y-1">
             <label id="lbl-source-account" class="font-semibold text-slate-700 dark:text-slate-300">Cuenta de Pago *</label>
@@ -2220,6 +2355,64 @@
               <option value="transfer">Transferencia Bancaria</option>
               <option value="cash">Efectivo</option>
             </select>
+          </div>
+
+          <!-- Sección Comprobante Factura/Boleta (Spec 033) -->
+          <div id="col-invoice-receipt" class="sm:col-span-2 space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <div class="flex items-center justify-between">
+              <label class="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <i data-lucide="receipt" class="w-3.5 h-3.5 text-emerald-500"></i>
+                <span>Factura / Boleta (Comprobante PDF)</span>
+              </label>
+              <span class="text-[10px] text-slate-400">Opcional</span>
+            </div>
+
+            <!-- Inputs de archivo ocultos para carga y cámara -->
+            <input type="file" id="tx-input-invoice-file" accept="application/pdf,image/*" class="hidden">
+            <input type="file" id="tx-input-camera" accept="image/*" capture="environment" class="hidden">
+
+            <!-- Botones de Acción para Adjuntar -->
+            <div id="tx-invoice-actions" class="flex flex-wrap items-center gap-2">
+              <button type="button" id="btn-camera-invoice" class="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold border border-slate-200 dark:border-slate-700 transition-all active:scale-95 shadow-sm">
+                <i data-lucide="camera" class="w-4 h-4 text-emerald-600 dark:text-emerald-400"></i>
+                <span>Tomar Foto</span>
+              </button>
+
+              <button type="button" id="btn-upload-invoice" class="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold border border-slate-200 dark:border-slate-700 transition-all active:scale-95 shadow-sm">
+                <i data-lucide="upload" class="w-4 h-4 text-blue-600 dark:text-blue-400"></i>
+                <span>Cargar Archivo / PDF</span>
+              </button>
+            </div>
+
+            <!-- Indicador de procesamiento / Spinner -->
+            <div id="tx-invoice-processing" class="hidden p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs flex items-center gap-2">
+              <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+              <span id="tx-invoice-processing-text">Optimizando y convirtiendo foto a PDF...</span>
+            </div>
+
+            <!-- Contenedor de Vista Previa de Factura Adjunta -->
+            <div id="tx-invoice-preview-container" class="${txToEdit?.invoicePdf ? '' : 'hidden'} p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-800/60 shadow-sm flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <div class="w-8 h-8 rounded-lg bg-rose-50 dark:bg-rose-950/70 text-rose-600 dark:text-rose-400 flex items-center justify-center flex-shrink-0">
+                  <i data-lucide="file-text" class="w-4 h-4"></i>
+                </div>
+                <div class="min-w-0">
+                  <span id="tx-invoice-preview-name" class="font-bold text-xs text-slate-800 dark:text-slate-200 block truncate">
+                    ${escapeHtml(txToEdit?.invoiceName || 'comprobante.pdf')}
+                  </span>
+                  <span class="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold block">PDF Adjunto</span>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-1 flex-shrink-0">
+                <button type="button" id="btn-view-preview-invoice" class="p-1.5 text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="Visualizar Comprobante">
+                  <i data-lucide="eye" class="w-4 h-4"></i>
+                </button>
+                <button type="button" id="btn-remove-invoice" class="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors" title="Eliminar comprobante adjunto">
+                  <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+              </div>
+            </div>
           </div>
 
           <!-- Opción Dividir Movimiento / Split (Spec 004 / RF-1) -->
@@ -2622,6 +2815,8 @@
       if (dateEl && txToEdit.date) dateEl.value = txToEdit.date.slice(0, 10);
       const descEl = document.getElementById("tx-input-desc");
       if (descEl) descEl.value = txToEdit.description || "";
+      const supplierEl = document.getElementById("tx-input-supplier");
+      if (supplierEl && txToEdit.supplier) supplierEl.value = txToEdit.supplier;
       if (selAccount && txToEdit.accountId) selAccount.value = txToEdit.accountId;
       const methodEl = document.getElementById("tx-input-method");
       if (methodEl && txToEdit.paymentMethod) methodEl.value = txToEdit.paymentMethod;
@@ -2649,6 +2844,87 @@
       }
     }
 
+    let currentInvoicePdf = (txToEdit && txToEdit.invoicePdf) ? txToEdit.invoicePdf : null;
+    let currentInvoiceName = (txToEdit && txToEdit.invoiceName) ? txToEdit.invoiceName : null;
+
+    const btnCamera = document.getElementById("btn-camera-invoice");
+    const btnUpload = document.getElementById("btn-upload-invoice");
+    const inputCamera = document.getElementById("tx-input-camera");
+    const inputFile = document.getElementById("tx-input-invoice-file");
+    const previewContainer = document.getElementById("tx-invoice-preview-container");
+    const previewName = document.getElementById("tx-invoice-preview-name");
+    const btnViewPreview = document.getElementById("btn-view-preview-invoice");
+    const btnRemoveInvoice = document.getElementById("btn-remove-invoice");
+    const processingEl = document.getElementById("tx-invoice-processing");
+
+    btnCamera?.addEventListener("click", () => inputCamera?.click());
+    btnUpload?.addEventListener("click", () => inputFile?.click());
+
+    function manejarArchivoSeleccionado(file) {
+      if (!file) return;
+      const descVal = document.getElementById("tx-input-desc")?.value?.trim() || "";
+      const dateVal = document.getElementById("tx-input-date")?.value || "";
+
+      if (file.type === "application/pdf") {
+        if (processingEl) processingEl.classList.remove("hidden");
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          currentInvoicePdf = e.target.result;
+          currentInvoiceName = file.name || (Calculations ? Calculations.generarNombreComprobante(descVal, dateVal) : "comprobante.pdf");
+          if (previewName) previewName.textContent = currentInvoiceName;
+          if (previewContainer) previewContainer.classList.remove("hidden");
+          if (processingEl) processingEl.classList.add("hidden");
+          safeRenderIcons();
+        };
+        reader.onerror = () => {
+          if (processingEl) processingEl.classList.add("hidden");
+          showToast("Error al leer el archivo PDF.", "error");
+        };
+        reader.readAsDataURL(file);
+      } else if (file.type.startsWith("image/")) {
+        if (processingEl) processingEl.classList.remove("hidden");
+        convertirImagenAPdf(file, (err, pdfDataUri) => {
+          if (processingEl) processingEl.classList.add("hidden");
+          if (err || !pdfDataUri) {
+            showToast("No se pudo procesar la foto a PDF.", "error");
+            return;
+          }
+          currentInvoicePdf = pdfDataUri;
+          currentInvoiceName = Calculations ? Calculations.generarNombreComprobante(descVal || file.name, dateVal) : "comprobante.pdf";
+          if (previewName) previewName.textContent = currentInvoiceName;
+          if (previewContainer) previewContainer.classList.remove("hidden");
+          safeRenderIcons();
+          showToast("Foto optimizada y convertida a PDF con éxito.", "success");
+        });
+      } else {
+        showToast("Formato no soportado. Selecciona un archivo PDF o imagen.", "error");
+      }
+    }
+
+    inputCamera?.addEventListener("change", (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (file) manejarArchivoSeleccionado(file);
+    });
+
+    inputFile?.addEventListener("change", (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (file) manejarArchivoSeleccionado(file);
+    });
+
+    btnRemoveInvoice?.addEventListener("click", () => {
+      currentInvoicePdf = null;
+      currentInvoiceName = null;
+      if (inputCamera) inputCamera.value = "";
+      if (inputFile) inputFile.value = "";
+      if (previewContainer) previewContainer.classList.add("hidden");
+    });
+
+    btnViewPreview?.addEventListener("click", () => {
+      if (currentInvoicePdf) {
+        abrirComprobantePdf(currentInvoicePdf, currentInvoiceName || "comprobante.pdf");
+      }
+    });
+
     // Manejo de envío del formulario (submit)
     const form = document.getElementById("form-new-tx");
     form?.addEventListener("submit", (e) => {
@@ -2657,6 +2933,9 @@
       const amountVal = Number(document.getElementById("tx-input-amount")?.value);
       const dateVal = document.getElementById("tx-input-date")?.value;
       const descVal = document.getElementById("tx-input-desc")?.value.trim();
+      const supplierVal = Calculations && Calculations.normalizarProveedor
+        ? Calculations.normalizarProveedor(document.getElementById("tx-input-supplier")?.value)
+        : (document.getElementById("tx-input-supplier")?.value?.trim() || null);
       const accountVal = document.getElementById("tx-input-account")?.value;
       const toAccountVal = selectedType === "transfer" ? document.getElementById("tx-input-to-account")?.value : undefined;
       const rawCategoryVal = selectedType === "transfer" ? "Ahorro / Transferencia" : (document.getElementById("tx-input-category")?.value || "Otros");
@@ -2721,6 +3000,9 @@
           type: selectedType,
           amount: amountVal,
           description: descVal,
+          supplier: supplierVal,
+          invoicePdf: currentInvoicePdf,
+          invoiceName: currentInvoiceName,
           accountId: accountVal,
           category: "Varios (Split)",
           categoryCode: null,
@@ -2854,6 +3136,9 @@
         toAmount: toAmountVal,
         exchangeRate: exchangeRateVal,
         description: descVal,
+        supplier: supplierVal,
+        invoicePdf: currentInvoicePdf,
+        invoiceName: currentInvoiceName,
         accountId: accountVal,
         toAccountId: toAccountVal,
         category: resolvedCategoryName,

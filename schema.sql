@@ -34,6 +34,9 @@ CREATE TABLE IF NOT EXISTS transactions (
     category_id TEXT REFERENCES categories(id) ON DELETE SET NULL,
     amount NUMERIC(15, 2) NOT NULL,
     description TEXT,
+    supplier TEXT,
+    invoice_pdf TEXT,
+    invoice_name TEXT,
     payment_method TEXT DEFAULT 'cash',
     is_recurring BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
