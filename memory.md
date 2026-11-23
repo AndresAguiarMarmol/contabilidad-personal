@@ -50,6 +50,12 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 2. Decisiones vigentes
 
+- **Estabilidad y Visibilidad de Header y Footer en iPhone / iOS Safari (Spec 031):**
+  - **Meta Viewport con Zonas Seguras:** Se configuró `<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">` para habilitar el uso de variables de entorno de safe areas en WebKit.
+  - **Viewport Dinámico (`100dvh` y `-webkit-fill-available`):** Se definió en `styles.css` para `html`, `body` y `#app-container`, impidiendo que el contenedor de la aplicación exceda el área visible de la pantalla cuando la barra de navegación o de herramientas de Safari se expande.
+  - **Zona Segura y Ergonomía del Header (`.header-safe`):** El elemento `<header>` incorpora `padding-top: env(safe-area-inset-top)` y `min-height: calc(4rem + env(safe-area-inset-top))`, garantizando que la barra superior no quede solapada bajo el notch o Dynamic Island. En pantallas móviles estrechas ($\le 390\text{px}$), `#btn-quick-new-tx` y `#btn-quick-sync` presentan presentación compacta con solo iconos visibles, asegurando un ancho total del header inferior a 300px sin wrapping ni desbordes.
+  - **Zona Segura y Contención de Scroll para el Footer (`.footer-safe` y `.main-scroll-safe`):** El contenedor `<main>` incorpora `-webkit-overflow-scrolling: touch` y `overscroll-behavior-y: contain`. El pie de página `#app-footer` incluye `padding-bottom: max(1.5rem, calc(1rem + env(safe-area-inset-bottom)))`, asegurando que al desplazarse al final de las vistas quede completamente visible por encima de la barra de inicio o herramientas de iOS.
+  - Suite de pruebas unitarias TDD Red-Green en `tests/ios-viewport-header-footer.test.js` con 4/4 pruebas aprobadas (147/147 pruebas totales del proyecto).
 - **Header de Aplicación con Identidad de Marca y Menú a la Derecha (Spec 030):**
   - **Identidad de Marca a la Izquierda:** La barra superior `<header>` muestra en su lateral izquierdo la marca permanente *ContaPersonal* con isotipo de billetera en gradiente y el subtítulo *Finanzas Personales*, preservando `#page-title` y `#page-subtitle` en el DOM para trazabilidad visual.
   - **Botón de Menú a la Derecha e Interacción Híbrida:** El botón de navegación `#btn-open-sidebar` se ubica en el extremo derecho de las acciones rápidas del header. En móviles abre el drawer de navegación y en desktop (`>= 768px`) permite alternar la visibilidad de la barra lateral (`md:hidden`), adaptándose a la ergonomía de una sola mano.
@@ -140,6 +146,12 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 3. Historial de cambios
 
+- **2026-11-22 — Spec 031: Estabilidad y Visibilidad de Header y Footer en iPhone (iOS Safari) (SDD):**
+  - Creada especificación formal `specs/031-viewport-ios-header-footer/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
+  - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/ios-viewport-header-footer.test.js` (4 pruebas verificando `viewport-fit=cover`, soporte `100dvh` / `-webkit-fill-available`, `.header-safe` con `env(safe-area-inset-top)`, optimización de botones móviles en `<header>`, y `.footer-safe` con `env(safe-area-inset-bottom)` y `main-scroll-safe`, elevando la suite completa a 147/147 pruebas en verde).
+  - Actualizado `index.html` y `assets/css/styles.css` con viewport dinámico, clases seguras e insets para iPhone.
+  - Actualizada la versión del Service Worker a `contapersonal-v14` en `sw.js`.
+  - Verificación global con `node --test tests/*.test.js`: 147/147 pruebas pasando al 100% sin regresiones.
 - **2026-11-22 — Spec 030: Header de Aplicación con Identidad de Marca y Menú a la Derecha (SDD):**
   - Creada especificación formal `specs/030-header-marca-menu-derecha/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
   - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/header-layout.test.js` (3 pruebas verificando marca "ContaPersonal" y subtítulo "Finanzas Personales" a la izquierda, botón `#btn-open-sidebar` a la derecha con texto "Menú" y preservación de selectores `#page-title` y `#page-subtitle`, elevando la suite completa a 143/143 pruebas en verde).

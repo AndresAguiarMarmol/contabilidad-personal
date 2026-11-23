@@ -1,5 +1,29 @@
 /* styles.css — Personalizaciones y utilidades para InsumosPro */
 
+/* Soporte de altura de viewport dinámico para iOS Safari (Spec 031) */
+html,
+body,
+#app-container {
+  height: 100%;
+  height: 100dvh;
+  height: -webkit-fill-available;
+}
+
+/* Safe Area Insets para iPhone (Spec 031) */
+.header-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+  min-height: calc(4rem + env(safe-area-inset-top, 0px));
+}
+
+.footer-safe {
+  padding-bottom: max(1.5rem, calc(1rem + env(safe-area-inset-bottom, 0px)));
+}
+
+.main-scroll-safe {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
 @layer utilities {
   /* Scrollbar estilizada */
   ::-webkit-scrollbar {
