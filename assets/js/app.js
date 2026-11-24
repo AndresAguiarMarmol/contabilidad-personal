@@ -816,7 +816,8 @@
       if (searchVal) {
         const matchDesc = (tx.description || "").toLowerCase().includes(searchVal);
         const matchCat = (tx.category || "").toLowerCase().includes(searchVal);
-        if (!matchDesc && !matchCat) return false;
+        const matchSupp = (tx.supplier || "").toLowerCase().includes(searchVal);
+        if (!matchDesc && !matchCat && !matchSupp) return false;
       }
       return true;
     });
@@ -848,6 +849,7 @@
                   <th class="py-3 px-4 whitespace-nowrap">Fecha</th>
                   <th class="py-3 px-4 whitespace-nowrap">Tipo</th>
                   <th class="py-3 px-4">Concepto / Detalle</th>
+                  <th class="py-3 px-4 whitespace-nowrap">Proveedor / Beneficiario</th>
                   <th class="py-3 px-4 whitespace-nowrap">Categoría</th>
                   <th class="py-3 px-4 text-right whitespace-nowrap">Monto</th>
                 </tr>
@@ -913,7 +915,6 @@
                       </td>
                       <td class="py-3 px-4 font-semibold text-slate-800 dark:text-slate-200">
                         <div>${tx.description}</div>
-                        ${tx.supplier ? `<div class="text-[10px] text-slate-500 dark:text-slate-400 font-normal flex items-center gap-1 mt-0.5"><i data-lucide="store" class="w-3 h-3 text-emerald-600 dark:text-emerald-400"></i> <span>${escapeHtml(tx.supplier)}</span></div>` : ''}
                         ${tx.invoicePdf ? `
                           <button type="button" class="btn-view-invoice mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-md bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900 border border-rose-200 dark:border-rose-800 transition-colors" data-tx-id="${escapeHtml(tx.id)}">
                             <i data-lucide="file-text" class="w-3 h-3"></i>
@@ -922,6 +923,14 @@
                         ` : ''}
                         ${relLabel ? `<span class="text-[10px] font-normal text-slate-400">${relLabel}</span>` : ''}
                         ${splitDetailsHtml}
+                      </td>
+                      <td class="py-3 px-4 text-slate-700 dark:text-slate-300">
+                        ${tx.supplier ? `
+                          <div class="flex items-center gap-1.5 font-medium">
+                            <i data-lucide="store" class="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 flex-shrink-0"></i>
+                            <span class="truncate max-w-[150px]" title="${escapeHtml(tx.supplier)}">${escapeHtml(tx.supplier)}</span>
+                          </div>
+                        ` : `<span class="text-slate-400 dark:text-slate-500 italic text-[11px]">—</span>`}
                       </td>
                       <td class="py-3 px-4 text-slate-500 whitespace-nowrap">${tx.category}</td>
                       <td class="py-3 px-4 text-right font-bold tabular-nums ${isAbono ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'} whitespace-nowrap text-sm">
@@ -1549,7 +1558,7 @@
       : state.transactions;
 
     if (filtered.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="7" class="py-8 text-center text-slate-400">No hay movimientos que coincidan con los filtros aplicados.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8" class="py-8 text-center text-slate-400">No hay movimientos que coincidan con los filtros aplicados.</td></tr>`;
       return;
     }
 
@@ -1632,7 +1641,6 @@
           </td>
           <td class="py-3 px-4 font-semibold text-slate-800 dark:text-slate-200">
             <div>${tx.description}</div>
-            ${tx.supplier ? `<div class="text-[10px] text-slate-500 dark:text-slate-400 font-normal flex items-center gap-1 mt-0.5"><i data-lucide="store" class="w-3 h-3 text-emerald-600 dark:text-emerald-400"></i> <span>${escapeHtml(tx.supplier)}</span></div>` : ''}
             ${tx.invoicePdf ? `
               <button type="button" class="btn-view-invoice mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-md bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900 border border-rose-200 dark:border-rose-800 transition-colors" data-tx-id="${escapeHtml(tx.id)}">
                 <i data-lucide="file-text" class="w-3 h-3"></i>
@@ -1640,6 +1648,14 @@
               </button>
             ` : ''}
             ${splitDetailsHtml}
+          </td>
+          <td class="py-3 px-4 text-slate-700 dark:text-slate-300">
+            ${tx.supplier ? `
+              <div class="flex items-center gap-1.5 font-medium">
+                <i data-lucide="store" class="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 flex-shrink-0"></i>
+                <span class="truncate max-w-[150px]" title="${escapeHtml(tx.supplier)}">${escapeHtml(tx.supplier)}</span>
+              </div>
+            ` : `<span class="text-slate-400 dark:text-slate-500 italic text-[11px]">—</span>`}
           </td>
           <td class="py-3 px-4">${categoryCellHtml}</td>
           <td class="py-3 px-4 text-slate-500">${accountName}</td>

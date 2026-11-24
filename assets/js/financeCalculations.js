@@ -1038,14 +1038,15 @@
         }
       }
 
-      // Filtro por texto de búsqueda
+      // Filtro por texto de búsqueda (descripción, categoría, proveedor/beneficiario y partidas split)
       if (query) {
         const desc = (tx.description || "").toLowerCase();
         const cat = (tx.category || "").toLowerCase();
+        const supp = (tx.supplier || "").toLowerCase();
         const splitText = tx.isSplit && Array.isArray(tx.splitLines)
           ? tx.splitLines.map(l => (l.description || '') + ' ' + (l.category || '')).join(' ').toLowerCase()
           : "";
-        if (!desc.includes(query) && !cat.includes(query) && !splitText.includes(query)) {
+        if (!desc.includes(query) && !cat.includes(query) && !supp.includes(query) && !splitText.includes(query)) {
           return false;
         }
       }

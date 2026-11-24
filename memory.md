@@ -50,6 +50,12 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 2. Decisiones vigentes
 
+- **Columna Explícita de Proveedor/Beneficiario en Libro de Movimientos y Detalle de Cuenta (Spec 038):**
+  - **Cabecera y Tablas:** Incorporación de la columna `<th>Proveedor / Beneficiario</th>` en `#transactions-table` (`index.html`) y en la tabla de Detalle de Cuenta (`view-account-detail`), brindando visibilidad inmediata al comercio, emisor o beneficiario de la transacción.
+  - **Celdas Dedicadas:** En `renderTransactions()` y `renderAccountDetailView()`, cada movimiento despliega su celda `<td>` con icono de comercio (`store`) y texto truncado con tooltip completo, o un guión estilizado `—` cuando no aplica.
+  - **Buscador Multicampo:** `Calculations.filtrarTransacciones()` en `financeCalculations.js` evalúa en vivo `tx.supplier`, permitiendo al usuario filtrar movimientos instantáneamente al tipear el nombre del proveedor en `#tx-search` o en el buscador de la cuenta.
+  - Suite de pruebas unitarias TDD Red-Green en `tests/transactions-supplier-column.test.js` con 4/4 pruebas aprobadas (184/184 pruebas totales del proyecto).
+
 - **Replicación Fiable Multi-Dispositivo de Saldos de Cuentas y Forzado de Descarga desde la Nube (Spec 037):**
   - **Conciliación Inteligente en Empate de Timestamps:** En `fusionarEstadoContable`, ante empate o ausencia de `updatedAt` individual entre cuentas con saldo diferente:
     1. Si el saldo local es $0$ y el saldo remoto es no nulo (`localInitial === 0 && remoteInitial !== 0`), se adopta la cuenta remota (`hasAccountsUpdated = true`), garantizando que dispositivos secundarios (móviles/teléfonos) adopten inmediatamente los saldos configurados en la PC.
@@ -192,6 +198,13 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 3. Historial de cambios
 
+- **2026-11-24 — Spec 038: Columna Explícita de Proveedor/Beneficiario en Libro de Movimientos y Detalle de Cuenta (SDD):**
+  - Creada especificación formal e implementada suite de pruebas unitarias TDD Red-Green en `tests/transactions-supplier-column.test.js` (4 pruebas verificando cabecera de tabla en `index.html`, celdas de proveedor con icono y colspan=8 en `app.js`, tabla de Detalle de Cuenta, y búsqueda textual por proveedor en `filtrarTransacciones`, elevando la suite completa a 184/184 pruebas en verde).
+  - Añadida columna `Proveedor / Beneficiario` en la tabla de `#view-transactions` en `index.html`.
+  - Adaptado `renderTransactions` y `renderAccountDetailView` en `assets/js/app.js` para renderizar la columna dedicada con icono `store`.
+  - Habilitada la búsqueda por proveedor en `Calculations.filtrarTransacciones` en `assets/js/financeCalculations.js` y actualizado el placeholder de `#tx-search`.
+  - Actualizada la versión del Service Worker a `contapersonal-v21` en `sw.js`.
+  - Verificación global con `node --test tests/*.test.js`: 184/184 pruebas pasando al 100% sin regresiones.
 - **2026-11-24 — Spec 037: Replicación Fiable Multi-Dispositivo de Saldos de Cuentas y Forzado de Descarga desde la Nube (SDD):**
   - Creada especificación formal e implementada suite de pruebas unitarias TDD Red-Green en `tests/account-sync-mobile.test.js` (6 pruebas verificando adopción remota de saldos no nulos cuando el móvil tiene 0, resolución por timestamp de workspace, preservación de ediciones locales legítimas, aborto seguro de sync ante caídas de red, y método `forcePullFromRemote`, elevando la suite completa a 180/180 pruebas en verde).
   - Refactorizada la función pura `fusionarEstadoContable` en `assets/js/financeCalculations.js` para resolver empates de marcas de tiempo favoreciendo saldos configurados sobre ceros por defecto y considerando timestamps del workspace remoto.
