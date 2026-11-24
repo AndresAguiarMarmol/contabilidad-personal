@@ -3183,7 +3183,8 @@
           categoryCode: null,
           paymentMethod: methodVal,
           isSplit: true,
-          splitLines: parsedSplitLines
+          splitLines: parsedSplitLines,
+          updatedAt: new Date().toISOString()
         };
 
         // Validar con la lógica pura desacoplada (Spec 004 / RF-3)
@@ -3318,7 +3319,8 @@
         toAccountId: toAccountVal,
         category: resolvedCategoryName,
         categoryCode: resolvedCategoryCode,
-        paymentMethod: methodVal
+        paymentMethod: methodVal,
+        updatedAt: new Date().toISOString()
       };
 
       // Validar con lógica pura desacoplada
@@ -3693,6 +3695,7 @@
       account.color = colorVal;
       account.isExcludedFromTotal = excludeVal;
       account.initialBalance = normalizedInitialBalance;
+      account.updatedAt = new Date().toISOString();
       if (codeVal) {
         account.codigoContable = codeVal;
       }

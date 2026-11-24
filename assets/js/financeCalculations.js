@@ -717,7 +717,8 @@
       currency: datos.currency || "CLP",
       color: datos.color || defaultConfig.color,
       icon: datos.icon || defaultConfig.icon,
-      isExcludedFromTotal: Boolean(datos.isExcludedFromTotal)
+      isExcludedFromTotal: Boolean(datos.isExcludedFromTotal),
+      updatedAt: datos.updatedAt || new Date().toISOString()
     };
   }
 
@@ -1947,9 +1948,10 @@
     const remoteDeletedTxs = Array.isArray(remote.deletedTransactions) ? remote.deletedTransactions : [];
     const deletedTxsSet = new Set([...localDeletedTxs, ...remoteDeletedTxs]);
 
-    // 1. Fusionar transacciones sin duplicados por ID (excluyendo lápidas de eliminación - Spec 025)
+    // 1. Fusionar transacciones sin duplicados por ID (excluyendo lápidas de eliminación - Spec 025 y resolución temporal - Spec 035)
     const txMap = new Map();
     let newTxsFromRemote = 0;
+    let hasTransactionsUpdated = false;
     const localTxIdSet = new Set(localTxs.map(t => t.id));
 
     localTxs.forEach(t => {
@@ -1965,14 +1967,22 @@
         }
       } else {
         const existing = txMap.get(t.id);
-        txMap.set(t.id, { ...t, ...existing });
+        const localTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+        const remoteTime = t.updatedAt ? new Date(t.updatedAt).getTime() : 0;
+        if (remoteTime > localTime) {
+          txMap.set(t.id, { ...existing, ...t });
+          hasTransactionsUpdated = true;
+        } else {
+          txMap.set(t.id, { ...t, ...existing });
+        }
       }
     });
 
     const mergedTransactions = Array.from(txMap.values());
     mergedTransactions.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
-    // 2. Fusionar cuentas sin duplicados por ID (Local-First: atributos locales tienen prioridad, excluyendo eliminados)
+    // 2. Fusionar cuentas sin duplicados por ID con resolución temporal LWW (Spec 035)
+    let hasAccountsUpdated = false;
     const accMap = new Map();
     localAccs.forEach(a => {
       if (a && a.id && !deletedAccountsSet.has(a.id)) accMap.set(a.id, { ...a });
@@ -1983,18 +1993,35 @@
         accMap.set(a.id, { ...a });
       } else {
         const existing = accMap.get(a.id);
-        accMap.set(a.id, {
-          ...a,
-          ...existing,
-          initialBalance: existing.initialBalance ?? a.initialBalance
-        });
+        const localTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+        const remoteTime = a.updatedAt
+          ? new Date(a.updatedAt).getTime()
+          : (remote.updatedAt ? new Date(remote.updatedAt).getTime() : 0);
+
+        let resolved;
+        if (remoteTime > localTime) {
+          resolved = { ...existing, ...a };
+          hasAccountsUpdated = true;
+        } else if (localTime > remoteTime) {
+          resolved = { ...a, ...existing };
+        } else {
+          // localTime === remoteTime (ambos iguales o ausentes sin timestamp)
+          if (a.initialBalance !== existing.initialBalance) {
+            resolved = { ...existing, ...a };
+            hasAccountsUpdated = true;
+          } else {
+            resolved = { ...a, ...existing };
+          }
+        }
+        accMap.set(a.id, resolved);
       }
     });
 
-    // Recalcular contablemente el balance actual (currentBalance) de cada cuenta (Spec 025)
+    // Recalcular contablemente el balance actual (currentBalance) de cada cuenta (Spec 025 & Spec 035)
     const mergedAccounts = recalcularBalancesCuentas(Array.from(accMap.values()), mergedTransactions);
 
-    // 3. Fusionar presupuestos (Local-First: límites modificados localmente tienen prioridad, excluyendo eliminados)
+    // 3. Fusionar presupuestos con resolución temporal LWW (Spec 035)
+    let hasBudgetsUpdated = false;
     const budgetMap = new Map();
     localBudgets.forEach(b => {
       if (b && b.id && !deletedBudgetsSet.has(b.id)) budgetMap.set(b.id, { ...b });
@@ -2005,12 +2032,20 @@
         budgetMap.set(b.id, { ...b });
       } else {
         const existing = budgetMap.get(b.id);
-        budgetMap.set(b.id, { ...b, ...existing });
+        const localTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+        const remoteTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+        if (remoteTime > localTime) {
+          budgetMap.set(b.id, { ...existing, ...b });
+          hasBudgetsUpdated = true;
+        } else {
+          budgetMap.set(b.id, { ...b, ...existing });
+        }
       }
     });
     const mergedBudgets = Array.from(budgetMap.values());
 
-    // 4. Fusionar metas de ahorro (excluyendo eliminados)
+    // 4. Fusionar metas de ahorro con resolución temporal LWW (Spec 035)
+    let hasGoalsUpdated = false;
     const goalMap = new Map();
     localGoals.forEach(g => {
       if (g && g.id && !deletedGoalsSet.has(g.id)) goalMap.set(g.id, { ...g });
@@ -2021,8 +2056,15 @@
         goalMap.set(g.id, { ...g });
       } else {
         const existing = goalMap.get(g.id);
-        const currentAmount = Math.max(Number(existing.currentAmount || 0), Number(g.currentAmount || 0));
-        goalMap.set(g.id, { ...existing, ...g, currentAmount });
+        const localTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+        const remoteTime = g.updatedAt ? new Date(g.updatedAt).getTime() : 0;
+        if (remoteTime > localTime) {
+          goalMap.set(g.id, { ...existing, ...g });
+          hasGoalsUpdated = true;
+        } else {
+          const currentAmount = Math.max(Number(existing.currentAmount || 0), Number(g.currentAmount || 0));
+          goalMap.set(g.id, { ...g, ...existing, currentAmount });
+        }
       }
     });
     const mergedGoals = Array.from(goalMap.values());
@@ -2080,7 +2122,17 @@
     const hasNewBudgets = mergedBudgets.length > localBudgets.length;
     const hasNewGoals = mergedGoals.length > localGoals.length;
     const hasNewPlan = mergedPlanAccounts.length > localPlan.length;
-    const hasChangesFromRemote = Boolean(newTxsFromRemote > 0 || hasNewAccounts || hasNewBudgets || hasNewGoals || hasNewPlan);
+    const hasChangesFromRemote = Boolean(
+      newTxsFromRemote > 0 ||
+      hasNewAccounts ||
+      hasAccountsUpdated ||
+      hasTransactionsUpdated ||
+      hasNewBudgets ||
+      hasBudgetsUpdated ||
+      hasNewGoals ||
+      hasGoalsUpdated ||
+      hasNewPlan
+    );
 
     return {
       mergedState: {

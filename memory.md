@@ -11,9 +11,9 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 - **Aislamiento Multi-Usuario por UID (Spec 024):** Todas las claves de almacenamiento contable privado se particionan y prefijan dinámicamente con el UID del usuario autenticado (`finance_${uid}_accounts_data`, `finance_${uid}_transactions_data`, `finance_${uid}_budgets_data`, `finance_${uid}_goals_data`, `finance_${uid}_plan_accounts_data`, `finance_${uid}_currencies_data`, `finance_${uid}_deleted_*`) mediante la función pura `Calculations.obtenerClaveStorage(claveBase, uid)` y `Storage.resolveKey()`. Esto garantiza confidencialidad y aislamiento total entre diferentes usuarios (ej. esposos/familiares) que compartan el mismo dispositivo o navegador. Al cerrar sesión o conmutar de usuario, el puntero activo se restablece y se purgan las memorias para evitar cualquier lectura o fusión cruzada.
 - **Estado Inicial Limpio (Spec 022):** Todas las semillas de prueba (`INITIAL_ACCOUNTS`, `INITIAL_TRANSACTIONS`, `INITIAL_BUDGETS`, `INITIAL_GOALS`) quedan vacías `[]` por defecto. `Storage` y `Calculations.purgarDatosDemoLocales` descartan automáticamente registros demo históricos (`ACC-001`..`005`, `TX-2026-001`..`012`, etc.) al cargar datos locales para garantizar un inicio 100% limpio para usuarios reales. Se preserva intacto el catálogo contable base (Plan de Cuentas chileno, Clases 1 a 5 con balance $0) y las monedas referenciales (`CLP`, `USD`, `EUR`, `ARS`).
 - **Clave:** `finance_accounts_data` (o `finance_${uid}_accounts_data`)
-  - Array de objetos `Account`: `id`, `name`, `type` (`"bank"` | `"cash"` | `"wallet"` | `"savings"` | `"credit_card"`), `initialBalance`, `currentBalance`, `currency`, `color`, `icon`, `isExcludedFromTotal`.
+  - Array de objetos `Account`: `id`, `name`, `type` (`"bank"` | `"cash"` | `"wallet"` | `"savings"` | `"credit_card"`), `initialBalance`, `currentBalance`, `currency`, `color`, `icon`, `isExcludedFromTotal`, `updatedAt` (timestamp ISO de última modificación, Spec 035).
 - **Clave:** `finance_transactions_data`
-  - Array de objetos `Transaction`: `id`, `date`, `type` (`"income"` | `"expense"` | `"transfer"`), `accountId`, `toAccountId`, `category`, `categoryCode` (código contable del plan, ej. `5.2.01`), `amount`, `description`, `supplier` (nombre del proveedor/comercio o beneficiario, Spec 033), `invoicePdf` (Data URL en base64 del comprobante/factura en formato PDF, Spec 033), `invoiceName` (nombre del archivo PDF, Spec 033), `paymentMethod`, `isRecurring`, `isSplit` (booleano opcional), `splitLines` (array de partidas: `{ id, description, amount, category, categoryCode, targetAccountId }`).
+  - Array de objetos `Transaction`: `id`, `date`, `type` (`"income"` | `"expense"` | `"transfer"`), `accountId`, `toAccountId`, `category`, `categoryCode` (código contable del plan, ej. `5.2.01`), `amount`, `description`, `supplier` (nombre del proveedor/comercio o beneficiario, Spec 033), `invoicePdf` (Data URL en base64 del comprobante/factura en formato PDF, Spec 033), `invoiceName` (nombre del archivo PDF, Spec 033), `paymentMethod`, `isRecurring`, `isSplit` (booleano opcional), `splitLines` (array de partidas: `{ id, description, amount, category, categoryCode, targetAccountId }`), `updatedAt` (Spec 035).
 - **Clave:** `finance_budgets_data`
   - Array de objetos `Budget`: `id`, `category`, `limitAmount`, `spentAmount`, `month`.
 - **Clave:** `finance_goals_data`
@@ -49,6 +49,12 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 ---
 
 ## 2. Decisiones vigentes
+
+- **Sincronización Multi-Dispositivo con Precedencia Temporal y Replicación Íntegra de Saldos (Spec 035):**
+  - **Resolución Last-Write-Wins (LWW) en Cuentas y Entidades:** Incorporación del campo `updatedAt` (ISO 8601) en cada cuenta financiera (`Account`) al crearse (`crearCuentaObjeto`) o editarse (`openAccountEditModal`), así como en transacciones, presupuestos y metas.
+  - **Fusión Bidireccional Inteligente (`fusionarEstadoContable`):** Cuando una cuenta existe en el dispositivo local y en la nube remota, se comparan sus marcas temporales. Si la versión remota es posterior (o posee `updatedAt` ante una local sin él), la versión remota y su nuevo saldo inicial prevalecen íntegramente. Si ambas carecen de timestamp y los saldos difieren, se adopta el saldo remoto actualizado desde la nube.
+  - **Recálculo Atómico y Detección Exhaustiva:** Los balances actuales (`currentBalance`) se reconstruyen deterministamente a partir del saldo inicial resuelto y las transacciones mediante `recalcularBalancesCuentas`. `hasChangesFromRemote` detecta activamente mutaciones en cuentas existentes (`hasAccountsUpdated`), permitiendo que dispositivos secundarios (como iPhone o PC) refresquen su interfaz de inmediato y notifiquen al usuario con *"Sincronización exitosa: saldos y datos actualizados desde la nube."*
+  - Suite de pruebas unitarias TDD Red-Green en `tests/account-balance-sync.test.js` con 6/6 pruebas aprobadas (170/170 pruebas totales del proyecto).
 
 - **Extracción Automática de Datos desde Comprobantes PDF / Fotos y Autocompletado (Spec 034):**
   - **Lectura Inteligente de Comprobantes Digitales y Escaneados:** Integración cliente-side de `PDF.js` (para PDFs con flujo de texto digital) y `Tesseract.js` (para OCR de fotos y comprobantes escaneados sin capas de texto nativo), procesando directamente en el navegador del usuario sin enviar archivos a servidores externos ni incurrir en costos de APIs terceras.
@@ -168,6 +174,14 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 ---
 
 ## 3. Historial de cambios
+
+- **2026-11-24 — Spec 035: Sincronización Multi-Dispositivo con Precedencia Temporal y Replicación de Saldos (SDD):**
+  - Creada especificación formal `specs/035-sincronizacion-saldos-cuentas/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
+  - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/account-balance-sync.test.js` (6 pruebas cubriendo estampado de `updatedAt` en `crearCuentaObjeto`, precedencia remota sobre local por timestamp, precedencia ante cuentas legacy sin timestamp, adopción de saldos actualizados y recálculo determinista con transacciones combinadas, alcanzando 170/170 pruebas en verde).
+  - Implementada en `assets/js/financeCalculations.js` la resolución temporal LWW y la detección exhaustiva de mutaciones de cuentas (`hasAccountsUpdated`) en `fusionarEstadoContable`.
+  - Actualizado `assets/js/app.js` en `openAccountEditModal` (`account.updatedAt = new Date().toISOString()`), `form-new-account` y transacciones.
+  - Actualizado `assets/js/dbAdapter.js` con retroalimentación contextual de sincronización.
+  - Actualizado el Service Worker `sw.js` a la versión de caché `contapersonal-v18`.
 
 - **2026-11-23 — Spec 034: Extracción de Datos desde Factura / Boleta PDF y Autocompletado de Campos (SDD):**
   - Creada especificación formal `specs/034-extraccion-datos-pdf-factura/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).

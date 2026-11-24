@@ -644,7 +644,9 @@
         mergedState: merged,
         message: fusion.newTransactionsFromRemote > 0
           ? `Sincronización exitosa: ${fusion.newTransactionsFromRemote} movimiento(s) recibido(s) desde otro dispositivo.`
-          : "Sincronización al día con la nube."
+          : (fusion.hasChangesFromRemote
+              ? "Sincronización exitosa: saldos y datos actualizados desde la nube."
+              : "Sincronización al día con la nube.")
       };
     },
 
