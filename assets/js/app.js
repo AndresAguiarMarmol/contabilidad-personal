@@ -47,11 +47,33 @@
     authMode: "login" // "login" | "register"
   };
 
-  // Formateador de moneda estándar con soporte multidivisa (Spec 018)
+  // Formateador de moneda estándar con soporte multidivisa y criptomonedas (Spec 018 & Spec 036)
   const formatMoney = (amount, currencyCode = "CLP") => {
     const code = (currencyCode || "CLP").toUpperCase();
     const curr = (state.currencies || []).find(c => (c.code || "").toUpperCase() === code);
-    const maxDigits = code === "CLP" ? 0 : 2;
+    const esCrypto = code === "BTC" || code === "ETH" || code === "SAT" || (curr && curr.isCrypto);
+
+    let maxDigits = 2;
+    if (code === "CLP") {
+      maxDigits = 0;
+    } else if (esCrypto) {
+      maxDigits = 8;
+    } else {
+      const strVal = String(amount || 0);
+      const decPart = strVal.includes(".") ? strVal.split(".")[1] : "";
+      maxDigits = decPart.length > 2 ? Math.min(8, decPart.length) : 2;
+    }
+
+    if (esCrypto) {
+      const symbol = curr ? curr.symbol : `${code} `;
+      const decLen = (String(amount || 0).split(".")[1] || "").length;
+      const minDigits = Math.min(maxDigits, Math.max(2, decLen));
+      const numStr = new Intl.NumberFormat("es-CL", {
+        maximumFractionDigits: maxDigits,
+        minimumFractionDigits: minDigits
+      }).format(amount || 0);
+      return `${symbol} ${numStr}`;
+    }
 
     try {
       return new Intl.NumberFormat("es-CL", {

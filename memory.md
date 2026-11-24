@@ -50,6 +50,12 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 2. Decisiones vigentes
 
+- **Blindaje de Saldos Locales contra Sobreescritura en Sincronización y Precisión Decimal Cripto (Spec 036):**
+  - **Eliminación de Fallback Global en Timestamps:** En `fusionarEstadoContable`, se eliminó el fallback que asignaba erróneamente `remote.updatedAt` del documento completo a cuentas remotas individuales sin marca de tiempo, evitando que cuentas remotas obsoletas de saldo $0$ parecieran más recientes que la edición local activa.
+  - **Precedencia Local Estricta en Empates:** Ante ausencia o empate de marcas de tiempo (`localTime >= remoteTime`), la versión local prevalece íntegramente (`{ ...a, ...existing }`), garantizando que modificaciones locales recién guardadas por el usuario (ej. $0.45$ BTC en Ledger) jamás sean reemplazadas por saldos antiguos de la nube durante el auto-sync.
+  - **Soporte de Precisión Decimal para Criptomonedas:** `formatMoney` en `app.js` identifica divisas cripto (`BTC`, `ETH`, `SAT` o con `isCrypto`) y permite hasta 8 decimales (`maximumFractionDigits: 8`) sin truncar a 2 decimales ni redondear importes fraccionarios a cero.
+  - Suite de pruebas unitarias TDD Red-Green en `tests/crypto-balance-protection.test.js` con 4/4 pruebas aprobadas (174/174 pruebas totales del proyecto).
+
 - **Sincronización Multi-Dispositivo con Precedencia Temporal y Replicación Íntegra de Saldos (Spec 035):**
   - **Resolución Last-Write-Wins (LWW) en Cuentas y Entidades:** Incorporación del campo `updatedAt` (ISO 8601) en cada cuenta financiera (`Account`) al crearse (`crearCuentaObjeto`) o editarse (`openAccountEditModal`), así como en transacciones, presupuestos y metas.
   - **Fusión Bidireccional Inteligente (`fusionarEstadoContable`):** Cuando una cuenta existe en el dispositivo local y en la nube remota, se comparan sus marcas temporales. Si la versión remota es posterior (o posee `updatedAt` ante una local sin él), la versión remota y su nuevo saldo inicial prevalecen íntegramente. Si ambas carecen de timestamp y los saldos difieren, se adopta el saldo remoto actualizado desde la nube.
@@ -174,6 +180,13 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 ---
 
 ## 3. Historial de cambios
+
+- **2026-11-24 — Spec 036: Blindaje de Saldos Locales contra Sobreescritura en Sincronización y Precisión Decimal Cripto (SDD):**
+  - Creada especificación formal `specs/036-blindaje-saldos-decimales-btc/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
+  - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/crypto-balance-protection.test.js` (4 pruebas verificando que una modificación local de 0.45 BTC no sea pisada por saldo remoto 0, prevalencia local ante empate o ausencia de timestamps, recálculo de punto flotante en criptomonedas y soporte de hasta 8 decimales en `formatMoney`, elevando la suite completa a 174/174 pruebas en verde).
+  - Corregida en `assets/js/financeCalculations.js` la función pura `fusionarEstadoContable` eliminando la herencia errónea del timestamp del documento completo sobre cuentas remotas individuales y asegurando prevalencia local ante empate.
+  - Actualizado `formatMoney` en `assets/js/app.js` para detectar criptomonedas (`BTC`, `ETH`, `SAT`) y desplegar hasta 8 decimales significativos sin truncar a cero.
+  - Actualizado el Service Worker `sw.js` a la versión de caché `contapersonal-v19`.
 
 - **2026-11-24 — Spec 035: Sincronización Multi-Dispositivo con Precedencia Temporal y Replicación de Saldos (SDD):**
   - Creada especificación formal `specs/035-sincronizacion-saldos-cuentas/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).

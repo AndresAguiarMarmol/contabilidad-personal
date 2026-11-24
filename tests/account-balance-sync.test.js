@@ -150,11 +150,12 @@ test("Spec 035 - RF-2 & RF-3: fusionarEstadoContable adopta saldo remoto si los 
         name: "Cuenta Ahorro",
         type: "savings",
         initialBalance: 350000,
-        currentBalance: 350000
+        currentBalance: 350000,
+        updatedAt: "2026-11-24T16:00:00.000Z"
       }
     ],
     transactions: [],
-    updatedAt: "2026-11-24T16:00:00.000Z"
+    updatedAt: "2026-11-24T16:00:05.000Z"
   };
 
   const fusion = Calculations.fusionarEstadoContable(local, remote);

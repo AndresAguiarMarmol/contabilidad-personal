@@ -1994,24 +1994,16 @@
       } else {
         const existing = accMap.get(a.id);
         const localTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-        const remoteTime = a.updatedAt
-          ? new Date(a.updatedAt).getTime()
-          : (remote.updatedAt ? new Date(remote.updatedAt).getTime() : 0);
+        const remoteTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
 
         let resolved;
         if (remoteTime > localTime) {
+          // Solo si la cuenta remota tiene timestamp individual legítimamente más reciente
           resolved = { ...existing, ...a };
           hasAccountsUpdated = true;
-        } else if (localTime > remoteTime) {
-          resolved = { ...a, ...existing };
         } else {
-          // localTime === remoteTime (ambos iguales o ausentes sin timestamp)
-          if (a.initialBalance !== existing.initialBalance) {
-            resolved = { ...existing, ...a };
-            hasAccountsUpdated = true;
-          } else {
-            resolved = { ...a, ...existing };
-          }
+          // Ante igualdad de tiempos o si lo local es más reciente, prevalece la versión local
+          resolved = { ...a, ...existing };
         }
         accMap.set(a.id, resolved);
       }
