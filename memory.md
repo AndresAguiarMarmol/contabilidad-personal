@@ -50,6 +50,17 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 2. Decisiones vigentes
 
+- **Replicación Fiable Multi-Dispositivo de Saldos de Cuentas y Forzado de Descarga desde la Nube (Spec 037):**
+  - **Conciliación Inteligente en Empate de Timestamps:** En `fusionarEstadoContable`, ante empate o ausencia de `updatedAt` individual entre cuentas con saldo diferente:
+    1. Si el saldo local es $0$ y el saldo remoto es no nulo (`localInitial === 0 && remoteInitial !== 0`), se adopta la cuenta remota (`hasAccountsUpdated = true`), garantizando que dispositivos secundarios (móviles/teléfonos) adopten inmediatamente los saldos configurados en la PC.
+    2. Si el timestamp del documento de workspace remoto es más reciente que el local (`remoteWsTime > localWsTime`), se adopta la versión remota.
+    3. Si la cuenta local posee un saldo recién editado en el dispositivo activo y el remoto es $0$, se preserva la versión local (blindaje de Spec 036).
+  - **Robustez de Red en `fetchRemoteWorkspace`:** Cuando `fetch` experimenta fallas de red, timeouts o errores HTTP distintos de 404, retorna un objeto `{ error: true, message: ... }` en vez de `null`. `DbAdapter.syncBidirectional` detecta el error y aborta inmediatamente sin ejecutar `saveRemoteWorkspace`, impidiendo que reconexiones móviles o caídas de señal sobrescriban la nube con datos locales vacíos.
+  - **Función de Descarga Forzada (`DbAdapter.forcePullFromRemote`):** Permite a los usuarios desde la sección de Configuración (`#btn-firebase-force-pull`) forzar una descarga completa del estado almacenado en Firestore, recalculando automáticamente todos los saldos y actualizando la interfaz y el almacenamiento local al instante.
+  - **Consistencia en Mutación de Cuentas:** `openAccountModal`, `openAccountEditModal` y `solicitarEliminarCuentaFinanciera` ahora invocan `triggerAutoSync({ notify: false })` en lugar de llamadas directas desatendidas a `DbAdapter.syncBidirectional()`, asegurando sincronización ordenada con control de concurrencia (`isSyncing`).
+  - **Caché PWA:** Actualizada la versión del Service Worker a `contapersonal-v20` en `sw.js` con activación inmediata para invalidar cachés antiguas en iPhone / iOS Safari.
+  - Suite de pruebas unitarias TDD Red-Green en `tests/account-sync-mobile.test.js` con 6/6 pruebas aprobadas (180/180 pruebas totales del proyecto).
+
 - **Blindaje de Saldos Locales contra Sobreescritura en Sincronización y Precisión Decimal Cripto (Spec 036):**
   - **Eliminación de Fallback Global en Timestamps:** En `fusionarEstadoContable`, se eliminó el fallback que asignaba erróneamente `remote.updatedAt` del documento completo a cuentas remotas individuales sin marca de tiempo, evitando que cuentas remotas obsoletas de saldo $0$ parecieran más recientes que la edición local activa.
   - **Precedencia Local Estricta en Empates:** Ante ausencia o empate de marcas de tiempo (`localTime >= remoteTime`), la versión local prevalece íntegramente (`{ ...a, ...existing }`), garantizando que modificaciones locales recién guardadas por el usuario (ej. $0.45$ BTC en Ledger) jamás sean reemplazadas por saldos antiguos de la nube durante el auto-sync.
@@ -181,6 +192,14 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 3. Historial de cambios
 
+- **2026-11-24 — Spec 037: Replicación Fiable Multi-Dispositivo de Saldos de Cuentas y Forzado de Descarga desde la Nube (SDD):**
+  - Creada especificación formal e implementada suite de pruebas unitarias TDD Red-Green en `tests/account-sync-mobile.test.js` (6 pruebas verificando adopción remota de saldos no nulos cuando el móvil tiene 0, resolución por timestamp de workspace, preservación de ediciones locales legítimas, aborto seguro de sync ante caídas de red, y método `forcePullFromRemote`, elevando la suite completa a 180/180 pruebas en verde).
+  - Refactorizada la función pura `fusionarEstadoContable` en `assets/js/financeCalculations.js` para resolver empates de marcas de tiempo favoreciendo saldos configurados sobre ceros por defecto y considerando timestamps del workspace remoto.
+  - Robustecido `DbAdapter.fetchRemoteWorkspace` y `DbAdapter.syncBidirectional` en `assets/js/dbAdapter.js` para distinguir entre documento inexistente (404) y fallos de red/autorización, evitando sobrescrituras accidentales.
+  - Implementado `DbAdapter.forcePullFromRemote` y agregado botón `#btn-firebase-force-pull` en `index.html` y `assets/js/app.js` para permitir al usuario forzar la descarga y sobreescritura limpia desde la nube en caso de discrepancias de caché en móviles.
+  - Unificada la invocación de auto-sincronización en creación, edición y eliminación de cuentas mediante `triggerAutoSync({ notify: false })`.
+  - Actualizada la versión del Service Worker a `contapersonal-v20` en `sw.js`.
+  - Verificación global con `node --test tests/*.test.js`: 180/180 pruebas pasando al 100% sin regresiones.
 - **2026-11-24 — Spec 036: Blindaje de Saldos Locales contra Sobreescritura en Sincronización y Precisión Decimal Cripto (SDD):**
   - Creada especificación formal `specs/036-blindaje-saldos-decimales-btc/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
   - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/crypto-balance-protection.test.js` (4 pruebas verificando que una modificación local de 0.45 BTC no sea pisada por saldo remoto 0, prevalencia local ante empate o ausencia de timestamps, recálculo de punto flotante en criptomonedas y soporte de hasta 8 decimales en `formatMoney`, elevando la suite completa a 174/174 pruebas en verde).

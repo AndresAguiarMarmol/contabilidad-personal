@@ -460,7 +460,7 @@
       return session.idToken;
     },
 
-    // --- OBTENER ESTADO REMOTO DE WORKSPACE (SPEC 015 & SPEC 021) ---
+    // --- OBTENER ESTADO REMOTO DE WORKSPACE (SPEC 015, SPEC 021 & SPEC 037) ---
     async fetchRemoteWorkspace(config) {
       const dbConfig = config || (Storage.getDbConfig ? Storage.getDbConfig() : null);
       if (!this.isFirebaseConfigured(dbConfig)) return null;
@@ -498,10 +498,17 @@
               }
             }
           }
+          return null;
         }
-        return null;
+
+        if (res.status === 404) {
+          return null; // Documento no existe aún en Firestore
+        }
+
+        // Si es 401, 403, 500 u otro código de error HTTP, reportar error explícito para no pisar la nube (Spec 037)
+        return { error: true, status: res.status, message: `Respuesta HTTP ${res.status} de Firestore` };
       } catch (err) {
-        return null;
+        return { error: true, message: err.message };
       }
     },
 
@@ -598,8 +605,17 @@
 
       const remoteState = await this.fetchRemoteWorkspace(config);
 
-      // Si no hay nada en remoto aún, inicializamos remoto con el local
-      if (!remoteState) {
+      // Si hubo un fallo de red o error HTTP, abortar inmediatamente para no pisar el remoto (Spec 037)
+      if (remoteState && remoteState.error) {
+        return {
+          synced: false,
+          provider: "firebase",
+          message: `Error al contactar con Cloud Firestore: ${remoteState.message || "Fallo de conexión"}`
+        };
+      }
+
+      // Si el documento explícitamente no existe (null), inicializamos remoto con el local
+      if (remoteState === null) {
         await this.saveRemoteWorkspace(localState, config);
         return {
           synced: true,
@@ -647,6 +663,78 @@
           : (fusion.hasChangesFromRemote
               ? "Sincronización exitosa: saldos y datos actualizados desde la nube."
               : "Sincronización al día con la nube.")
+      };
+    },
+
+    // --- FORZAR DESCARGA DESDE LA NUBE / PULL (SPEC 037) ---
+    async forcePullFromRemote(customConfig = null) {
+      const config = customConfig || (Storage.getDbConfig ? Storage.getDbConfig() : null);
+      if (!this.isFirebaseConfigured(config)) {
+        return {
+          synced: false,
+          provider: "none",
+          message: "Firebase no está configurado."
+        };
+      }
+
+      const session = Storage && Storage.getAuthSession ? Storage.getAuthSession() : null;
+      if (!session || !session.uid) {
+        return {
+          synced: false,
+          provider: "none",
+          message: "No hay sesión activa autenticada para descargar desde la nube."
+        };
+      }
+      if (Storage && Storage.setActiveUid) {
+        Storage.setActiveUid(session.uid);
+      }
+
+      const remoteState = await this.fetchRemoteWorkspace(config);
+      if (!remoteState || remoteState.error) {
+        return {
+          synced: false,
+          provider: "firebase",
+          message: (remoteState && remoteState.message) || "No se pudo obtener el estado remoto desde Firestore."
+        };
+      }
+
+      // Recalcular balances atómicamente para las cuentas remotas con sus transacciones
+      const rawAccounts = Array.isArray(remoteState.accounts) ? remoteState.accounts : [];
+      const rawTransactions = Array.isArray(remoteState.transactions) ? remoteState.transactions : [];
+      const recalculatedAccounts = Calculations && typeof Calculations.recalcularBalancesCuentas === "function"
+        ? Calculations.recalcularBalancesCuentas(rawAccounts, rawTransactions)
+        : rawAccounts;
+
+      const merged = {
+        ...remoteState,
+        accounts: recalculatedAccounts,
+        transactions: rawTransactions,
+        budgets: Array.isArray(remoteState.budgets) ? remoteState.budgets : [],
+        goals: Array.isArray(remoteState.goals) ? remoteState.goals : [],
+        planAccounts: Array.isArray(remoteState.planAccounts) ? remoteState.planAccounts : [],
+        currencies: Array.isArray(remoteState.currencies) ? remoteState.currencies : []
+      };
+
+      if (Storage) {
+        if (Storage.saveAccounts) Storage.saveAccounts(merged.accounts);
+        if (Storage.saveTransactions) Storage.saveTransactions(merged.transactions);
+        if (Storage.saveBudgets) Storage.saveBudgets(merged.budgets);
+        if (Storage.saveGoals) Storage.saveGoals(merged.goals);
+        if (Storage.savePlanAccounts) Storage.savePlanAccounts(merged.planAccounts);
+        if (Storage.saveCurrencies && merged.currencies.length > 0) Storage.saveCurrencies(merged.currencies);
+        if (Storage.saveDeletedAccounts && merged.deletedAccounts) Storage.saveDeletedAccounts(merged.deletedAccounts);
+        if (Storage.saveDeletedTransactions && merged.deletedTransactions) Storage.saveDeletedTransactions(merged.deletedTransactions);
+        if (Storage.saveDeletedPlanAccounts && merged.deletedPlanAccounts) Storage.saveDeletedPlanAccounts(merged.deletedPlanAccounts);
+        if (Storage.saveDeletedBudgets && merged.deletedBudgets) Storage.saveDeletedBudgets(merged.deletedBudgets);
+        if (Storage.saveDeletedGoals && merged.deletedGoals) Storage.saveDeletedGoals(merged.deletedGoals);
+      }
+
+      return {
+        synced: true,
+        provider: "firebase",
+        hasChangesFromRemote: true,
+        mergedState: merged,
+        message: "Descarga forzada completada: todos tus datos y saldos han sido actualizados con la nube."
       };
     },
 

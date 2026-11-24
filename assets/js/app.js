@@ -3552,9 +3552,7 @@
       modal.close();
       renderActiveView();
       showToast(`Cuenta "${newAccount.name}" creada con éxito.`, "success");
-      if (typeof DbAdapter !== "undefined" && DbAdapter && DbAdapter.getProvider() === "firebase") {
-        DbAdapter.syncBidirectional().catch(() => {});
-      }
+      triggerAutoSync({ notify: false });
     });
 
     modal.showModal();
@@ -3746,9 +3744,7 @@
       modal.close();
       renderActiveView();
       showToast(`Cuenta "${account.name}" actualizada con éxito.`, "success");
-      if (typeof DbAdapter !== "undefined" && DbAdapter && DbAdapter.getProvider() === "firebase") {
-        DbAdapter.syncBidirectional().catch(() => {});
-      }
+      triggerAutoSync({ notify: false });
     });
 
     modal.showModal();
@@ -3856,9 +3852,7 @@
     showToast(`Cuenta "${account.name}" eliminada exitosamente.`, "success");
 
     // Sincronización en segundo plano con Firestore
-    if (typeof DbAdapter !== "undefined" && DbAdapter && DbAdapter.getProvider() === "firebase") {
-      DbAdapter.syncBidirectional().catch(() => {});
-    }
+    triggerAutoSync({ notify: false });
   }
 
   // ========================================================
@@ -5664,6 +5658,30 @@
     document.getElementById("btn-firebase-sync")?.addEventListener("click", async () => {
       showToast("Sincronizando con base de datos remota...", "info");
       await triggerAutoSync({ notify: true, manual: true });
+    });
+
+    // Botón para forzar descarga y sobreescritura desde la nube (Spec 037)
+    document.getElementById("btn-firebase-force-pull")?.addEventListener("click", async () => {
+      const confirmar = confirm("¿Deseas descargar y sobrescribir tus datos locales con la copia almacenada en la nube?\\n\\nEsta acción actualizará todos los saldos de tus cuentas y movimientos al estado exacto de la nube.");
+      if (!confirmar) return;
+
+      showToast("Descargando copia desde Cloud Firestore...", "info");
+      try {
+        if (!DbAdapter || typeof DbAdapter.forcePullFromRemote !== "function") {
+          showToast("Adaptador de base de datos no disponible.", "error");
+          return;
+        }
+        const res = await DbAdapter.forcePullFromRemote();
+        if (res && res.synced) {
+          loadStateFromStorage();
+          renderActiveView();
+          showToast(res.message, "success");
+        } else {
+          showToast(res.message || "Error al forzar descarga desde la nube.", "error");
+        }
+      } catch (err) {
+        showToast(`Error al descargar: ${err.message}`, "error");
+      }
     });
 
     // Sincronización automática al retomar la pestaña o la app en móvil

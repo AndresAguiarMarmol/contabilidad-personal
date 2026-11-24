@@ -1981,12 +1981,16 @@
     const mergedTransactions = Array.from(txMap.values());
     mergedTransactions.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
-    // 2. Fusionar cuentas sin duplicados por ID con resolución temporal LWW (Spec 035)
+    // 2. Fusionar cuentas sin duplicados por ID con resolución temporal LWW (Spec 035 & Spec 037)
     let hasAccountsUpdated = false;
     const accMap = new Map();
     localAccs.forEach(a => {
       if (a && a.id && !deletedAccountsSet.has(a.id)) accMap.set(a.id, { ...a });
     });
+
+    const localWsTime = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
+    const remoteWsTime = remote.updatedAt ? new Date(remote.updatedAt).getTime() : 0;
+
     remoteAccs.forEach(a => {
       if (!a || !a.id || deletedAccountsSet.has(a.id)) return;
       if (!accMap.has(a.id)) {
@@ -2001,9 +2005,27 @@
           // Solo si la cuenta remota tiene timestamp individual legítimamente más reciente
           resolved = { ...existing, ...a };
           hasAccountsUpdated = true;
-        } else {
-          // Ante igualdad de tiempos o si lo local es más reciente, prevalece la versión local
+        } else if (localTime > remoteTime) {
+          // Versión local es legítimamente más reciente
           resolved = { ...a, ...existing };
+        } else {
+          // localTime === remoteTime (ambos iguales o ausentes sin timestamp individual)
+          const localInitial = Number(existing.initialBalance || 0);
+          const remoteInitial = Number(a.initialBalance || 0);
+
+          if (localInitial === 0 && remoteInitial !== 0) {
+            // El dispositivo local (ej. móvil recién sincronizado) tiene saldo inicial 0, 
+            // mientras que el remoto (ej. PC) tiene saldo configurado: adopta el saldo remoto
+            resolved = { ...existing, ...a };
+            hasAccountsUpdated = true;
+          } else if (remoteWsTime > localWsTime && localInitial !== remoteInitial) {
+            // El workspace remoto fue guardado después que el local y los saldos difieren
+            resolved = { ...existing, ...a };
+            hasAccountsUpdated = true;
+          } else {
+            // Ante cualquier otra situación, prevalece la versión local
+            resolved = { ...a, ...existing };
+          }
         }
         accMap.set(a.id, resolved);
       }
