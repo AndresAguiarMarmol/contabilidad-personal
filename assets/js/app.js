@@ -178,8 +178,8 @@
       const dataUrl = e.target.result;
       const img = new Image();
       img.onload = function () {
-        // Redimensionar si excede 1200px para mantener tamaño ligero (~100-250KB)
-        const maxDim = 1200;
+        // Redimensionar si excede 800px para mantener tamaño ultraligero (~30-60KB) garantizando legibilidad y cuota Firestore (Spec 041)
+        const maxDim = 800;
         let w = img.width;
         let h = img.height;
         if (w > maxDim || h > maxDim) {
@@ -196,7 +196,7 @@
         canvas.height = h;
         const ctx = canvas.getContext("2d");
         ctx.drawImage(img, 0, 0, w, h);
-        const compressedJpeg = canvas.toDataURL("image/jpeg", 0.75);
+        const compressedJpeg = canvas.toDataURL("image/jpeg", 0.58);
 
         // Si window.jspdf está disponible, generar un documento PDF real
         if (typeof window !== "undefined" && window.jspdf && window.jspdf.jsPDF) {
@@ -2638,6 +2638,21 @@
           };
         }
       } else {
+        const canonName = Calculations && Calculations.canonicalizarNombreProveedor
+          ? Calculations.canonicalizarNombreProveedor(nameVal)
+          : nameVal.trim().toLowerCase();
+        const existe = (state.suppliers || []).some(s => {
+          if (!s || !s.name) return false;
+          const k = Calculations && Calculations.canonicalizarNombreProveedor
+            ? Calculations.canonicalizarNombreProveedor(s.name)
+            : s.name.trim().toLowerCase();
+          return k === canonName;
+        });
+        if (existe) {
+          showToast(`El proveedor "${nameVal}" ya existe en el archivo.`, "warning");
+          return;
+        }
+
         const nuevo = Calculations && Calculations.crearProveedorObjeto
           ? Calculations.crearProveedorObjeto({
               name: nameVal,
@@ -3499,16 +3514,23 @@
         }
       }
 
-      // 3. Proveedor
+      // 3. Proveedor (con unificación canónica con el archivo existente - Spec 041)
       if (datos.proveedor) {
         const inputSupplier = document.getElementById("tx-input-supplier");
+        let displaySupplier = datos.proveedor;
+        if (Calculations && Calculations.canonicalizarNombreProveedor) {
+          const canonOcr = Calculations.canonicalizarNombreProveedor(datos.proveedor);
+          const matched = (state.suppliers || []).find(s => s && s.name && Calculations.canonicalizarNombreProveedor(s.name) === canonOcr);
+          if (matched) displaySupplier = matched.name;
+        }
+
         if (inputSupplier) {
-          inputSupplier.value = datos.proveedor;
-          camposDetectados.push(`Proveedor: ${datos.proveedor}`);
+          inputSupplier.value = displaySupplier;
+          camposDetectados.push(`Proveedor: ${displaySupplier}`);
         }
         const inputDesc = document.getElementById("tx-input-desc");
         if (inputDesc && !inputDesc.value.trim()) {
-          inputDesc.value = `Pago ${datos.proveedor}`;
+          inputDesc.value = `Pago ${displaySupplier}`;
         }
       }
 
@@ -3662,11 +3684,38 @@
 
       const catalog = getPlanCatalog();
 
-      // Auto-registro en Archivo de Proveedores si no existe (Spec 039)
+      // Auto-registro en Archivo de Proveedores con prevención estricta de duplicados canónicos (Spec 039 & Spec 041)
       if (supplierVal && Calculations && typeof Calculations.crearProveedorObjeto === "function") {
-        const normSup = supplierVal.trim().toLowerCase();
-        const existeSup = (state.suppliers || []).some(s => s && s.name && s.name.trim().toLowerCase() === normSup);
-        if (!existeSup) {
+        const canonKey = Calculations.canonicalizarNombreProveedor
+          ? Calculations.canonicalizarNombreProveedor(supplierVal)
+          : supplierVal.trim().toLowerCase();
+        const existingSup = (state.suppliers || []).find(s => {
+          if (!s || !s.name) return false;
+          const k = Calculations.canonicalizarNombreProveedor
+            ? Calculations.canonicalizarNombreProveedor(s.name)
+            : s.name.trim().toLowerCase();
+          return k === canonKey;
+        });
+
+        if (existingSup) {
+          // Ya existe: no duplicar en BD. Si el existente no tiene categoría o método, enriquecerlo suavemente
+          let mutado = false;
+          if (!existingSup.category && rawCategoryVal && rawCategoryVal !== "Otros" && selectedType !== "transfer") {
+            existingSup.category = rawCategoryVal;
+            existingSup.categoryCode = catalog.find(c => c.name === rawCategoryVal)?.code || "";
+            mutado = true;
+          }
+          if (!existingSup.paymentMethod && methodVal) {
+            existingSup.paymentMethod = methodVal;
+            mutado = true;
+          }
+          if (mutado) {
+            existingSup.updatedAt = new Date().toISOString();
+            if (Storage && Storage.saveSuppliers) {
+              Storage.saveSuppliers(state.suppliers);
+            }
+          }
+        } else {
           const nuevoSup = Calculations.crearProveedorObjeto({
             name: supplierVal.trim(),
             category: (selectedType !== "transfer" && rawCategoryVal !== "Otros") ? rawCategoryVal : "",
@@ -5742,6 +5791,11 @@
         if (Storage && Storage.saveSuppliers) {
           Storage.saveSuppliers(state.suppliers);
         }
+      } else if (state.suppliers.length > 0 && Calculations && Calculations.deduplicarProveedores) {
+        state.suppliers = Calculations.deduplicarProveedores(state.suppliers);
+        if (Storage && Storage.saveSuppliers) {
+          Storage.saveSuppliers(state.suppliers);
+        }
       }
       state.authSession = Storage.getAuthSession ? Storage.getAuthSession() : null;
     }
@@ -5881,12 +5935,16 @@
   }
 
   // ========================================================
-  // AUTO-SINCRONIZACIÓN BIDIRECCIONAL CON FIREBASE (SPEC 015)
+  // AUTO-SINCRONIZACIÓN BIDIRECCIONAL CON FIREBASE (SPEC 015 & SPEC 041)
   // Declarada en ámbito superior para acceso desde cualquier modal
   // ========================================================
   let isSyncing = false;
+  let hasPendingSync = false;
   async function triggerAutoSync(options = {}) {
-    if (isSyncing) return;
+    if (isSyncing) {
+      hasPendingSync = true;
+      return;
+    }
     if (!DbAdapter || DbAdapter.getProvider() !== "firebase") return;
 
     const quickIcon = document.getElementById("quick-sync-icon");
@@ -5906,11 +5964,13 @@
           state.goals = res.mergedState.goals;
           state.planAccounts = res.mergedState.planAccounts;
           if (res.mergedState.currencies) state.currencies = res.mergedState.currencies;
+          if (res.mergedState.suppliers) state.suppliers = res.mergedState.suppliers;
           if (res.mergedState.deletedAccounts) state.deletedAccounts = res.mergedState.deletedAccounts;
           if (res.mergedState.deletedPlanAccounts) state.deletedPlanAccounts = res.mergedState.deletedPlanAccounts;
           if (res.mergedState.deletedBudgets) state.deletedBudgets = res.mergedState.deletedBudgets;
           if (res.mergedState.deletedGoals) state.deletedGoals = res.mergedState.deletedGoals;
           if (res.mergedState.deletedTransactions) state.deletedTransactions = res.mergedState.deletedTransactions;
+          if (res.mergedState.deletedSuppliers) state.deletedSuppliers = res.mergedState.deletedSuppliers;
         } else {
           loadStateFromStorage();
         }
@@ -5933,6 +5993,10 @@
       isSyncing = false;
       if (quickIcon) quickIcon.classList.remove("animate-spin");
       if (quickText) quickText.textContent = "Sincronizar";
+      if (hasPendingSync) {
+        hasPendingSync = false;
+        setTimeout(() => triggerAutoSync({ notify: false }), 200);
+      }
     }
   }
 

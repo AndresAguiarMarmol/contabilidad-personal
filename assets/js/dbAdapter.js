@@ -617,7 +617,7 @@
       }
     },
 
-    // --- GUARDAR ESTADO REMOTO DE WORKSPACE (SPEC 015 & SPEC 021) ---
+    // --- GUARDAR ESTADO REMOTO DE WORKSPACE (SPEC 015, SPEC 021 & SPEC 041) ---
     async saveRemoteWorkspace(workspaceData, config) {
       const dbConfig = config || (Storage.getDbConfig ? Storage.getDbConfig() : null);
       if (!this.isFirebaseConfigured(dbConfig)) {
@@ -628,23 +628,28 @@
       const authToken = await this.getValidAuthToken(dbConfig);
       const docPath = (session && session.uid) ? `workspaces/${session.uid}` : "workspaces/main";
 
+      // Saneamiento de cuota de 1MB para Firestore (Spec 041)
+      const sanitized = Calculations && Calculations.sanearWorkspaceParaNube
+        ? Calculations.sanearWorkspaceParaNube(workspaceData, 900000)
+        : workspaceData;
+
       const payload = {
         updatedAt: new Date().toISOString(),
         userUid: session ? session.uid : null,
         userEmail: session ? session.email : null,
-        accounts: Array.isArray(workspaceData.accounts) ? workspaceData.accounts : [],
-        transactions: Array.isArray(workspaceData.transactions) ? workspaceData.transactions : [],
-        budgets: Array.isArray(workspaceData.budgets) ? workspaceData.budgets : [],
-        goals: Array.isArray(workspaceData.goals) ? workspaceData.goals : [],
-        planAccounts: Array.isArray(workspaceData.planAccounts) ? workspaceData.planAccounts : [],
-        currencies: Array.isArray(workspaceData.currencies) ? workspaceData.currencies : [],
-        suppliers: Array.isArray(workspaceData.suppliers) ? workspaceData.suppliers : [],
-        deletedAccounts: Array.isArray(workspaceData.deletedAccounts) ? workspaceData.deletedAccounts : [],
-        deletedTransactions: Array.isArray(workspaceData.deletedTransactions) ? workspaceData.deletedTransactions : [],
-        deletedPlanAccounts: Array.isArray(workspaceData.deletedPlanAccounts) ? workspaceData.deletedPlanAccounts : [],
-        deletedBudgets: Array.isArray(workspaceData.deletedBudgets) ? workspaceData.deletedBudgets : [],
-        deletedGoals: Array.isArray(workspaceData.deletedGoals) ? workspaceData.deletedGoals : [],
-        deletedSuppliers: Array.isArray(workspaceData.deletedSuppliers) ? workspaceData.deletedSuppliers : []
+        accounts: Array.isArray(sanitized.accounts) ? sanitized.accounts : [],
+        transactions: Array.isArray(sanitized.transactions) ? sanitized.transactions : [],
+        budgets: Array.isArray(sanitized.budgets) ? sanitized.budgets : [],
+        goals: Array.isArray(sanitized.goals) ? sanitized.goals : [],
+        planAccounts: Array.isArray(sanitized.planAccounts) ? sanitized.planAccounts : [],
+        currencies: Array.isArray(sanitized.currencies) ? sanitized.currencies : [],
+        suppliers: Array.isArray(sanitized.suppliers) ? sanitized.suppliers : [],
+        deletedAccounts: Array.isArray(sanitized.deletedAccounts) ? sanitized.deletedAccounts : [],
+        deletedTransactions: Array.isArray(sanitized.deletedTransactions) ? sanitized.deletedTransactions : [],
+        deletedPlanAccounts: Array.isArray(sanitized.deletedPlanAccounts) ? sanitized.deletedPlanAccounts : [],
+        deletedBudgets: Array.isArray(sanitized.deletedBudgets) ? sanitized.deletedBudgets : [],
+        deletedGoals: Array.isArray(sanitized.deletedGoals) ? sanitized.deletedGoals : [],
+        deletedSuppliers: Array.isArray(sanitized.deletedSuppliers) ? sanitized.deletedSuppliers : []
       };
 
       const fields = this.toFirestoreFields(payload);
@@ -761,7 +766,14 @@
       }
 
       // Subir el estado fusionado resultante a Firestore para que el otro dispositivo también lo reciba
-      await this.saveRemoteWorkspace(merged, config);
+      const saveRes = await this.saveRemoteWorkspace(merged, config);
+      if (saveRes && saveRes.success === false) {
+        return {
+          synced: false,
+          provider: "firebase",
+          message: `Error al persistir en la nube: ${saveRes.message}`
+        };
+      }
 
       return {
         synced: true,

@@ -207,6 +207,29 @@
   }
 
   /**
+   * Transforma el nombre de un proveedor a su forma canónica para búsquedas y anti-duplicados (Spec 041)
+   * Elimina diacríticos, sufijos legales (S.A., SpA, Ltda), puntuación y espacios redundantes
+   * @param {string|null|undefined} name
+   * @returns {string} Clave canónica en minúsculas
+   */
+  function canonicalizarNombreProveedor(name) {
+    if (typeof name !== "string") return "";
+    let clean = name.trim().toLowerCase();
+    if (!clean) return "";
+    // Quitar diacríticos / acentos (NFD)
+    clean = clean.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    // Limpiar signos de puntuación comunes excepto espacios y alfanuméricos
+    clean = clean.replace(/[,;.:\-_/\\()"'!¡?¿]/g, " ");
+    // Colapsar espacios temporales
+    clean = clean.replace(/\s+/g, " ").trim();
+    // Remover sufijos empresariales/legales comunes al final
+    clean = clean.replace(/\b(s\s*a|spa|ltda|limitada|eirl|inc|corp|llc)\b$/i, "").trim();
+    // Re-limpiar espacios residuales
+    clean = clean.replace(/\s+/g, " ").trim();
+    return clean;
+  }
+
+  /**
    * Crea y normaliza un objeto Proveedor para el Archivo de Proveedores (Spec 039)
    * @param {Object} datos 
    * @returns {Object}
@@ -231,7 +254,53 @@
   }
 
   /**
-   * Extrae proveedores únicos a partir de las transacciones históricas y los fusiona con los existentes (Spec 039)
+   * Deduplica una lista de proveedores consolidando duplicados canónicos y unificando atributos (Spec 041)
+   * @param {Array} suppliersList
+   * @returns {Array} Lista deduplicada sin repeticiones de nombre canónico ni ID
+   */
+  function deduplicarProveedores(suppliersList = []) {
+    if (!Array.isArray(suppliersList)) return [];
+    const map = new Map();
+
+    suppliersList.forEach(s => {
+      if (!s || typeof s !== "object") return;
+      const rawName = typeof s.name === "string" ? s.name.trim() : "";
+      if (!rawName) return;
+
+      const canonKey = canonicalizarNombreProveedor(rawName) || rawName.toLowerCase();
+      if (!map.has(canonKey)) {
+        map.set(canonKey, { ...s, name: rawName });
+      } else {
+        const existing = map.get(canonKey);
+        // Preferir el nombre con mejor formato (con tildes o mayor longitud)
+        const bestName = (rawName.length > existing.name.length || /[\u00C0-\u017F]/.test(rawName))
+          ? rawName
+          : existing.name;
+        const bestCategory = existing.category || s.category || "";
+        const bestCategoryCode = existing.categoryCode || s.categoryCode || "";
+        const bestPaymentMethod = existing.paymentMethod || s.paymentMethod || "";
+        const bestNotes = existing.notes || s.notes || "";
+        const timeExisting = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+        const timeNew = s.updatedAt ? new Date(s.updatedAt).getTime() : 0;
+        const bestUpdatedAt = timeNew > timeExisting ? s.updatedAt : existing.updatedAt;
+
+        map.set(canonKey, {
+          ...existing,
+          name: bestName,
+          category: bestCategory,
+          categoryCode: bestCategoryCode,
+          paymentMethod: bestPaymentMethod,
+          notes: bestNotes,
+          updatedAt: bestUpdatedAt
+        });
+      }
+    });
+
+    return Array.from(map.values());
+  }
+
+  /**
+   * Extrae proveedores únicos a partir de las transacciones históricas y los fusiona con los existentes (Spec 039 & Spec 041)
    * @param {Array} transactions 
    * @param {Array} currentSuppliers 
    * @returns {Array}
@@ -244,7 +313,7 @@
 
     supList.forEach(s => {
       if (s && s.name && typeof s.name === "string") {
-        const key = s.name.trim().toLowerCase();
+        const key = canonicalizarNombreProveedor(s.name) || s.name.trim().toLowerCase();
         if (key) map.set(key, { ...s });
       }
     });
@@ -256,7 +325,7 @@
       const trimmed = rawSup.trim();
       if (!trimmed) return;
 
-      const key = trimmed.toLowerCase();
+      const key = canonicalizarNombreProveedor(trimmed) || trimmed.toLowerCase();
       if (!map.has(key)) {
         const nuevo = crearProveedorObjeto({
           name: trimmed,
@@ -279,7 +348,7 @@
       }
     });
 
-    return Array.from(map.values());
+    return deduplicarProveedores(Array.from(map.values()));
   }
 
   /**
@@ -2215,29 +2284,67 @@
     }
     const mergedCurrencies = Array.from(currencyMap.values());
 
-    // 7. Fusionar archivo de proveedores con resolución temporal LWW (Spec 039)
+    // 7. Fusionar archivo de proveedores con resolución temporal LWW y deduplicación canónica (Spec 039 & Spec 041)
     let hasSuppliersUpdated = false;
-    const supMap = new Map();
+    const supById = new Map();
+    const supByCanon = new Map();
+
     localSuppliers.forEach(s => {
-      if (s && s.id && !deletedSuppliersSet.has(s.id)) supMap.set(s.id, { ...s });
+      if (s && s.id && !deletedSuppliersSet.has(s.id)) {
+        supById.set(s.id, { ...s });
+        const cKey = canonicalizarNombreProveedor(s.name);
+        if (cKey) supByCanon.set(cKey, s.id);
+      }
     });
+
     remoteSuppliers.forEach(s => {
       if (!s || !s.id || deletedSuppliersSet.has(s.id)) return;
-      if (!supMap.has(s.id)) {
-        supMap.set(s.id, { ...s });
+      const cKey = canonicalizarNombreProveedor(s.name);
+      const existingId = supById.has(s.id) ? s.id : (cKey && supByCanon.has(cKey) ? supByCanon.get(cKey) : null);
+
+      if (!existingId) {
+        supById.set(s.id, { ...s });
+        if (cKey) supByCanon.set(cKey, s.id);
       } else {
-        const existing = supMap.get(s.id);
+        const existing = supById.get(existingId);
         const localTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
         const remoteTime = s.updatedAt ? new Date(s.updatedAt).getTime() : 0;
+        const bestName = (s.name && (s.name.length > existing.name.length || /[\u00C0-\u017F]/.test(s.name)))
+          ? s.name
+          : existing.name;
+        const bestCategory = existing.category || s.category || "";
+        const bestPaymentMethod = existing.paymentMethod || s.paymentMethod || "";
+        const bestCategoryCode = existing.categoryCode || s.categoryCode || "";
+        const bestNotes = existing.notes || s.notes || "";
+
         if (remoteTime > localTime) {
-          supMap.set(s.id, { ...existing, ...s });
+          supById.set(existingId, {
+            ...existing,
+            ...s,
+            id: existingId,
+            name: bestName,
+            category: bestCategory,
+            paymentMethod: bestPaymentMethod,
+            categoryCode: bestCategoryCode,
+            notes: bestNotes
+          });
           hasSuppliersUpdated = true;
         } else {
-          supMap.set(s.id, { ...s, ...existing });
+          supById.set(existingId, {
+            ...s,
+            ...existing,
+            id: existingId,
+            name: bestName,
+            category: bestCategory,
+            paymentMethod: bestPaymentMethod,
+            categoryCode: bestCategoryCode,
+            notes: bestNotes
+          });
         }
       }
     });
-    const mergedSuppliers = Array.from(supMap.values());
+
+    const mergedSuppliers = deduplicarProveedores(Array.from(supById.values()));
 
     const hasNewAccounts = mergedAccounts.length > localAccs.length;
     const hasNewBudgets = mergedBudgets.length > localBudgets.length;
@@ -2277,6 +2384,44 @@
       hasChangesFromRemote,
       newTransactionsFromRemote: newTxsFromRemote
     };
+  }
+
+  /**
+   * Sanea y comprime el payload del workspace para no exceder la cuota estricta de 1MB de Cloud Firestore (Spec 041)
+   * Si el JSON excede el umbral seguro de bytes, recorta gradualmente los PDFs embebidos (invoicePdf)
+   * de las transacciones más antiguas, preservando intactos sus metadatos contables (invoiceName, proveedor, fecha, montos).
+   * @param {Object} workspaceData
+   * @param {number} [maxBytes=900000] Umbral de bytes de seguridad (< 1,048,576 bytes)
+   * @returns {Object} Copia saneada del workspace
+   */
+  function sanearWorkspaceParaNube(workspaceData = {}, maxBytes = 900000) {
+    if (!workspaceData || typeof workspaceData !== "object") return workspaceData;
+
+    const txs = Array.isArray(workspaceData.transactions)
+      ? workspaceData.transactions.map(t => ({ ...t }))
+      : [];
+
+    const copy = {
+      ...workspaceData,
+      transactions: txs
+    };
+
+    let currentLength = JSON.stringify(copy).length;
+    if (currentLength <= maxBytes) {
+      return copy;
+    }
+
+    // Purgar PDFs de las transacciones más antiguas hacia las más recientes hasta entrar en el límite
+    for (let i = copy.transactions.length - 1; i >= 0; i--) {
+      if (currentLength <= maxBytes) break;
+      const tx = copy.transactions[i];
+      if (tx.invoicePdf && typeof tx.invoicePdf === "string" && tx.invoicePdf.length > 500) {
+        tx.invoicePdf = null;
+        currentLength = JSON.stringify(copy).length;
+      }
+    }
+
+    return copy;
   }
 
   // ========================================================
@@ -3030,7 +3175,9 @@
     calcularResumenCuenta,
     clasificarPlanDeCuentas,
     normalizarProveedor,
+    canonicalizarNombreProveedor,
     crearProveedorObjeto,
+    deduplicarProveedores,
     extraerProveedoresDesdeTransacciones,
     generarNombreComprobante,
     parsearFechaComprobante,
@@ -3055,6 +3202,7 @@
     resolverCategoriaPlan,
     generarSiguienteCodigoSubcuenta,
     fusionarEstadoContable,
+    sanearWorkspaceParaNube,
     generarBalanceGeneral,
     generarEstadoResultados,
     generarReporteCSV,

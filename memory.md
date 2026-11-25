@@ -28,9 +28,9 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
   - `finance_deleted_transactions_data`: Array de IDs de transacciones eliminadas (`deletedTransactions`).
 - **Clave:** `finance_currencies_data` (Spec 018)
   - Array de objetos `CurrencyItem`: `code` (código ISO 3-5 caracteres en mayúsculas), `name`, `symbol`, `rateToCLP` (número positivo indicando valor de 1 unidad en CLP), `isBase` (booleano, `true` solo para `CLP`), `updatedAt` (ISO timestamp). Monedas iniciales: `CLP` (base 1.0), `USD`, `EUR`, `ARS`.
-- **Clave:** `finance_suppliers_data` (Spec 039)
-  - Array de objetos `Supplier`: `id` (`"SUP-..."`), `name`, `category`, `categoryCode`, `paymentMethod`, `notes`, `createdAt`, `updatedAt`. Directorio maestro para autocompletado y sugerencia inteligente de categorías en movimientos.
-- **Clave:** `finance_deleted_suppliers_data` (Spec 039)
+- **Clave:** `finance_suppliers_data` (Spec 039 & Spec 041)
+  - Array de objetos `Supplier`: `id` (`"SUP-..."`), `name`, `category`, `categoryCode`, `paymentMethod`, `notes`, `createdAt`, `updatedAt`. Directorio maestro para autocompletado y sugerencia inteligente de categorías en movimientos. Deduplicación canónica estricta (sin duplicados por tildes, mayúsculas, signos o sufijos legales tipo S.A./SpA) mediante `Calculations.canonicalizarNombreProveedor` y `Calculations.deduplicarProveedores`.
+- **Clave:** `finance_deleted_suppliers_data` (Spec 039 & Spec 041)
   - Array de IDs de proveedores eliminados (`deletedSuppliers`) para evitar su resurrección en la sincronización en la nube.
 - **Clave:** `finance_theme`
   - Valores: `"dark"` | `"light"`. Gestiona el modo de color persistido en `<html>`.
@@ -55,6 +55,22 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 ---
 
 ## 2. Decisiones vigentes
+
+- **Fiabilidad de Sincronización Multi-Transacción Móvil y Deduplicación Estricta de Proveedores (Spec 041):**
+  - **Deduplicación Canónica de Proveedores:**
+    - `Calculations.canonicalizarNombreProveedor(name)`: Transforma cualquier denominación comercial a una clave canónica sin tildes/diacríticos (NFD), sin puntuación, sin sufijos legales o societarios (`S.A.`, `SpA`, `Ltda.`, `Limitada`, `EIRL`, `Inc`, `LLC`, `SA`) y con espacios normalizados (ej. `"Supermercados Líder S.A."` $\rightarrow$ `"supermercados lider"`, `"Líder"` y `"Lider"` $\rightarrow$ `"lider"`).
+    - `Calculations.deduplicarProveedores(suppliersList)`: Consolida listas de proveedores fusionando registros que compartan clave canónica o ID, reteniendo el nombre de mejor formato, acumulando categoría contable/método de pago/notas y adoptando la marca `updatedAt` más reciente.
+    - `Calculations.fusionarEstadoContable`: Indexa proveedores tanto por ID como por nombre canónico. Si un dispositivo crea un proveedor con ID distinto para el mismo comercio, se fusionan en un único registro sin crear duplicados.
+    - Formularios (`form-new-tx` y `openSupplierModal`) y carga inicial (`loadStateFromStorage`): Evalúan la clave canónica antes de insertar un nuevo proveedor, enriqueciendo los existentes y saneando proactivamente la base de datos local ante duplicados históricos preexistentes.
+    - Extracción OCR / Foto: Si la lectura del comprobante detecta un proveedor que coincide canónicamente con uno existente, adopta de inmediato el nombre preferido registrado por el usuario.
+  - **Fiabilidad en Sincronización Móvil a PC:**
+    - **Cola de Sincronización Desatendida (`hasPendingSync`):** En `triggerAutoSync`, cuando se registran múltiples transacciones en rápida sucesión en el móvil mientras una sincronización previa está en curso (`isSyncing === true`), se activa `hasPendingSync = true`, disparando automáticamente la sincronización pendiente al culminar la anterior para asegurar que ningún movimiento quede rezagado.
+    - **Protección y Saneamiento contra Cuota 1MB de Cloud Firestore:**
+      - Compresión fotográfica optimizada en cámara (`convertirFotoAPdf`) a dimensión máxima 800px y calidad JPEG 0.58, produciendo comprobantes de 30-50KB con total legibilidad.
+      - `Calculations.sanearWorkspaceParaNube(workspaceData, maxBytes = 900000)`: Integrado en `DbAdapter.saveRemoteWorkspace`, recorta progresivamente los comprobantes pesados (`invoicePdf`) de transacciones antiguas si el JSON total excede 900KB, preservando intactos el nombre de archivo (`invoiceName`), proveedor, montos y metadatos contables para garantizar que Cloud Firestore jamás rechace el documento por exceso de tamaño (límite 1MB).
+      - Validación estricta del resultado de guardado en `DbAdapter.syncBidirectional` reportando fallos reales sin falsos positivos de sincronización.
+  - Actualización de versión del Service Worker a `contapersonal-v24` en `sw.js`.
+  - Suite de pruebas unitarias TDD Red-Green en `tests/sync-transactions-suppliers-dedup.test.js` con 6/6 pruebas aprobadas (201/201 pruebas totales del proyecto).
 
 - **Reconocimiento Facial, Validación de Usuario Nuevo por Correo y Renombrado a Configuración (Spec 040):**
   - **Reconocimiento Facial Híbrido (WebAuthn Platform + Escáner Cámara):** En el Auth Gate (`#auth-gate-screen`) se habilita el botón `#btn-gate-biometric-login` que permite desbloquear la aplicación mediante Face ID / Windows Hello Face (vía WebAuthn nativo) o mediante el escáner facial interactivo `#modal-face-scanner` con cámara frontal, óvalo de encuadre y animación holográfica. En Configuración se añade la tarjeta para vincular/desvincular la credencial biométrica (`Storage.saveBiometricCredential`).
@@ -217,6 +233,15 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 ---
 
 ## 3. Historial de cambios
+
+- **2026-11-25 — Spec 041: Fiabilidad de Sincronización Multi-Transacción Móvil y Deduplicación Estricta de Proveedores (SDD):**
+  - Creada especificación formal `specs/041-sync-transactions-suppliers-dedup/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
+  - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/sync-transactions-suppliers-dedup.test.js` (6 pruebas unitarias verificando normalización canónica, deduplicación de proveedores, fusión bidireccional por ID y nombre canónico, saneamiento del tamaño de workspace para respetar el límite de 1MB de Firestore, cola `hasPendingSync` en `triggerAutoSync`, elevando la suite completa a 201/201 pruebas en verde).
+  - Implementadas en `assets/js/financeCalculations.js` las funciones puras `canonicalizarNombreProveedor(name)`, `deduplicarProveedores(suppliersList)` y `sanearWorkspaceParaNube(workspaceData, maxBytes = 900000)`, y actualizada `fusionarEstadoContable` para indexar y fusionar proveedores por ID y clave canónica unificada.
+  - Actualizado `assets/js/dbAdapter.js` integrando `sanearWorkspaceParaNube` en `saveRemoteWorkspace` y validando estrictamente el resultado en `syncBidirectional` para impedir falsos positivos.
+  - Actualizado `assets/js/app.js` incorporando la bandera `hasPendingSync` en `triggerAutoSync` para que las transacciones cargadas en ráfaga no se pierdan, control anti-duplicados canónico en la carga de transacciones y configuración, auto-resolución de OCR a proveedores existentes, saneamiento automático en `loadStateFromStorage` y compresión de fotos de comprobantes a 800px / JPEG 0.58 (~30-50KB).
+  - Actualizada la versión del Service Worker a `contapersonal-v24` en `sw.js`.
+  - Verificación global con `node --test tests/*.test.js`: 201/201 pruebas pasando al 100% sin regresiones.
 
 - **2026-11-25 — Spec 040: Reconocimiento Facial, Validación de Usuario Nuevo por Correo y Renombrado a Configuración (SDD):**
   - Creada especificación formal `specs/040-facial-email-config/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
