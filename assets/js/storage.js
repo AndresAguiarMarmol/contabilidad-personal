@@ -31,7 +31,8 @@
     DELETED_SUPPLIERS: "finance_deleted_suppliers_data",
     THEME: "finance_theme",
     DB_CONFIG: "finance_remote_db_config",
-    AUTH_SESSION: "finance_auth_session"
+    AUTH_SESSION: "finance_auth_session",
+    BIOMETRIC_CREDENTIAL: "finance_biometric_credential"
   };
 
   const getLocalStorage = () => {
@@ -494,6 +495,39 @@
       if (ls) {
         try {
           ls.removeItem(STORAGE_KEYS.AUTH_SESSION);
+        } catch (e) {}
+      }
+    },
+
+    // --- RECONOCIMIENTO FACIAL / BIOMETRÍA (SPEC 040) ---
+    getBiometricCredential() {
+      const ls = getLocalStorage();
+      try {
+        const raw = ls ? ls.getItem(STORAGE_KEYS.BIOMETRIC_CREDENTIAL) : null;
+        return raw ? JSON.parse(raw) : null;
+      } catch (e) {
+        return null;
+      }
+    },
+
+    saveBiometricCredential(credential) {
+      const ls = getLocalStorage();
+      if (ls) {
+        try {
+          if (!credential) {
+            ls.removeItem(STORAGE_KEYS.BIOMETRIC_CREDENTIAL);
+          } else {
+            ls.setItem(STORAGE_KEYS.BIOMETRIC_CREDENTIAL, JSON.stringify(credential));
+          }
+        } catch (e) {}
+      }
+    },
+
+    clearBiometricCredential() {
+      const ls = getLocalStorage();
+      if (ls) {
+        try {
+          ls.removeItem(STORAGE_KEYS.BIOMETRIC_CREDENTIAL);
         } catch (e) {}
       }
     },

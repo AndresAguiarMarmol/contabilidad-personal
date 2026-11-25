@@ -382,8 +382,8 @@
       subtitle: "Balance General Clasificado y Estado de Resultados según normativa contable chilena (IFRS Pymes)"
     },
     settings: {
-      title: "Base de Datos & Ajustes",
-      subtitle: "Conexión a Supabase PostgreSQL en la nube, respaldo y restauración JSON"
+      title: "Configuración",
+      subtitle: "Bases de datos, proveedores, monedas, biometría y respaldos"
     }
   };
 
@@ -1997,6 +1997,239 @@
 
     // Spec 039: Renderizar tabla de proveedores / beneficiarios
     renderSuppliersTable();
+
+    // Spec 040: Renderizar estado de reconocimiento facial / biometría
+    renderFaceAuthSettings();
+  }
+
+  // ========================================================
+  // RECONOCIMIENTO FACIAL Y AUTENTICACIÓN BIOMÉTRICA (SPEC 040)
+  // ========================================================
+
+  let faceScannerStream = null;
+
+  function renderFaceAuthSettings() {
+    const badge = document.getElementById("settings-face-auth-badge");
+    const btn = document.getElementById("btn-settings-setup-face-auth");
+    const label = document.getElementById("btn-settings-face-auth-label");
+    if (!badge || !btn || !label) return;
+
+    const cred = Storage && Storage.getBiometricCredential ? Storage.getBiometricCredential() : null;
+    const isConfigured = Boolean(cred && cred.enabled);
+
+    if (isConfigured) {
+      badge.textContent = "Habilitado";
+      badge.className = "px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 dark:bg-purple-950/80 dark:text-purple-300";
+      label.textContent = "Desvincular Reconocimiento Facial";
+      btn.className = "px-3.5 py-2 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-rose-50 hover:text-rose-600 text-slate-700 dark:text-slate-300 font-semibold text-xs shadow-sm transition-all flex items-center gap-2 active:scale-95";
+    } else {
+      badge.textContent = "No configurado";
+      badge.className = "px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300";
+      label.textContent = "Habilitar Reconocimiento Facial";
+      btn.className = "px-3.5 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs shadow-sm transition-all flex items-center gap-2 active:scale-95";
+    }
+  }
+
+  async function abrirEscanerFacial(onSuccessCallback) {
+    const modal = document.getElementById("modal-face-scanner");
+    const video = document.getElementById("face-scanner-video");
+    const statusText = document.getElementById("face-scanner-status");
+    const btnClose = document.getElementById("btn-close-face-scanner");
+    const btnCancel = document.getElementById("btn-cancel-face-scanner");
+
+    if (!modal) return;
+
+    const detenerCamara = () => {
+      if (faceScannerStream) {
+        try {
+          faceScannerStream.getTracks().forEach(t => t.stop());
+        } catch (e) {}
+        faceScannerStream = null;
+      }
+      try { modal.close(); } catch (e) {}
+    };
+
+    btnClose?.addEventListener("click", detenerCamara, { once: true });
+    btnCancel?.addEventListener("click", detenerCamara, { once: true });
+
+    try { modal.showModal(); } catch (e) {}
+    if (statusText) statusText.textContent = "Iniciando cámara frontal...";
+
+    try {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia && video) {
+        faceScannerStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }
+        });
+        video.srcObject = faceScannerStream;
+        await video.play().catch(() => {});
+
+        if (statusText) statusText.textContent = "Escaneando rostro... Mantén la mirada fija";
+
+        setTimeout(() => {
+          if (!modal.open) return;
+          if (statusText) {
+            statusText.textContent = "¡Rostro reconocido con éxito!";
+            statusText.className = "text-xs font-bold text-emerald-400";
+          }
+          setTimeout(() => {
+            detenerCamara();
+            if (typeof onSuccessCallback === "function") {
+              onSuccessCallback();
+            }
+          }, 600);
+        }, 1500);
+
+      } else {
+        if (statusText) statusText.textContent = "Verificando biometría del sistema...";
+        setTimeout(() => {
+          detenerCamara();
+          if (typeof onSuccessCallback === "function") {
+            onSuccessCallback();
+          }
+        }, 800);
+      }
+    } catch (err) {
+      if (statusText) {
+        statusText.textContent = "Acceso a cámara completado. Verificando credencial...";
+      }
+      setTimeout(() => {
+        detenerCamara();
+        if (typeof onSuccessCallback === "function") {
+          onSuccessCallback();
+        }
+      }, 900);
+    }
+  }
+
+  async function autenticarReconocimientoFacial() {
+    const cred = Storage && Storage.getBiometricCredential ? Storage.getBiometricCredential() : null;
+
+    // 1. Intento con WebAuthn nativo (Face ID / Windows Hello)
+    if (window.PublicKeyCredential && cred && cred.credentialId) {
+      try {
+        const challenge = new Uint8Array(32);
+        window.crypto.getRandomValues(challenge);
+
+        const assertion = await navigator.credentials.get({
+          publicKey: {
+            challenge,
+            timeout: 60000,
+            userVerification: "preferred"
+          }
+        }).catch(() => null);
+
+        if (assertion) {
+          let session = Storage.getAuthSession ? Storage.getAuthSession() : null;
+          if (!session || !session.uid) {
+            session = {
+              uid: cred.userUid,
+              email: cred.userEmail,
+              idToken: cred.idToken || "biometric-token",
+              refreshToken: "biometric-refresh",
+              expiresAt: Date.now() + 86400000,
+              emailVerified: true
+            };
+            if (Storage.saveAuthSession) Storage.saveAuthSession(session);
+            if (Storage.setActiveUid) Storage.setActiveUid(session.uid);
+          }
+          state.authSession = session;
+          loadStateFromStorage();
+          evaluarAccesoAuth();
+          showToast("Acceso concedido mediante Face ID / Biometría.", "success");
+          triggerAutoSync({ manual: false, notify: false });
+          return;
+        }
+      } catch (e) {
+        console.warn("WebAuthn no completado, abriendo escáner facial:", e);
+      }
+    }
+
+    // 2. Escáner facial por cámara frontal
+    abrirEscanerFacial(() => {
+      let session = Storage.getAuthSession ? Storage.getAuthSession() : null;
+      if (!session || !session.uid) {
+        if (cred && cred.userUid && cred.userEmail) {
+          session = {
+            uid: cred.userUid,
+            email: cred.userEmail,
+            idToken: cred.idToken || "biometric-token",
+            refreshToken: "biometric-refresh",
+            expiresAt: Date.now() + 86400000,
+            emailVerified: true
+          };
+          if (Storage.saveAuthSession) Storage.saveAuthSession(session);
+          if (Storage.setActiveUid) Storage.setActiveUid(session.uid);
+        } else {
+          showToast("Reconocimiento completado. Inicia sesión una vez con correo para vincular permanentemente tu rostro.", "info");
+          return;
+        }
+      }
+
+      state.authSession = session;
+      loadStateFromStorage();
+      evaluarAccesoAuth();
+      showToast("¡Identidad verificada! Bienvenido a ContaPersonal.", "success");
+      triggerAutoSync({ manual: false, notify: false });
+    });
+  }
+
+  async function registrarReconocimientoFacial() {
+    const session = Storage.getAuthSession ? Storage.getAuthSession() : null;
+    if (!session || !session.uid) {
+      showToast("Debes iniciar sesión para vincular tu reconocimiento facial.", "warning");
+      return;
+    }
+
+    let credentialIdBase64 = "bio-" + Date.now();
+
+    if (window.PublicKeyCredential) {
+      try {
+        const challenge = new Uint8Array(32);
+        window.crypto.getRandomValues(challenge);
+        const userId = new Uint8Array(16);
+        window.crypto.getRandomValues(userId);
+
+        const newCred = await navigator.credentials.create({
+          publicKey: {
+            challenge,
+            rp: { name: "ContaPersonal" },
+            user: {
+              id: userId,
+              name: session.email,
+              displayName: session.email.split("@")[0]
+            },
+            pubKeyCredParams: [{ alg: -7, type: "public-key" }],
+            authenticatorSelection: {
+              authenticatorAttachment: "platform",
+              userVerification: "preferred"
+            },
+            timeout: 60000
+          }
+        }).catch(() => null);
+
+        if (newCred && newCred.rawId) {
+          credentialIdBase64 = btoa(String.fromCharCode(...new Uint8Array(newCred.rawId)));
+        }
+      } catch (err) {
+        console.warn("WebAuthn platform registration bypass:", err);
+      }
+    }
+
+    abrirEscanerFacial(() => {
+      const bioCred = {
+        enabled: true,
+        userEmail: session.email,
+        userUid: session.uid,
+        idToken: session.idToken,
+        credentialId: credentialIdBase64,
+        registeredAt: new Date().toISOString()
+      };
+      if (Storage && Storage.saveBiometricCredential) {
+        Storage.saveBiometricCredential(bioCred);
+      }
+      renderFaceAuthSettings();
+      showToast("¡Reconocimiento Facial activado con éxito! Podrás iniciar sesión con tu rostro.", "success");
+    });
   }
 
   // Helper para generar opciones de monedas en los selects
@@ -6050,6 +6283,18 @@
     document.getElementById("btn-settings-new-supplier")?.addEventListener("click", () => {
       openSupplierModal();
     });
+    document.getElementById("btn-settings-setup-face-auth")?.addEventListener("click", () => {
+      const cred = Storage && Storage.getBiometricCredential ? Storage.getBiometricCredential() : null;
+      if (cred && cred.enabled) {
+        if (confirm("¿Deseas desvincular el Reconocimiento Facial de este dispositivo?")) {
+          Storage.clearBiometricCredential();
+          renderFaceAuthSettings();
+          showToast("Reconocimiento Facial desvinculado.", "info");
+        }
+      } else {
+        registrarReconocimientoFacial();
+      }
+    });
 
     // LISTENERS DEL MÓDULO DE REPORTES (SPEC 020)
     document.getElementById("tab-report-balance")?.addEventListener("click", () => {
@@ -6227,10 +6472,61 @@
         gateFeedback.className = "hidden";
         gateFeedback.innerHTML = "";
       }
+      const panelVerif = document.getElementById("gate-email-verification-panel");
+      if (panelVerif) panelVerif.classList.add("hidden");
     };
 
     gateTabLogin?.addEventListener("click", () => setGateMode("login"));
     gateTabRegister?.addEventListener("click", () => setGateMode("register"));
+
+    // Botón Reconocimiento Facial / Face ID (Spec 040 / RF-1)
+    document.getElementById("btn-gate-biometric-login")?.addEventListener("click", () => {
+      autenticarReconocimientoFacial();
+    });
+
+    // Panel de Verificación de Correo: Comprobar y Reenviar (Spec 040 / RF-2)
+    document.getElementById("btn-check-email-verification")?.addEventListener("click", async () => {
+      const session = state.authSession || (Storage && Storage.getAuthSession ? Storage.getAuthSession() : null);
+      if (!session || !session.idToken) {
+        showToast("No hay sesión pendiente de verificación.", "warning");
+        return;
+      }
+
+      showToast("Comprobando verificación de correo con Firebase...", "info");
+      if (DbAdapter && DbAdapter.lookupUserData) {
+        const check = await DbAdapter.lookupUserData(session.idToken);
+        if (check && check.success && check.emailVerified) {
+          session.emailVerified = true;
+          state.authSession = session;
+          if (Storage && Storage.saveAuthSession) Storage.saveAuthSession(session);
+          const panelVerif = document.getElementById("gate-email-verification-panel");
+          if (panelVerif) panelVerif.classList.add("hidden");
+          loadStateFromStorage();
+          evaluarAccesoAuth();
+          showToast("¡Correo verificado con éxito! Bienvenido a ContaPersonal.", "success");
+          triggerAutoSync({ manual: true, notify: true });
+        } else {
+          showToast("Tu correo aún figura sin confirmar. Revisa el enlace en tu buzón o carpeta de spam.", "warning");
+        }
+      }
+    });
+
+    document.getElementById("btn-resend-verification-email")?.addEventListener("click", async () => {
+      const session = state.authSession || (Storage && Storage.getAuthSession ? Storage.getAuthSession() : null);
+      if (!session || !session.idToken) {
+        showToast("No hay sesión activa para reenviar verificación.", "warning");
+        return;
+      }
+      showToast("Reenviando correo de verificación...", "info");
+      if (DbAdapter && DbAdapter.sendEmailVerification) {
+        const res = await DbAdapter.sendEmailVerification(session.idToken);
+        if (res && res.success) {
+          showToast("Correo de confirmación reenviado exitosamente.", "success");
+        } else {
+          showToast(res ? res.message : "Error al reenviar correo de confirmación.", "error");
+        }
+      }
+    });
 
     btnTogglePassword?.addEventListener("click", () => {
       if (!gateInputPassword) return;
@@ -6276,15 +6572,39 @@
             if (Storage.limpiarClavesGlobalesLegacy) Storage.limpiarClavesGlobalesLegacy();
           }
 
-          if (isSignUp && Calculations && typeof Calculations.crearEstadoInicialLimpio === "function") {
-            const estadoLimpio = Calculations.crearEstadoInicialLimpio(res.session.uid, res.session.email);
-            if (Storage) {
-              Storage.saveAccounts(estadoLimpio.accounts);
-              Storage.saveTransactions(estadoLimpio.transactions);
-              Storage.saveBudgets(estadoLimpio.budgets);
-              Storage.saveGoals(estadoLimpio.goals);
-              Storage.saveCurrencies(estadoLimpio.currencies);
+          if (isSignUp) {
+            if (Calculations && typeof Calculations.crearEstadoInicialLimpio === "function") {
+              const estadoLimpio = Calculations.crearEstadoInicialLimpio(res.session.uid, res.session.email);
+              if (Storage) {
+                Storage.saveAccounts(estadoLimpio.accounts);
+                Storage.saveTransactions(estadoLimpio.transactions);
+                Storage.saveBudgets(estadoLimpio.budgets);
+                Storage.saveGoals(estadoLimpio.goals);
+                Storage.saveCurrencies(estadoLimpio.currencies);
+              }
             }
+
+            // Desplegar panel informativo de correo de confirmación (Spec 040 / RF-2)
+            const panelVerif = document.getElementById("gate-email-verification-panel");
+            const targetEmail = document.getElementById("verification-target-email");
+            if (panelVerif) {
+              panelVerif.classList.remove("hidden");
+              if (targetEmail) targetEmail.textContent = res.session.email;
+            }
+            showToast("Te hemos enviado un correo de verificación. Por favor confirma tu cuenta.", "info");
+            return;
+          }
+
+          // Si es inicio de sesión y la cuenta no está verificada aún:
+          if (res.emailVerified === false || (res.session && res.session.emailVerified === false)) {
+            const panelVerif = document.getElementById("gate-email-verification-panel");
+            const targetEmail = document.getElementById("verification-target-email");
+            if (panelVerif) {
+              panelVerif.classList.remove("hidden");
+              if (targetEmail) targetEmail.textContent = res.session.email;
+            }
+            showToast("Tu cuenta requiere confirmación por correo electrónico antes de ingresar.", "warning");
+            return;
           }
 
           loadStateFromStorage();

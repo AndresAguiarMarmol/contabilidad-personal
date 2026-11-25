@@ -341,7 +341,20 @@
           if (Storage && Storage.saveAuthSession) {
             Storage.saveAuthSession(session);
           }
-          return { success: true, session, message: `Cuenta creada con éxito para ${session.email}.` };
+
+          // Enviar inmediatamente correo de verificación al nuevo usuario (Spec 040)
+          try {
+            await this.sendEmailVerification(session.idToken, dbConfig);
+          } catch (e) {
+            console.warn("Fallo secundario al enviar correo de verificación inicial:", e);
+          }
+
+          return {
+            success: true,
+            session,
+            requiresVerification: true,
+            message: `Cuenta creada con éxito. Te hemos enviado un correo de confirmación a ${session.email}. Por favor revisa tu bandeja de entrada o spam para activarla.`
+          };
         }
 
         const rawErr = (data.error && data.error.message) ? data.error.message : res.statusText;
@@ -382,13 +395,21 @@
 
         const data = await res.json().catch(() => ({}));
         if (res.ok || res.status === 200) {
+          let isVerified = Boolean(data.emailVerified);
+          try {
+            const lookup = await this.lookupUserData(data.idToken, dbConfig);
+            if (lookup && lookup.success) {
+              isVerified = Boolean(lookup.emailVerified);
+            }
+          } catch (e) {}
+
           const session = Calculations && Calculations.extraerSesionAuth
-            ? Calculations.extraerSesionAuth(data)
-            : { uid: data.localId, email: data.email, idToken: data.idToken, refreshToken: data.refreshToken };
+            ? Calculations.extraerSesionAuth({ ...data, emailVerified: isVerified })
+            : { uid: data.localId, email: data.email, idToken: data.idToken, refreshToken: data.refreshToken, emailVerified: isVerified };
           if (Storage && Storage.saveAuthSession) {
             Storage.saveAuthSession(session);
           }
-          return { success: true, session, message: `Bienvenido de vuelta, ${session.email}.` };
+          return { success: true, session, emailVerified: isVerified, message: `Bienvenido de vuelta, ${session.email}.` };
         }
 
         const rawErr = (data.error && data.error.message) ? data.error.message : res.statusText;
@@ -437,6 +458,90 @@
         return null;
       } catch (e) {
         return null;
+      }
+    },
+
+    /**
+     * Envía un correo de verificación al email asociado mediante Firebase Auth (Spec 040)
+     * @param {string} idToken
+     * @param {Object} config
+     * @returns {Promise<{ success: boolean, message: string }>}
+     */
+    async sendEmailVerification(idToken, config = null) {
+      const dbConfig = config || (Storage.getDbConfig ? Storage.getDbConfig() : null);
+      if (!this.isFirebaseConfigured(dbConfig) || !idToken) {
+        return { success: false, message: "Firebase no está configurado o falta el token de sesión." };
+      }
+
+      const payload = Calculations && Calculations.construirPayloadEmailVerification
+        ? Calculations.construirPayloadEmailVerification(idToken)
+        : { requestType: "VERIFY_EMAIL", idToken };
+
+      const url = `https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${dbConfig.apiKey}`;
+
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json().catch(() => ({}));
+        if (res.ok || res.status === 200) {
+          return {
+            success: true,
+            email: data.email,
+            message: "Correo de verificación enviado exitosamente. Revisa tu bandeja de entrada o spam."
+          };
+        }
+
+        const rawErr = (data.error && data.error.message) ? data.error.message : res.statusText;
+        const msg = Calculations && Calculations.traducirErrorFirebaseAuth
+          ? Calculations.traducirErrorFirebaseAuth(rawErr)
+          : rawErr;
+        return { success: false, message: msg };
+      } catch (err) {
+        return { success: false, message: `Error de red al enviar correo de verificación: ${err.message}` };
+      }
+    },
+
+    /**
+     * Consulta los datos actualizados del usuario en Firebase Auth para verificar emailVerified (Spec 040)
+     * @param {string} idToken
+     * @param {Object} config
+     * @returns {Promise<{ success: boolean, emailVerified: boolean, user: Object|null, message: string }>}
+     */
+    async lookupUserData(idToken, config = null) {
+      const dbConfig = config || (Storage.getDbConfig ? Storage.getDbConfig() : null);
+      if (!this.isFirebaseConfigured(dbConfig) || !idToken) {
+        return { success: false, emailVerified: false, user: null, message: "Firebase no está configurado o falta token." };
+      }
+
+      const url = `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${dbConfig.apiKey}`;
+
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idToken })
+        });
+
+        const data = await res.json().catch(() => ({}));
+        if (res.ok || res.status === 200) {
+          const user = Array.isArray(data.users) && data.users.length > 0 ? data.users[0] : null;
+          const emailVerified = Boolean(user && user.emailVerified);
+          return {
+            success: true,
+            emailVerified,
+            user,
+            message: emailVerified ? "Correo verificado con éxito." : "Correo aún pendiente de verificación."
+          };
+        }
+
+        const rawErr = (data.error && data.error.message) ? data.error.message : res.statusText;
+        return { success: false, emailVerified: false, user: null, message: rawErr };
+      } catch (err) {
+        return { success: false, emailVerified: false, user: null, message: `Error de red: ${err.message}` };
       }
     },
 

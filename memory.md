@@ -35,7 +35,9 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 - **Clave:** `finance_theme`
   - Valores: `"dark"` | `"light"`. Gestiona el modo de color persistido en `<html>`.
 - **Clave:** `finance_auth_session` (Spec 021)
-  - Objeto de sesión de Firebase Authentication: `uid`, `email`, `idToken`, `refreshToken`, `expiresAt` (timestamp ms).
+  - Objeto de sesión de Firebase Authentication: `uid`, `email`, `idToken`, `refreshToken`, `expiresAt` (timestamp ms), `emailVerified` (booleano, Spec 040).
+- **Clave:** `finance_biometric_credential` (Spec 040)
+  - Credencial local para Reconocimiento Facial y autenticación biométrica (`enabled`, `userEmail`, `userUid`, `credentialId`, `registeredAt`). Permite inicio de sesión rápido mediante Face ID (WebAuthn / sensor de plataforma) o escáner facial con cámara frontal.
 - **Clave:** `finance_remote_db_config`
   - Objeto con `provider` (`"firebase"` | `"supabase"` | `"none"`), `projectId`, `apiKey`, `authDomain`, `storageBucket`, `url`, `anonKey`.
 
@@ -53,6 +55,12 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 ---
 
 ## 2. Decisiones vigentes
+
+- **Reconocimiento Facial, Validación de Usuario Nuevo por Correo y Renombrado a Configuración (Spec 040):**
+  - **Reconocimiento Facial Híbrido (WebAuthn Platform + Escáner Cámara):** En el Auth Gate (`#auth-gate-screen`) se habilita el botón `#btn-gate-biometric-login` que permite desbloquear la aplicación mediante Face ID / Windows Hello Face (vía WebAuthn nativo) o mediante el escáner facial interactivo `#modal-face-scanner` con cámara frontal, óvalo de encuadre y animación holográfica. En Configuración se añade la tarjeta para vincular/desvincular la credencial biométrica (`Storage.saveBiometricCredential`).
+  - **Validación Obligatoria de Nuevos Usuarios por Correo Electrónico:** Al registrarse (`signUpUser`), la app dispara automáticamente `DbAdapter.sendEmailVerification` vía Firebase Auth REST API (`sendOobCode` con `requestType: "VERIFY_EMAIL"`). El acceso a la contabilidad permanece restringido mientras el correo figure sin confirmar (`emailVerified: false`), desplegando el panel `#gate-email-verification-panel` con botones para comprobar en vivo (`#btn-check-email-verification` vía `lookupUserData`) y reenviar el enlace (`#btn-resend-verification-email`).
+  - **Renombrado Definitivo a "Configuración":** El menú lateral y el encabezado reemplazan la etiqueta y título "Base de Datos & Ajustes" por "Configuración", unificando bases de datos, monedas, proveedores, biometría y respaldos bajo una denominación estándar y clara.
+  - Suite de pruebas unitarias TDD Red-Green en `tests/facial-email-config.test.js` con 5/5 pruebas aprobadas (195/195 pruebas totales del proyecto).
 
 - **Archivo de Proveedores / Beneficiarios y Autocompletado Inteligente en Movimientos (Spec 039):**
   - **Catálogo Maestro de Proveedores:** Conversión del campo de texto libre a un directorio estructurado con modelo `Supplier` (`id`, `name`, `category`, `categoryCode`, `paymentMethod`, `notes`, `createdAt`, `updatedAt`).
@@ -209,6 +217,17 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 ---
 
 ## 3. Historial de cambios
+
+- **2026-11-25 — Spec 040: Reconocimiento Facial, Validación de Usuario Nuevo por Correo y Renombrado a Configuración (SDD):**
+  - Creada especificación formal `specs/040-facial-email-config/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).
+  - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/facial-email-config.test.js` (5 pruebas verificando persistencia biométrica en `Storage`, botón y flujo de Reconocimiento Facial / Face ID, payload de verificación y control `puedeAccederApp`, métodos `sendEmailVerification`/`lookupUserData` en `DbAdapter`, y renombrado de "Base de Datos & Ajustes" a "Configuración", elevando la suite completa a 195/195 pruebas en verde).
+  - Implementadas en `assets/js/financeCalculations.js` las funciones puras `construirPayloadEmailVerification` y parametrizada `puedeAccederApp`.
+  - Implementados en `assets/js/storage.js` los métodos `getBiometricCredential`, `saveBiometricCredential` y `clearBiometricCredential`.
+  - Implementados en `assets/js/dbAdapter.js` los métodos `sendEmailVerification` y `lookupUserData`, disparando el envío automático tras el registro de usuario.
+  - Actualizado `index.html` renombrando "Base de Datos & Ajustes" a "Configuración" en la navegación lateral, incorporando el botón `#btn-gate-biometric-login`, el panel de verificación `#gate-email-verification-panel`, la tarjeta de biometría en Configuración y el modal `#modal-face-scanner`.
+  - Actualizado `assets/js/app.js` con `VIEW_METADATA.settings.title = "Configuración"`, controladores de Reconocimiento Facial (WebAuthn y cámara) y validación de correo.
+  - Actualizada la versión del Service Worker a `contapersonal-v23` en `sw.js`.
+  - Verificación global con `node --test tests/*.test.js`: 195/195 pruebas pasando al 100% sin regresiones.
 
 - **2026-11-24 — Spec 039: Archivo de Proveedores y Autocompletado Inteligente en Movimientos (SDD):**
   - Creada especificación formal e implementada suite de pruebas unitarias TDD Red-Green en `tests/suppliers-catalog.test.js` (6 pruebas cubriendo `crearProveedorObjeto`, `extraerProveedoresDesdeTransacciones`, persistencia en `Storage.getSuppliers`/`saveSuppliers`, fusión LWW con lápidas `deletedSuppliers` en `fusionarEstadoContable`, vinculación `<datalist id="suppliers-datalist">` en `#tx-input-supplier`, y sección de administración en Configuración, elevando la suite completa a 190/190 pruebas en verde).

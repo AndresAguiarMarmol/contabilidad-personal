@@ -2791,7 +2791,20 @@
       email,
       idToken,
       refreshToken,
-      expiresAt
+      expiresAt,
+      emailVerified: Boolean(apiResponse.emailVerified)
+    };
+  }
+
+  /**
+   * Construye el payload para solicitar el envío del correo de verificación (Spec 040)
+   * @param {string} idToken
+   * @returns {{ requestType: string, idToken: string }}
+   */
+  function construirPayloadEmailVerification(idToken) {
+    return {
+      requestType: "VERIFY_EMAIL",
+      idToken: typeof idToken === "string" ? idToken.trim() : ""
     };
   }
 
@@ -2809,15 +2822,19 @@
   }
 
   /**
-   * Determina si un usuario cumple con los requisitos para acceder a la aplicación
+   * Determina si un usuario cumple con los requisitos para acceder a la aplicación (Spec 021 & Spec 040)
    * @param {Object|null} authSession
    * @param {number} currentTimestampMs
+   * @param {Object} options { requireEmailVerification: boolean }
    * @returns {boolean}
    */
-  function puedeAccederApp(authSession, currentTimestampMs = Date.now()) {
+  function puedeAccederApp(authSession, currentTimestampMs = Date.now(), options = {}) {
     if (!authSession || typeof authSession !== "object") return false;
     if (typeof authSession.uid !== "string" || !authSession.uid.trim()) return false;
     if (typeof authSession.idToken !== "string" || !authSession.idToken.trim()) return false;
+    if (options && options.requireEmailVerification && authSession.emailVerified === false) {
+      return false;
+    }
     return true;
   }
 
@@ -3044,6 +3061,7 @@
     validarCredencialesAuth,
     traducirErrorFirebaseAuth,
     construirPayloadAuth,
+    construirPayloadEmailVerification,
     extraerSesionAuth,
     esTokenExpirado,
     puedeAccederApp,

@@ -120,7 +120,45 @@
           <span id="gate-submit-label">Iniciar Sesión</span>
           <span id="gate-spinner" class="hidden"><i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i></span>
         </button>
+
+        <!-- Separador O (Spec 040) -->
+        <div id="gate-biometric-divider" class="relative flex py-1 items-center">
+          <div class="flex-grow border-t border-slate-700/80"></div>
+          <span class="flex-shrink mx-3 text-[11px] text-slate-400 font-medium">o bien</span>
+          <div class="flex-grow border-t border-slate-700/80"></div>
+        </div>
+
+        <!-- Botón de Reconocimiento Facial / Face ID (Spec 040) -->
+        <button type="button" id="btn-gate-biometric-login" class="w-full py-2.5 px-4 rounded-xl border border-emerald-500/40 bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 hover:text-emerald-200 font-semibold text-xs transition-all flex items-center justify-center gap-2 active:scale-95 shadow-sm">
+          <i data-lucide="scan-face" class="w-4 h-4 text-emerald-400"></i>
+          <span id="gate-biometric-label">Ingresar con Reconocimiento Facial / Face ID</span>
+        </button>
       </form>
+
+      <!-- Panel de Verificación de Correo Electrónico Pendiente (Spec 040) -->
+      <div id="gate-email-verification-panel" class="hidden mt-4 p-4 rounded-2xl bg-amber-950/70 border border-amber-600/50 text-amber-200 text-xs space-y-3">
+        <div class="flex items-start gap-2.5">
+          <div class="w-7 h-7 rounded-lg bg-amber-900/80 text-amber-300 flex items-center justify-center shrink-0 mt-0.5">
+            <i data-lucide="mail-check" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <h4 class="font-bold text-amber-100 text-xs">Validación de Correo Requerida</h4>
+            <p class="text-[11px] text-amber-300/90 mt-0.5">
+              Hemos enviado un correo de confirmación a <strong id="verification-target-email" class="font-mono text-white">tu correo</strong>. Haz clic en el enlace para activar tu cuenta.
+            </p>
+          </div>
+        </div>
+        <div class="flex flex-col sm:flex-row gap-2 pt-1">
+          <button type="button" id="btn-check-email-verification" class="flex-1 py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-sm">
+            <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>
+            <span>Ya confirmé mi correo</span>
+          </button>
+          <button type="button" id="btn-resend-verification-email" class="py-2 px-3 rounded-lg border border-amber-500/40 hover:bg-amber-900/40 text-amber-200 font-semibold text-xs flex items-center justify-center gap-1.5 transition-all">
+            <i data-lucide="send" class="w-3.5 h-3.5"></i>
+            <span>Reenviar correo</span>
+          </button>
+        </div>
+      </div>
 
       <!-- Footer de Seguridad -->
       <div class="mt-6 pt-4 border-t border-slate-700/60 text-center text-[11px] text-slate-400 flex flex-col gap-1">
@@ -224,8 +262,8 @@
 
       <button data-nav-view="settings" class="nav-item w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition-all text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-slate-100">
         <div class="flex items-center gap-3">
-          <i data-lucide="database" class="w-4 h-4"></i>
-          <span>Base de Datos & Ajustes</span>
+          <i data-lucide="settings" class="w-4 h-4"></i>
+          <span>Configuración</span>
         </div>
       </button>
     </nav>
@@ -840,6 +878,35 @@
           </div>
         </div>
 
+        <!-- Reconocimiento Facial & Biometría (Spec 040) -->
+        <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+                <i data-lucide="scan-face" class="w-5 h-5"></i>
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h2 class="text-sm font-bold text-slate-900 dark:text-white">Reconocimiento Facial & Biometría</h2>
+                  <span id="settings-face-auth-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                    No configurado
+                  </span>
+                </div>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Accede instantáneamente con Face ID, Windows Hello o reconocimiento facial por cámara</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <button type="button" id="btn-settings-setup-face-auth" class="px-3.5 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs shadow-sm transition-all flex items-center gap-2 active:scale-95">
+                <i data-lucide="scan-face" class="w-4 h-4"></i>
+                <span id="btn-settings-face-auth-label">Habilitar Reconocimiento Facial</span>
+              </button>
+            </div>
+          </div>
+          <div id="settings-face-auth-info" class="text-xs text-slate-600 dark:text-slate-400 space-y-1">
+            <p>Al habilitar el Reconocimiento Facial, podrás iniciar sesión con un solo toque desde la pantalla de bienvenida utilizando la cámara de tu dispositivo o el sensor biométrico del sistema.</p>
+          </div>
+        </div>
+
         <!-- Respaldo y Portabilidad -->
         <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm space-y-4">
           <div class="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
@@ -1045,6 +1112,39 @@
 
       <div class="text-[11px] text-slate-400 text-center pt-2 border-t border-slate-100 dark:border-slate-800">
         Tus datos contables se almacenan de forma segura y privada bajo tu identificador único de usuario.
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Modal Escáner Facial por Cámara (Spec 040) -->
+  <dialog id="modal-face-scanner" class="p-0 rounded-3xl bg-slate-900 text-white border border-slate-800 backdrop:bg-slate-950/80 shadow-2xl max-w-sm w-full overflow-hidden">
+    <div class="p-6 flex flex-col items-center text-center space-y-4">
+      <div class="flex items-center justify-between w-full border-b border-slate-800 pb-3">
+        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+          <i data-lucide="scan-face" class="w-4 h-4 text-emerald-400"></i>
+          <span>Reconocimiento Facial</span>
+        </h3>
+        <button type="button" id="btn-close-face-scanner" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <!-- Video / Canvas Oval Container -->
+      <div class="relative w-48 h-56 rounded-full overflow-hidden border-4 border-emerald-500/60 shadow-lg shadow-emerald-500/20 bg-slate-950 flex items-center justify-center">
+        <video id="face-scanner-video" autoplay playsinline muted class="w-full h-full object-cover"></video>
+        <canvas id="face-scanner-canvas" class="hidden"></canvas>
+        <div id="face-scanner-laser" class="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-emerald-400 to-transparent animate-pulse"></div>
+      </div>
+
+      <div class="space-y-1">
+        <p id="face-scanner-status" class="text-xs font-semibold text-emerald-300">Enfoca tu rostro dentro del óvalo...</p>
+        <p class="text-[11px] text-slate-400">La verificación biométrica se procesa de forma segura y privada.</p>
+      </div>
+
+      <div class="pt-2 w-full flex gap-2">
+        <button type="button" id="btn-cancel-face-scanner" class="w-full py-2 px-3 rounded-xl border border-slate-700 hover:bg-slate-800 text-slate-300 text-xs font-medium transition-colors">
+          Cancelar
+        </button>
       </div>
     </div>
   </dialog>
