@@ -533,11 +533,13 @@
         goals: Array.isArray(workspaceData.goals) ? workspaceData.goals : [],
         planAccounts: Array.isArray(workspaceData.planAccounts) ? workspaceData.planAccounts : [],
         currencies: Array.isArray(workspaceData.currencies) ? workspaceData.currencies : [],
+        suppliers: Array.isArray(workspaceData.suppliers) ? workspaceData.suppliers : [],
         deletedAccounts: Array.isArray(workspaceData.deletedAccounts) ? workspaceData.deletedAccounts : [],
         deletedTransactions: Array.isArray(workspaceData.deletedTransactions) ? workspaceData.deletedTransactions : [],
         deletedPlanAccounts: Array.isArray(workspaceData.deletedPlanAccounts) ? workspaceData.deletedPlanAccounts : [],
         deletedBudgets: Array.isArray(workspaceData.deletedBudgets) ? workspaceData.deletedBudgets : [],
-        deletedGoals: Array.isArray(workspaceData.deletedGoals) ? workspaceData.deletedGoals : []
+        deletedGoals: Array.isArray(workspaceData.deletedGoals) ? workspaceData.deletedGoals : [],
+        deletedSuppliers: Array.isArray(workspaceData.deletedSuppliers) ? workspaceData.deletedSuppliers : []
       };
 
       const fields = this.toFirestoreFields(payload);
@@ -596,11 +598,13 @@
         goals: Storage.getGoals ? Storage.getGoals() : [],
         planAccounts: Storage.getPlanAccounts ? Storage.getPlanAccounts() : [],
         currencies: Storage.getCurrencies ? Storage.getCurrencies() : [],
+        suppliers: Storage.getSuppliers ? Storage.getSuppliers() : [],
         deletedAccounts: Storage.getDeletedAccounts ? Storage.getDeletedAccounts() : [],
         deletedTransactions: Storage.getDeletedTransactions ? Storage.getDeletedTransactions() : [],
         deletedPlanAccounts: Storage.getDeletedPlanAccounts ? Storage.getDeletedPlanAccounts() : [],
         deletedBudgets: Storage.getDeletedBudgets ? Storage.getDeletedBudgets() : [],
-        deletedGoals: Storage.getDeletedGoals ? Storage.getDeletedGoals() : []
+        deletedGoals: Storage.getDeletedGoals ? Storage.getDeletedGoals() : [],
+        deletedSuppliers: Storage.getDeletedSuppliers ? Storage.getDeletedSuppliers() : []
       };
 
       const remoteState = await this.fetchRemoteWorkspace(config);
@@ -647,6 +651,8 @@
         if (Storage.saveDeletedPlanAccounts && merged.deletedPlanAccounts) Storage.saveDeletedPlanAccounts(merged.deletedPlanAccounts);
         if (Storage.saveDeletedBudgets && merged.deletedBudgets) Storage.saveDeletedBudgets(merged.deletedBudgets);
         if (Storage.saveDeletedGoals && merged.deletedGoals) Storage.saveDeletedGoals(merged.deletedGoals);
+        if (Storage.saveSuppliers && merged.suppliers) Storage.saveSuppliers(merged.suppliers);
+        if (Storage.saveDeletedSuppliers && merged.deletedSuppliers) Storage.saveDeletedSuppliers(merged.deletedSuppliers);
       }
 
       // Subir el estado fusionado resultante a Firestore para que el otro dispositivo también lo reciba
@@ -712,7 +718,9 @@
         budgets: Array.isArray(remoteState.budgets) ? remoteState.budgets : [],
         goals: Array.isArray(remoteState.goals) ? remoteState.goals : [],
         planAccounts: Array.isArray(remoteState.planAccounts) ? remoteState.planAccounts : [],
-        currencies: Array.isArray(remoteState.currencies) ? remoteState.currencies : []
+        currencies: Array.isArray(remoteState.currencies) ? remoteState.currencies : [],
+        suppliers: Array.isArray(remoteState.suppliers) ? remoteState.suppliers : [],
+        deletedSuppliers: Array.isArray(remoteState.deletedSuppliers) ? remoteState.deletedSuppliers : []
       };
 
       if (Storage) {
@@ -727,6 +735,8 @@
         if (Storage.saveDeletedPlanAccounts && merged.deletedPlanAccounts) Storage.saveDeletedPlanAccounts(merged.deletedPlanAccounts);
         if (Storage.saveDeletedBudgets && merged.deletedBudgets) Storage.saveDeletedBudgets(merged.deletedBudgets);
         if (Storage.saveDeletedGoals && merged.deletedGoals) Storage.saveDeletedGoals(merged.deletedGoals);
+        if (Storage.saveSuppliers && merged.suppliers) Storage.saveSuppliers(merged.suppliers);
+        if (Storage.saveDeletedSuppliers && merged.deletedSuppliers) Storage.saveDeletedSuppliers(merged.deletedSuppliers);
       }
 
       return {

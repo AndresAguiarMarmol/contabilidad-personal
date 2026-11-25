@@ -207,6 +207,82 @@
   }
 
   /**
+   * Crea y normaliza un objeto Proveedor para el Archivo de Proveedores (Spec 039)
+   * @param {Object} datos 
+   * @returns {Object}
+   */
+  function crearProveedorObjeto(datos = {}) {
+    const rawName = typeof datos.name === "string" ? datos.name.trim() : "";
+    const id = datos.id && typeof datos.id === "string" && datos.id.startsWith("SUP-")
+      ? datos.id
+      : `SUP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const nowIso = new Date().toISOString();
+
+    return {
+      id,
+      name: rawName,
+      category: typeof datos.category === "string" ? datos.category.trim() : "",
+      categoryCode: typeof datos.categoryCode === "string" ? datos.categoryCode.trim() : "",
+      paymentMethod: typeof datos.paymentMethod === "string" ? datos.paymentMethod.trim() : "",
+      notes: typeof datos.notes === "string" ? datos.notes.trim() : "",
+      createdAt: datos.createdAt || nowIso,
+      updatedAt: datos.updatedAt || nowIso
+    };
+  }
+
+  /**
+   * Extrae proveedores únicos a partir de las transacciones históricas y los fusiona con los existentes (Spec 039)
+   * @param {Array} transactions 
+   * @param {Array} currentSuppliers 
+   * @returns {Array}
+   */
+  function extraerProveedoresDesdeTransacciones(transactions = [], currentSuppliers = []) {
+    const txList = Array.isArray(transactions) ? transactions : [];
+    const supList = Array.isArray(currentSuppliers) ? currentSuppliers : [];
+
+    const map = new Map();
+
+    supList.forEach(s => {
+      if (s && s.name && typeof s.name === "string") {
+        const key = s.name.trim().toLowerCase();
+        if (key) map.set(key, { ...s });
+      }
+    });
+
+    txList.forEach(tx => {
+      if (!tx || typeof tx !== "object") return;
+      const rawSup = tx.supplier || tx.payee;
+      if (typeof rawSup !== "string") return;
+      const trimmed = rawSup.trim();
+      if (!trimmed) return;
+
+      const key = trimmed.toLowerCase();
+      if (!map.has(key)) {
+        const nuevo = crearProveedorObjeto({
+          name: trimmed,
+          category: tx.category || "",
+          categoryCode: tx.categoryCode || "",
+          paymentMethod: tx.paymentMethod || ""
+        });
+        map.set(key, nuevo);
+      } else {
+        const existing = map.get(key);
+        if (!existing.category && tx.category) {
+          existing.category = tx.category.trim();
+        }
+        if (!existing.categoryCode && tx.categoryCode) {
+          existing.categoryCode = tx.categoryCode.trim();
+        }
+        if (!existing.paymentMethod && tx.paymentMethod) {
+          existing.paymentMethod = tx.paymentMethod.trim();
+        }
+      }
+    });
+
+    return Array.from(map.values());
+  }
+
+  /**
    * Genera un nombre de archivo estándar para comprobantes y facturas/boletas PDF (Spec 033)
    * @param {string} txDesc 
    * @param {string} date 
@@ -1949,6 +2025,12 @@
     const remoteDeletedTxs = Array.isArray(remote.deletedTransactions) ? remote.deletedTransactions : [];
     const deletedTxsSet = new Set([...localDeletedTxs, ...remoteDeletedTxs]);
 
+    const localSuppliers = Array.isArray(local.suppliers) ? local.suppliers : [];
+    const remoteSuppliers = Array.isArray(remote.suppliers) ? remote.suppliers : [];
+    const localDeletedSuppliers = Array.isArray(local.deletedSuppliers) ? local.deletedSuppliers : [];
+    const remoteDeletedSuppliers = Array.isArray(remote.deletedSuppliers) ? remote.deletedSuppliers : [];
+    const deletedSuppliersSet = new Set([...localDeletedSuppliers, ...remoteDeletedSuppliers]);
+
     // 1. Fusionar transacciones sin duplicados por ID (excluyendo lápidas de eliminación - Spec 025 y resolución temporal - Spec 035)
     const txMap = new Map();
     let newTxsFromRemote = 0;
@@ -2133,10 +2215,35 @@
     }
     const mergedCurrencies = Array.from(currencyMap.values());
 
+    // 7. Fusionar archivo de proveedores con resolución temporal LWW (Spec 039)
+    let hasSuppliersUpdated = false;
+    const supMap = new Map();
+    localSuppliers.forEach(s => {
+      if (s && s.id && !deletedSuppliersSet.has(s.id)) supMap.set(s.id, { ...s });
+    });
+    remoteSuppliers.forEach(s => {
+      if (!s || !s.id || deletedSuppliersSet.has(s.id)) return;
+      if (!supMap.has(s.id)) {
+        supMap.set(s.id, { ...s });
+      } else {
+        const existing = supMap.get(s.id);
+        const localTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+        const remoteTime = s.updatedAt ? new Date(s.updatedAt).getTime() : 0;
+        if (remoteTime > localTime) {
+          supMap.set(s.id, { ...existing, ...s });
+          hasSuppliersUpdated = true;
+        } else {
+          supMap.set(s.id, { ...s, ...existing });
+        }
+      }
+    });
+    const mergedSuppliers = Array.from(supMap.values());
+
     const hasNewAccounts = mergedAccounts.length > localAccs.length;
     const hasNewBudgets = mergedBudgets.length > localBudgets.length;
     const hasNewGoals = mergedGoals.length > localGoals.length;
     const hasNewPlan = mergedPlanAccounts.length > localPlan.length;
+    const hasNewSuppliers = mergedSuppliers.length > localSuppliers.length;
     const hasChangesFromRemote = Boolean(
       newTxsFromRemote > 0 ||
       hasNewAccounts ||
@@ -2146,7 +2253,9 @@
       hasBudgetsUpdated ||
       hasNewGoals ||
       hasGoalsUpdated ||
-      hasNewPlan
+      hasNewPlan ||
+      hasNewSuppliers ||
+      hasSuppliersUpdated
     );
 
     return {
@@ -2157,11 +2266,13 @@
         goals: mergedGoals,
         planAccounts: mergedPlanAccounts,
         currencies: mergedCurrencies,
+        suppliers: mergedSuppliers,
         deletedAccounts: Array.from(deletedAccountsSet),
         deletedTransactions: Array.from(deletedTxsSet),
         deletedPlanAccounts: Array.from(deletedPlanSet),
         deletedBudgets: Array.from(deletedBudgetsSet),
-        deletedGoals: Array.from(deletedGoalsSet)
+        deletedGoals: Array.from(deletedGoalsSet),
+        deletedSuppliers: Array.from(deletedSuppliersSet)
       },
       hasChangesFromRemote,
       newTransactionsFromRemote: newTxsFromRemote
@@ -2902,6 +3013,8 @@
     calcularResumenCuenta,
     clasificarPlanDeCuentas,
     normalizarProveedor,
+    crearProveedorObjeto,
+    extraerProveedoresDesdeTransacciones,
     generarNombreComprobante,
     parsearFechaComprobante,
     parsearMontoComprobante,

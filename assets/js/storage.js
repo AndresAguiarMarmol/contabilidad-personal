@@ -22,11 +22,13 @@
     GOALS: "finance_goals_data",
     PLAN_ACCOUNTS: "finance_plan_accounts_data",
     CURRENCIES: "finance_currencies_data",
+    SUPPLIERS: "finance_suppliers_data",
     DELETED_ACCOUNTS: "finance_deleted_accounts_data",
     DELETED_TRANSACTIONS: "finance_deleted_transactions_data",
     DELETED_PLAN_ACCOUNTS: "finance_deleted_plan_accounts_data",
     DELETED_BUDGETS: "finance_deleted_budgets_data",
     DELETED_GOALS: "finance_deleted_goals_data",
+    DELETED_SUPPLIERS: "finance_deleted_suppliers_data",
     THEME: "finance_theme",
     DB_CONFIG: "finance_remote_db_config",
     AUTH_SESSION: "finance_auth_session"
@@ -374,6 +376,51 @@
       }
     },
 
+    // --- PROVEEDORES / BENEFICIARIOS (SPEC 039) ---
+    getSuppliers() {
+      const ls = getLocalStorage();
+      const key = this.resolveKey(STORAGE_KEYS.SUPPLIERS);
+      try {
+        const raw = ls ? ls.getItem(key) : null;
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (e) {
+        return [];
+      }
+    },
+
+    saveSuppliers(suppliers) {
+      const ls = getLocalStorage();
+      const key = this.resolveKey(STORAGE_KEYS.SUPPLIERS);
+      if (ls) {
+        try {
+          ls.setItem(key, JSON.stringify(Array.isArray(suppliers) ? suppliers : []));
+        } catch (e) {}
+      }
+    },
+
+    getDeletedSuppliers() {
+      const ls = getLocalStorage();
+      const key = this.resolveKey(STORAGE_KEYS.DELETED_SUPPLIERS);
+      try {
+        const raw = ls ? ls.getItem(key) : null;
+        return raw ? JSON.parse(raw) : [];
+      } catch (e) {
+        return [];
+      }
+    },
+
+    saveDeletedSuppliers(list) {
+      const ls = getLocalStorage();
+      const key = this.resolveKey(STORAGE_KEYS.DELETED_SUPPLIERS);
+      if (ls) {
+        try {
+          ls.setItem(key, JSON.stringify(Array.isArray(list) ? list : []));
+        } catch (e) {}
+      }
+    },
+
     // --- CONFIGURACIÓN BASE DE DATOS (FIREBASE / SUPABASE) ---
     getDbConfig() {
       const ls = getLocalStorage();
@@ -485,6 +532,8 @@
       this.saveDeletedPlanAccounts([]);
       this.saveDeletedBudgets([]);
       this.saveDeletedGoals([]);
+      this.saveSuppliers([]);
+      this.saveDeletedSuppliers([]);
     },
 
     // --- EXPORTAR / IMPORTAR BACKUP JSON ---
@@ -499,11 +548,13 @@
         goals: this.getGoals(),
         planAccounts: this.getPlanAccounts(),
         currencies: this.getCurrencies(),
+        suppliers: this.getSuppliers(),
         deletedAccounts: this.getDeletedAccounts(),
         deletedTransactions: this.getDeletedTransactions(),
         deletedPlanAccounts: this.getDeletedPlanAccounts(),
         deletedBudgets: this.getDeletedBudgets(),
-        deletedGoals: this.getDeletedGoals()
+        deletedGoals: this.getDeletedGoals(),
+        deletedSuppliers: this.getDeletedSuppliers()
       };
       if (typeof window !== "undefined") {
         const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
@@ -527,11 +578,13 @@
           if (Array.isArray(data.goals)) this.saveGoals(data.goals);
           if (Array.isArray(data.planAccounts)) this.savePlanAccounts(data.planAccounts);
           if (Array.isArray(data.currencies)) this.saveCurrencies(data.currencies);
+          if (Array.isArray(data.suppliers)) this.saveSuppliers(data.suppliers);
           if (Array.isArray(data.deletedAccounts)) this.saveDeletedAccounts(data.deletedAccounts);
           if (Array.isArray(data.deletedTransactions)) this.saveDeletedTransactions(data.deletedTransactions);
           if (Array.isArray(data.deletedPlanAccounts)) this.saveDeletedPlanAccounts(data.deletedPlanAccounts);
           if (Array.isArray(data.deletedBudgets)) this.saveDeletedBudgets(data.deletedBudgets);
           if (Array.isArray(data.deletedGoals)) this.saveDeletedGoals(data.deletedGoals);
+          if (Array.isArray(data.deletedSuppliers)) this.saveDeletedSuppliers(data.deletedSuppliers);
           return true;
         }
         return false;
@@ -562,11 +615,13 @@
           ls.removeItem(this.resolveKey(STORAGE_KEYS.GOALS));
           ls.removeItem(this.resolveKey(STORAGE_KEYS.PLAN_ACCOUNTS));
           ls.removeItem(this.resolveKey(STORAGE_KEYS.CURRENCIES));
+          ls.removeItem(this.resolveKey(STORAGE_KEYS.SUPPLIERS));
           ls.removeItem(this.resolveKey(STORAGE_KEYS.DELETED_ACCOUNTS));
           ls.removeItem(this.resolveKey(STORAGE_KEYS.DELETED_TRANSACTIONS));
           ls.removeItem(this.resolveKey(STORAGE_KEYS.DELETED_PLAN_ACCOUNTS));
           ls.removeItem(this.resolveKey(STORAGE_KEYS.DELETED_BUDGETS));
           ls.removeItem(this.resolveKey(STORAGE_KEYS.DELETED_GOALS));
+          ls.removeItem(this.resolveKey(STORAGE_KEYS.DELETED_SUPPLIERS));
         } catch (e) {}
       }
     },
@@ -582,11 +637,13 @@
           ls.removeItem("finance_goals_data");
           ls.removeItem("finance_plan_accounts_data");
           ls.removeItem("finance_currencies_data");
+          ls.removeItem("finance_suppliers_data");
           ls.removeItem("finance_deleted_accounts_data");
           ls.removeItem("finance_deleted_transactions_data");
           ls.removeItem("finance_deleted_plan_accounts_data");
           ls.removeItem("finance_deleted_budgets_data");
           ls.removeItem("finance_deleted_goals_data");
+          ls.removeItem("finance_deleted_suppliers_data");
         } catch (e) {}
       }
     }

@@ -17,11 +17,13 @@
     goals: [],
     planAccounts: [],
     currencies: [],
+    suppliers: [],
     deletedAccounts: [],
     deletedPlanAccounts: [],
     deletedBudgets: [],
     deletedGoals: [],
     deletedTransactions: [],
+    deletedSuppliers: [],
     selectedAccountId: null,
     chartOfAccountsFilter: {
       search: "",
@@ -1992,6 +1994,9 @@
 
     // Spec 018: Renderizar tabla de monedas soportadas y tasas de cambio
     renderCurrenciesTable();
+
+    // Spec 039: Renderizar tabla de proveedores / beneficiarios
+    renderSuppliersTable();
   }
 
   // Helper para generar opciones de monedas en los selects
@@ -2223,6 +2228,241 @@
   }
 
   // ========================================================
+  // RENDERIZADO 5.2: DIRECTORIO DE PROVEEDORES (SPEC 039)
+  // ========================================================
+
+  function renderSuppliersTable() {
+    const tbody = document.getElementById("settings-suppliers-table-body");
+    const badge = document.getElementById("suppliers-count-badge");
+    if (!tbody) return;
+
+    if (!Array.isArray(state.suppliers)) {
+      state.suppliers = Storage ? Storage.getSuppliers() : [];
+    }
+
+    if (badge) {
+      badge.textContent = `${state.suppliers.length} proveedor${state.suppliers.length === 1 ? '' : 'es'}`;
+    }
+
+    if (state.suppliers.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="4" class="py-6 px-4 text-center text-slate-400 dark:text-slate-500 italic">
+            No hay proveedores en el directorio. Se añadirán automáticamente conforme registres tus compras o puedes crearlos con "Nuevo Proveedor".
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    const methodLabels = {
+      credit: "Tarjeta de Crédito",
+      debit: "Tarjeta de Débito",
+      transfer: "Transferencia",
+      cash: "Efectivo",
+      auto_debit: "PAC / Débito Automático"
+    };
+
+    tbody.innerHTML = state.suppliers.map(s => `
+      <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+        <td class="py-2.5 px-4 font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+          <i data-lucide="store" class="w-3.5 h-3.5 text-slate-400"></i>
+          <span>${escapeHtml(s.name)}</span>
+        </td>
+        <td class="py-2.5 px-4 text-slate-600 dark:text-slate-300">
+          ${s.category ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">${escapeHtml(s.category)}</span>` : '<span class="text-slate-400 italic">Sin categoría</span>'}
+        </td>
+        <td class="py-2.5 px-4 text-slate-600 dark:text-slate-300">
+          ${s.paymentMethod ? escapeHtml(methodLabels[s.paymentMethod] || s.paymentMethod) : '<span class="text-slate-400 italic">No especificado</span>'}
+        </td>
+        <td class="py-2.5 px-4 text-right whitespace-nowrap">
+          <div class="inline-flex items-center gap-1">
+            <button type="button" class="btn-edit-supplier p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors" data-id="${s.id}" title="Editar proveedor">
+              <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
+            </button>
+            <button type="button" class="btn-delete-supplier p-1.5 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 transition-colors" data-id="${s.id}" title="Eliminar proveedor">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        </td>
+      </tr>
+    `).join("");
+
+    tbody.querySelectorAll(".btn-edit-supplier").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-id");
+        const sup = state.suppliers.find(s => s.id === id);
+        if (sup) openSupplierModal(sup);
+      });
+    });
+
+    tbody.querySelectorAll(".btn-delete-supplier").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-id");
+        eliminarProveedor(id);
+      });
+    });
+
+    safeRenderIcons();
+  }
+
+  function openSupplierModal(supplierToEdit = null) {
+    const isEdit = Boolean(supplierToEdit);
+    const existingModal = document.getElementById("modal-supplier");
+    if (existingModal) existingModal.remove();
+
+    const planExpenses = Calculations?.obtenerCategoriasDesdePlan
+      ? Calculations.obtenerCategoriasDesdePlan(state.planAccounts || [], "gasto")
+      : [];
+    const catOptions = (planExpenses.length > 0 ? planExpenses.map(p => p.name) : EXPENSE_CATEGORIES)
+      .map(cat => `<option value="${escapeHtml(cat)}" ${supplierToEdit?.category === cat ? 'selected' : ''}>${escapeHtml(cat)}</option>`)
+      .join("");
+
+    const modal = document.createElement("dialog");
+    modal.id = "modal-supplier";
+    modal.className = "p-0 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 backdrop:bg-slate-950/60 shadow-2xl max-w-md w-full";
+
+    modal.innerHTML = `
+      <div class="p-6 space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+          <h3 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <i data-lucide="store" class="w-5 h-5 text-emerald-500"></i>
+            <span>${isEdit ? 'Editar Proveedor' : 'Nuevo Proveedor'}</span>
+          </h3>
+          <button type="button" id="btn-close-supplier-modal" class="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+
+        <form id="form-supplier" class="space-y-4">
+          <div class="space-y-1">
+            <label class="text-xs font-semibold text-slate-700 dark:text-slate-300">Nombre / Razón Social *</label>
+            <input type="text" id="sup-input-name" required placeholder="Ej. Supermercado Líder, Enel, Falabella" value="${escapeHtml(supplierToEdit?.name || '')}" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+          </div>
+
+          <div class="space-y-1">
+            <label class="text-xs font-semibold text-slate-700 dark:text-slate-300">Categoría Habitual de Gasto</label>
+            <select id="sup-input-category" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+              <option value="">-- Sin categoría predeterminada --</option>
+              ${catOptions}
+            </select>
+          </div>
+
+          <div class="space-y-1">
+            <label class="text-xs font-semibold text-slate-700 dark:text-slate-300">Medio de Pago Habitual</label>
+            <select id="sup-input-method" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+              <option value="credit" ${supplierToEdit?.paymentMethod === 'credit' ? 'selected' : ''}>Tarjeta de Crédito</option>
+              <option value="debit" ${supplierToEdit?.paymentMethod === 'debit' ? 'selected' : ''}>Tarjeta de Débito</option>
+              <option value="transfer" ${supplierToEdit?.paymentMethod === 'transfer' ? 'selected' : ''}>Transferencia Bancaria</option>
+              <option value="cash" ${supplierToEdit?.paymentMethod === 'cash' ? 'selected' : ''}>Efectivo</option>
+              <option value="auto_debit" ${supplierToEdit?.paymentMethod === 'auto_debit' ? 'selected' : ''}>PAC / Débito Automático</option>
+            </select>
+          </div>
+
+          <div class="space-y-1">
+            <label class="text-xs font-semibold text-slate-700 dark:text-slate-300">Notas Adicionales</label>
+            <input type="text" id="sup-input-notes" placeholder="Ej. Cliente frecuente, boleta electrónica..." value="${escapeHtml(supplierToEdit?.notes || '')}" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+          </div>
+
+          <div class="pt-3 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
+            <button type="button" id="btn-cancel-supplier" class="px-4 py-2 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">Cancelar</button>
+            <button type="submit" class="px-4 py-2 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors shadow-sm">
+              ${isEdit ? 'Guardar Cambios' : 'Crear Proveedor'}
+            </button>
+          </div>
+        </form>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+    safeRenderIcons();
+
+    document.getElementById("btn-close-supplier-modal")?.addEventListener("click", () => modal.close());
+    document.getElementById("btn-cancel-supplier")?.addEventListener("click", () => modal.close());
+
+    document.getElementById("form-supplier")?.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const nameVal = document.getElementById("sup-input-name")?.value.trim();
+      const catVal = document.getElementById("sup-input-category")?.value || "";
+      const methodVal = document.getElementById("sup-input-method")?.value || "credit";
+      const notesVal = document.getElementById("sup-input-notes")?.value.trim() || "";
+
+      if (!nameVal) {
+        showToast("El nombre del proveedor es obligatorio.", "warning");
+        return;
+      }
+
+      if (isEdit) {
+        const idx = state.suppliers.findIndex(s => s.id === supplierToEdit.id);
+        if (idx !== -1) {
+          state.suppliers[idx] = {
+            ...state.suppliers[idx],
+            name: nameVal,
+            category: catVal,
+            paymentMethod: methodVal,
+            notes: notesVal,
+            updatedAt: new Date().toISOString()
+          };
+        }
+      } else {
+        const nuevo = Calculations && Calculations.crearProveedorObjeto
+          ? Calculations.crearProveedorObjeto({
+              name: nameVal,
+              category: catVal,
+              paymentMethod: methodVal,
+              notes: notesVal
+            })
+          : {
+              id: `SUP-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+              name: nameVal,
+              category: catVal,
+              paymentMethod: methodVal,
+              notes: notesVal,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            };
+        state.suppliers.push(nuevo);
+      }
+
+      if (Storage && Storage.saveSuppliers) {
+        Storage.saveSuppliers(state.suppliers);
+      }
+
+      modal.close();
+      renderSettings();
+      showToast(`Proveedor ${nameVal} guardado correctamente.`, "success");
+      triggerAutoSync({ notify: false });
+    });
+
+    modal.showModal();
+    setTimeout(() => document.getElementById("sup-input-name")?.focus(), 50);
+  }
+
+  function eliminarProveedor(supplierId) {
+    const idx = (state.suppliers || []).findIndex(s => s.id === supplierId);
+    if (idx === -1) return;
+
+    const nombre = state.suppliers[idx].name;
+    const conf = window.confirm(`¿Eliminar al proveedor "${nombre}" del directorio?`);
+    if (!conf) return;
+
+    state.suppliers.splice(idx, 1);
+    if (!Array.isArray(state.deletedSuppliers)) state.deletedSuppliers = [];
+    if (!state.deletedSuppliers.includes(supplierId)) {
+      state.deletedSuppliers.push(supplierId);
+    }
+
+    if (Storage) {
+      if (Storage.saveSuppliers) Storage.saveSuppliers(state.suppliers);
+      if (Storage.saveDeletedSuppliers) Storage.saveDeletedSuppliers(state.deletedSuppliers);
+    }
+
+    renderSettings();
+    showToast(`Proveedor "${nombre}" eliminado.`, "success");
+    triggerAutoSync({ notify: false });
+  }
+
+  // ========================================================
   // PLANILLA INTERACTIVA: NUEVO MOVIMIENTO (SPEC 002 & 012)
   // ========================================================
   const EXPENSE_CATEGORIES = [
@@ -2379,10 +2619,16 @@
             <input type="text" id="tx-input-desc" placeholder="Ej. Compra Grandes Tiendas, Pago Tarjeta..." required class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
           </div>
 
-          <!-- Proveedor / Beneficiario (Spec 033) -->
+          <!-- Proveedor / Beneficiario (Spec 033 & Spec 039) -->
           <div id="col-supplier" class="sm:col-span-2 space-y-1">
-            <label id="lbl-supplier" class="font-semibold text-slate-700 dark:text-slate-300">Proveedor / Beneficiario</label>
-            <input type="text" id="tx-input-supplier" placeholder="Ej. Supermercado Líder, Enel, Falabella, Persona..." value="${escapeHtml(txToEdit?.supplier || '')}" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            <div class="flex items-center justify-between">
+              <label id="lbl-supplier" class="font-semibold text-slate-700 dark:text-slate-300">Proveedor / Beneficiario</label>
+              <span class="text-[11px] text-slate-400 dark:text-slate-500 font-normal">Autocompletado inteligente</span>
+            </div>
+            <input type="text" id="tx-input-supplier" list="suppliers-datalist" placeholder="Ej. Supermercado Líder, Enel, Falabella, Persona..." value="${escapeHtml(txToEdit?.supplier || '')}" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            <datalist id="suppliers-datalist">
+              ${(state.suppliers || []).map(s => `<option value="${escapeHtml(s.name)}">${s.category ? escapeHtml(` (${s.category})`) : ''}</option>`).join("")}
+            </datalist>
           </div>
 
           <!-- Cuenta Origen -->
@@ -2969,6 +3215,33 @@
     btnCamera?.addEventListener("click", () => inputCamera?.click());
     btnUpload?.addEventListener("click", () => inputFile?.click());
 
+    // Autocompletado inteligente de Categoría y Medio de Pago al tipear / seleccionar Proveedor (Spec 039)
+    const supplierInputEl = document.getElementById("tx-input-supplier");
+    if (supplierInputEl) {
+      const onSupplierChanged = () => {
+        const val = supplierInputEl.value.trim().toLowerCase();
+        if (!val) return;
+        const matched = (state.suppliers || []).find(s => s && s.name && s.name.trim().toLowerCase() === val);
+        if (matched) {
+          if (matched.category && selCategory) {
+            for (let i = 0; i < selCategory.options.length; i++) {
+              if (selCategory.options[i].value === matched.category || selCategory.options[i].text.includes(matched.category)) {
+                selCategory.selectedIndex = i;
+                selCategory.dispatchEvent(new Event("change"));
+                break;
+              }
+            }
+          }
+          const methodEl = document.getElementById("tx-input-method");
+          if (methodEl && matched.paymentMethod) {
+            methodEl.value = matched.paymentMethod;
+          }
+        }
+      };
+      supplierInputEl.addEventListener("input", onSupplierChanged);
+      supplierInputEl.addEventListener("change", onSupplierChanged);
+    }
+
     async function procesarTextoYAutocompletar(texto) {
       if (!texto || !Calculations || typeof Calculations.extraerDatosDesdeTextoComprobante !== "function") return;
       const catalog = getPlanCatalog();
@@ -3155,6 +3428,23 @@
       const methodVal = document.getElementById("tx-input-method")?.value || "credit";
 
       const catalog = getPlanCatalog();
+
+      // Auto-registro en Archivo de Proveedores si no existe (Spec 039)
+      if (supplierVal && Calculations && typeof Calculations.crearProveedorObjeto === "function") {
+        const normSup = supplierVal.trim().toLowerCase();
+        const existeSup = (state.suppliers || []).some(s => s && s.name && s.name.trim().toLowerCase() === normSup);
+        if (!existeSup) {
+          const nuevoSup = Calculations.crearProveedorObjeto({
+            name: supplierVal.trim(),
+            category: (selectedType !== "transfer" && rawCategoryVal !== "Otros") ? rawCategoryVal : "",
+            paymentMethod: methodVal || ""
+          });
+          state.suppliers.push(nuevoSup);
+          if (Storage && Storage.saveSuppliers) {
+            Storage.saveSuppliers(state.suppliers);
+          }
+        }
+      }
 
       if (isSplitActive) {
         // Parsear líneas split desde el array reactivo
@@ -5212,6 +5502,14 @@
       state.deletedBudgets = Storage.getDeletedBudgets ? Storage.getDeletedBudgets() : [];
       state.deletedGoals = Storage.getDeletedGoals ? Storage.getDeletedGoals() : [];
       state.deletedTransactions = Storage.getDeletedTransactions ? Storage.getDeletedTransactions() : [];
+      state.suppliers = Storage.getSuppliers ? Storage.getSuppliers() : [];
+      state.deletedSuppliers = Storage.getDeletedSuppliers ? Storage.getDeletedSuppliers() : [];
+      if (state.suppliers.length === 0 && state.transactions.length > 0 && Calculations && Calculations.extraerProveedoresDesdeTransacciones) {
+        state.suppliers = Calculations.extraerProveedoresDesdeTransacciones(state.transactions, []);
+        if (Storage && Storage.saveSuppliers) {
+          Storage.saveSuppliers(state.suppliers);
+        }
+      }
       state.authSession = Storage.getAuthSession ? Storage.getAuthSession() : null;
     }
   }
@@ -5748,6 +6046,9 @@
     });
     document.getElementById("btn-settings-new-currency")?.addEventListener("click", () => {
       openCurrencyModal();
+    });
+    document.getElementById("btn-settings-new-supplier")?.addEventListener("click", () => {
+      openSupplierModal();
     });
 
     // LISTENERS DEL MÓDULO DE REPORTES (SPEC 020)

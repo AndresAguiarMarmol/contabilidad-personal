@@ -798,6 +798,48 @@
           </div>
         </div>
 
+        <!-- Directorio de Proveedores / Beneficiarios (Spec 039) -->
+        <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                <i data-lucide="store" class="w-5 h-5"></i>
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h2 class="text-sm font-bold text-slate-900 dark:text-white">Directorio de Proveedores / Beneficiarios</h2>
+                  <span id="suppliers-count-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300">
+                    0 proveedores
+                  </span>
+                </div>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Archivo maestro de comercios y beneficiarios habituales para autocompletar tus movimientos</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <button type="button" id="btn-settings-new-supplier" class="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-sm transition-all flex items-center gap-2 active:scale-95">
+                <i data-lucide="plus" class="w-4 h-4"></i>
+                <span>Nuevo Proveedor</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr class="border-b border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40 text-slate-500 dark:text-slate-400 uppercase tracking-wider font-semibold text-[10px]">
+                  <th class="px-4 py-2.5">Nombre / Razón</th>
+                  <th class="px-4 py-2.5">Categoría Habitual</th>
+                  <th class="px-4 py-2.5">Medio de Pago</th>
+                  <th class="px-4 py-2.5 text-right w-28">Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="settings-suppliers-table-body" class="divide-y divide-slate-100 dark:divide-slate-800/60">
+                <!-- Generado dinámicamente -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         <!-- Respaldo y Portabilidad -->
         <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm space-y-4">
           <div class="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">

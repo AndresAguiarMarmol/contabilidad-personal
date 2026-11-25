@@ -28,6 +28,10 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
   - `finance_deleted_transactions_data`: Array de IDs de transacciones eliminadas (`deletedTransactions`).
 - **Clave:** `finance_currencies_data` (Spec 018)
   - Array de objetos `CurrencyItem`: `code` (código ISO 3-5 caracteres en mayúsculas), `name`, `symbol`, `rateToCLP` (número positivo indicando valor de 1 unidad en CLP), `isBase` (booleano, `true` solo para `CLP`), `updatedAt` (ISO timestamp). Monedas iniciales: `CLP` (base 1.0), `USD`, `EUR`, `ARS`.
+- **Clave:** `finance_suppliers_data` (Spec 039)
+  - Array de objetos `Supplier`: `id` (`"SUP-..."`), `name`, `category`, `categoryCode`, `paymentMethod`, `notes`, `createdAt`, `updatedAt`. Directorio maestro para autocompletado y sugerencia inteligente de categorías en movimientos.
+- **Clave:** `finance_deleted_suppliers_data` (Spec 039)
+  - Array de IDs de proveedores eliminados (`deletedSuppliers`) para evitar su resurrección en la sincronización en la nube.
 - **Clave:** `finance_theme`
   - Valores: `"dark"` | `"light"`. Gestiona el modo de color persistido en `<html>`.
 - **Clave:** `finance_auth_session` (Spec 021)
@@ -49,6 +53,14 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 ---
 
 ## 2. Decisiones vigentes
+
+- **Archivo de Proveedores / Beneficiarios y Autocompletado Inteligente en Movimientos (Spec 039):**
+  - **Catálogo Maestro de Proveedores:** Conversión del campo de texto libre a un directorio estructurado con modelo `Supplier` (`id`, `name`, `category`, `categoryCode`, `paymentMethod`, `notes`, `createdAt`, `updatedAt`).
+  - **Autocompletado con `<datalist id="suppliers-datalist">`:** El input `#tx-input-supplier` en el modal de transacciones se vincula a un datalist reactivo generado desde `state.suppliers`. Al seleccionar o tipear un comercio conocido, sugiere y autoselecciona automáticamente la categoría de gasto habitual y el medio de pago asociado.
+  - **Auto-Registro Desatendido y Auto-Extracción:** Al guardar cualquier movimiento con un proveedor no registrado, la aplicación lo incorpora automáticamente al archivo de proveedores. Si el usuario ya cuenta con movimientos históricos, se realiza una auto-extracción inicial con `Calculations.extraerProveedoresDesdeTransacciones` deduciendo la categoría y forma de pago más habitual.
+  - **Directorio de Gestión en Configuración:** Incorporación de tabla interactiva en Settings (`#settings-suppliers-table-body`) con modal para crear/editar (`openSupplierModal`), eliminar (`eliminarProveedor`), y contador en vivo.
+  - **Sincronización Bidireccional y Lápidas:** Fusión determinista LWW en `fusionarEstadoContable`, persistencia aislada por UID en `Storage`, lápidas `deletedSuppliers` para evitar resurrección y sincronización transparente con Cloud Firestore.
+  - Suite de pruebas unitarias TDD Red-Green en `tests/suppliers-catalog.test.js` con 6/6 pruebas aprobadas (190/190 pruebas totales del proyecto).
 
 - **Columna Explícita de Proveedor/Beneficiario en Libro de Movimientos y Detalle de Cuenta (Spec 038):**
   - **Cabecera y Tablas:** Incorporación de la columna `<th>Proveedor / Beneficiario</th>` en `#transactions-table` (`index.html`) y en la tabla de Detalle de Cuenta (`view-account-detail`), brindando visibilidad inmediata al comercio, emisor o beneficiario de la transacción.
@@ -197,6 +209,15 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 ---
 
 ## 3. Historial de cambios
+
+- **2026-11-24 — Spec 039: Archivo de Proveedores y Autocompletado Inteligente en Movimientos (SDD):**
+  - Creada especificación formal e implementada suite de pruebas unitarias TDD Red-Green en `tests/suppliers-catalog.test.js` (6 pruebas cubriendo `crearProveedorObjeto`, `extraerProveedoresDesdeTransacciones`, persistencia en `Storage.getSuppliers`/`saveSuppliers`, fusión LWW con lápidas `deletedSuppliers` en `fusionarEstadoContable`, vinculación `<datalist id="suppliers-datalist">` en `#tx-input-supplier`, y sección de administración en Configuración, elevando la suite completa a 190/190 pruebas en verde).
+  - Implementadas en `assets/js/financeCalculations.js` las funciones puras `crearProveedorObjeto` y `extraerProveedoresDesdeTransacciones`, y actualizada `fusionarEstadoContable` para soportar `suppliers` y `deletedSuppliers`.
+  - Implementados en `assets/js/storage.js` los métodos `getSuppliers`, `saveSuppliers`, `getDeletedSuppliers`, `saveDeletedSuppliers` con aislamiento dinámico por UID y soporte en respaldos JSON.
+  - Actualizado `assets/js/dbAdapter.js` para persistir `suppliers` y `deletedSuppliers` en Firestore y sincronizar bidireccionalmente.
+  - Actualizado `index.html` con tarjeta de Directorio de Proveedores en Configuración y adaptado `assets/js/app.js` con autocompletado inteligente de categoría/medio de pago en `#tx-input-supplier`, auto-registro al guardar movimientos y CRUD de proveedores en Configuración.
+  - Actualizada la versión del Service Worker a `contapersonal-v22` en `sw.js`.
+  - Verificación global con `node --test tests/*.test.js`: 190/190 pruebas pasando al 100% sin regresiones.
 
 - **2026-11-24 — Spec 038: Columna Explícita de Proveedor/Beneficiario en Libro de Movimientos y Detalle de Cuenta (SDD):**
   - Creada especificación formal e implementada suite de pruebas unitarias TDD Red-Green en `tests/transactions-supplier-column.test.js` (4 pruebas verificando cabecera de tabla en `index.html`, celdas de proveedor con icono y colspan=8 en `app.js`, tabla de Detalle de Cuenta, y búsqueda textual por proveedor en `filtrarTransacciones`, elevando la suite completa a 184/184 pruebas en verde).
