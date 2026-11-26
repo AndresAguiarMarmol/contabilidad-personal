@@ -26,8 +26,8 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
   - `finance_deleted_budgets_data`: Array de IDs de presupuestos eliminados.
   - `finance_deleted_goals_data`: Array de IDs de metas eliminadas.
   - `finance_deleted_transactions_data`: Array de IDs de transacciones eliminadas (`deletedTransactions`).
-- **Clave:** `finance_currencies_data` (Spec 018)
-  - Array de objetos `CurrencyItem`: `code` (código ISO 3-5 caracteres en mayúsculas), `name`, `symbol`, `rateToCLP` (número positivo indicando valor de 1 unidad en CLP), `isBase` (booleano, `true` solo para `CLP`), `updatedAt` (ISO timestamp). Monedas iniciales: `CLP` (base 1.0), `USD`, `EUR`, `ARS`.
+- **Clave:** `finance_currencies_data` (Spec 018 & Spec 042)
+  - Array de objetos `CurrencyItem`: `code` (código ISO 3-5 caracteres en mayúsculas), `name`, `symbol`, `rateToCLP` (número positivo indicando valor de 1 unidad en CLP), `isBase` (booleano, `true` solo para `CLP`), `updatedAt` (ISO timestamp). Monedas iniciales: `CLP` (base 1.0), `USD`, `EUR`, `ARS`, `VEB`, `BTC`. Sincronización multi-dispositivo determinista mediante Last-Write-Wins (LWW) en `fusionarEstadoContable` garantizando coherencia matemática del Patrimonio Neto entre PC y teléfonos móviles.
 - **Clave:** `finance_suppliers_data` (Spec 039 & Spec 041)
   - Array de objetos `Supplier`: `id` (`"SUP-..."`), `name`, `category`, `categoryCode`, `paymentMethod`, `notes`, `createdAt`, `updatedAt`. Directorio maestro para autocompletado y sugerencia inteligente de categorías en movimientos. Deduplicación canónica estricta (sin duplicados por tildes, mayúsculas, signos o sufijos legales tipo S.A./SpA) mediante `Calculations.canonicalizarNombreProveedor` y `Calculations.deduplicarProveedores`.
 - **Clave:** `finance_deleted_suppliers_data` (Spec 039 & Spec 041)
@@ -55,6 +55,20 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 ---
 
 ## 2. Decisiones vigentes
+
+- **Sincronización LWW de Divisas, Coherencia de Patrimonio Neto y Pull Periódico Multi-Dispositivo (Spec 042):**
+  - **Resolución de la Discrepancia de $46.150.000$ CLP en Patrimonio Neto:**
+    - Causa identificada: Cuentas en Bitcoin (`Ledger BTC` $0.45$ BTC + `Binance BTC` $0.26$ BTC = $0.71$ BTC). Con BTC a $65.000.000$ CLP/BTC en la PC, su valor era $0.71 \times 65.000.000 = \$46.150.000$ CLP, dando un Patrimonio Neto de $\$291.234.129$ CLP. En el teléfono móvil, la divisa BTC figuraba con tasa $0$ (o demo $10^{-8}$), arrojando $\$245.084.129$ CLP ($\$291.234.129 - \$46.150.000$).
+    - En `fusionarEstadoContable`, las divisas locales sobrescribían ciegamente las remotas sin comparar `updatedAt`, y `hasChangesFromRemote` omitía la verificación de divisas.
+    - Se implementó resolución Last-Write-Wins (LWW) en divisas: la marca `updatedAt` más reciente prevalece, y en caso de empate o ausencia, tasas reales configuradas ($> 10^{-6}$) vencen sobre valores demo o nulos. Se activa `hasCurrenciesUpdated` e integra en `hasChangesFromRemote`.
+    - En `app.js` (`triggerAutoSync`), se asegura la persistencia en `Storage.saveCurrencies` de la tabla de monedas fusionada.
+  - **Sondeo Periódico en Segundo Plano (Live Multi-Dispositivo):**
+    - Se agregó en `app.js` un intervalo periódico cada 20 segundos (`setInterval`) que ejecuta `triggerAutoSync({ notify: false })` mientras la ventana está activa (`!document.hidden`). De este modo, los nuevos movimientos registrados en el teléfono aparecen automáticamente en la pantalla de la PC sin que el usuario tenga que recargar la página o cambiar de pestaña.
+  - **Protección Dura contra la Cuota 1MB de Cloud Firestore:**
+    - Se ajustó el umbral de `sanearWorkspaceParaNube` a 700.000 bytes (en `financeCalculations.js` y `dbAdapter.js`), compensando el overhead de serialización REST de Firestore y garantizando que el documento jamás sea rechazado con error HTTP 400.
+  - **Consolidación en la Nube:** Restauración y consolidación de las 23 cuentas, 8 transacciones, 4 proveedores y divisas en `workspaces/KI6tXa4E2WP6o9LBOi7yvuwO9J73` y `workspaces/main`.
+  - Actualización de versión del Service Worker a `contapersonal-v25` en `sw.js`.
+  - Suite de pruebas unitarias TDD Red-Green en `tests/currency-sync-networth.test.js` con 5/5 pruebas aprobadas (206/206 pruebas totales del proyecto).
 
 - **Fiabilidad de Sincronización Multi-Transacción Móvil y Deduplicación Estricta de Proveedores (Spec 041):**
   - **Deduplicación Canónica de Proveedores:**
@@ -233,6 +247,17 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 ---
 
 ## 3. Historial de cambios
+
+- **2026-11-26 — Spec 042: Sincronización LWW de Divisas, Coherencia de Patrimonio Neto y Pull Periódico Multi-Dispositivo (SDD):**
+  - Creada especificación formal `specs/042-currency-sync-networth/` (`spec.md` en formato EARS).
+  - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/currency-sync-networth.test.js` (5 pruebas unitarias verificando resolución LWW en monedas, adopción de tasas reales frente a demo, cuadratura matemática exacta de los $46.150.000$ CLP correspondientes a los 0.71 BTC a $65.000.000$ CLP/BTC, saneamiento seguro bajo 700KB para Firestore, y fusión con recálculo de saldos de las transacciones del teléfono móvil, elevando la suite completa a 206/206 pruebas en verde).
+  - Corregido `assets/js/financeCalculations.js` (`fusionarEstadoContable`): incorporada resolución LWW con `updatedAt` y comparación de tasas en divisas, detección de cambios `hasCurrenciesUpdated` integrada en `hasChangesFromRemote`, y ajustado el umbral por defecto de `sanearWorkspaceParaNube` a 700.000 bytes.
+  - Corregido `assets/js/dbAdapter.js`: ajuste de `sanearWorkspaceParaNube` a 700.000 bytes en `saveRemoteWorkspace`.
+  - Corregido `assets/js/storage.js`: eliminada errata sintáctica de barra diagonal en `DB_CONFIG`.
+  - Actualizado `assets/js/app.js`: incorporación de sondeo periódico en segundo plano cada 20 segundos para sincronizar automáticamente cambios entre dispositivos en vivo cuando la app está visible, y persistencia de divisas en `Storage.saveCurrencies` tras el merge.
+  - Consolidado y restaurado el documento remoto en Firestore (`workspaces/KI6tXa4E2WP6o9LBOi7yvuwO9J73` y `workspaces/main`) con las 23 cuentas, los 8 movimientos (incluidos los 3 del móvil), los 4 proveedores deduplicados y las divisas con BTC a $65.000.000$ CLP.
+  - Actualizada la versión del Service Worker a `contapersonal-v25` en `sw.js`.
+  - Verificación global con `node --test tests/*.test.js`: 206/206 pruebas pasando al 100% sin regresiones.
 
 - **2026-11-25 — Spec 041: Fiabilidad de Sincronización Multi-Transacción Móvil y Deduplicación Estricta de Proveedores (SDD):**
   - Creada especificación formal `specs/041-sync-transactions-suppliers-dedup/` (`spec.md` en formato EARS, `plan.md`, `tasks.md`).

@@ -2258,7 +2258,8 @@
     });
     const mergedPlanAccounts = Array.from(planMap.values());
 
-    // 6. Fusionar tabla de monedas (Spec 018 / RF-7)
+    // 6. Fusionar tabla de monedas con LWW y detección de cambios (Spec 018, Spec 036 & Spec 042)
+    let hasCurrenciesUpdated = false;
     const localCurrencies = Array.isArray(local.currencies) ? local.currencies : [];
     const remoteCurrencies = Array.isArray(remote.currencies) ? remote.currencies : [];
 
@@ -2266,18 +2267,48 @@
     if (localCurrencies.length === 0 && remoteCurrencies.length === 0) {
       CURRENCIES_BASE.forEach(c => currencyMap.set(c.code.toUpperCase(), { ...c }));
     } else {
-      remoteCurrencies.forEach(c => {
-        if (c && c.code) {
-          const key = c.code.toUpperCase();
-          currencyMap.set(key, { ...c });
-        }
-      });
       localCurrencies.forEach(c => {
         if (c && c.code) {
-          const key = c.code.toUpperCase();
-          currencyMap.set(key, { ...(currencyMap.get(key) || {}), ...c });
+          currencyMap.set(c.code.toUpperCase(), { ...c });
         }
       });
+
+      remoteCurrencies.forEach(rc => {
+        if (!rc || !rc.code) return;
+        const key = rc.code.toUpperCase();
+        if (!currencyMap.has(key)) {
+          currencyMap.set(key, { ...rc });
+          hasCurrenciesUpdated = true;
+        } else {
+          const lc = currencyMap.get(key);
+          const localTime = lc.updatedAt ? new Date(lc.updatedAt).getTime() : 0;
+          const remoteTime = rc.updatedAt ? new Date(rc.updatedAt).getTime() : 0;
+          const localRate = Number(lc.rateToCLP) || 0;
+          const remoteRate = Number(rc.rateToCLP) || 0;
+
+          // Criterio de resolución Last-Write-Wins (LWW) y rescate de tasas válidas:
+          // 1. Si remoteTime > localTime -> gana remota
+          // 2. Si timestamps empatan o no existen, pero la remota tiene una tasa positiva configurada (> 1e-6) y la local tiene 0 o demo (<= 1e-6) -> gana remota
+          const remoteWins = remoteTime > localTime ||
+            (remoteTime === localTime && (localRate <= 1e-6 && remoteRate > 1e-6));
+
+          const localWins = localTime > remoteTime ||
+            (localTime === remoteTime && (remoteRate <= 1e-6 && localRate > 1e-6));
+
+          if (remoteWins) {
+            if (localRate !== remoteRate || lc.name !== rc.name || lc.symbol !== rc.symbol) {
+              hasCurrenciesUpdated = true;
+            }
+            currencyMap.set(key, { ...lc, ...rc });
+          } else if (localWins) {
+            currencyMap.set(key, { ...rc, ...lc });
+          } else {
+            const bestRate = localRate > 0 ? localRate : (remoteRate > 0 ? remoteRate : (key === "CLP" ? 1.0 : 1.0));
+            currencyMap.set(key, { ...rc, ...lc, rateToCLP: bestRate });
+          }
+        }
+      });
+
       if (!currencyMap.has("CLP")) {
         currencyMap.set("CLP", { code: "CLP", name: "Peso Chileno", symbol: "$", rateToCLP: 1.0, isBase: true });
       }
@@ -2361,6 +2392,7 @@
       hasNewGoals ||
       hasGoalsUpdated ||
       hasNewPlan ||
+      hasCurrenciesUpdated ||
       hasNewSuppliers ||
       hasSuppliersUpdated
     );
@@ -2391,10 +2423,10 @@
    * Si el JSON excede el umbral seguro de bytes, recorta gradualmente los PDFs embebidos (invoicePdf)
    * de las transacciones más antiguas, preservando intactos sus metadatos contables (invoiceName, proveedor, fecha, montos).
    * @param {Object} workspaceData
-   * @param {number} [maxBytes=900000] Umbral de bytes de seguridad (< 1,048,576 bytes)
+   * @param {number} [maxBytes=700000] Umbral de bytes de seguridad (< 1,048,576 bytes con overhead de Firestore)
    * @returns {Object} Copia saneada del workspace
    */
-  function sanearWorkspaceParaNube(workspaceData = {}, maxBytes = 900000) {
+  function sanearWorkspaceParaNube(workspaceData = {}, maxBytes = 700000) {
     if (!workspaceData || typeof workspaceData !== "object") return workspaceData;
 
     const txs = Array.isArray(workspaceData.transactions)

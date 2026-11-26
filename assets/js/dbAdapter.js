@@ -628,9 +628,9 @@
       const authToken = await this.getValidAuthToken(dbConfig);
       const docPath = (session && session.uid) ? `workspaces/${session.uid}` : "workspaces/main";
 
-      // Saneamiento de cuota de 1MB para Firestore (Spec 041)
+      // Saneamiento de cuota de 1MB para Firestore (Spec 041 & Spec 042)
       const sanitized = Calculations && Calculations.sanearWorkspaceParaNube
-        ? Calculations.sanearWorkspaceParaNube(workspaceData, 900000)
+        ? Calculations.sanearWorkspaceParaNube(workspaceData, 700000)
         : workspaceData;
 
       const payload = {

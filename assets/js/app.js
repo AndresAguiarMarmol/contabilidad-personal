@@ -5963,7 +5963,10 @@
           state.budgets = res.mergedState.budgets;
           state.goals = res.mergedState.goals;
           state.planAccounts = res.mergedState.planAccounts;
-          if (res.mergedState.currencies) state.currencies = res.mergedState.currencies;
+          if (res.mergedState.currencies) {
+            state.currencies = res.mergedState.currencies;
+            if (Storage && Storage.saveCurrencies) Storage.saveCurrencies(res.mergedState.currencies);
+          }
           if (res.mergedState.suppliers) state.suppliers = res.mergedState.suppliers;
           if (res.mergedState.deletedAccounts) state.deletedAccounts = res.mergedState.deletedAccounts;
           if (res.mergedState.deletedPlanAccounts) state.deletedPlanAccounts = res.mergedState.deletedPlanAccounts;
@@ -6305,6 +6308,16 @@
     window.addEventListener("focus", () => {
       triggerAutoSync({ notify: false });
     });
+
+    // Sincronización periódica multi-dispositivo en segundo plano (Spec 042)
+    // Permite que la PC reciba nuevos movimientos del móvil en vivo sin recargar la página
+    setInterval(() => {
+      if (typeof document !== "undefined" && !document.hidden && !isSyncing) {
+        if (typeof DbAdapter !== "undefined" && DbAdapter && DbAdapter.getProvider() === "firebase") {
+          triggerAutoSync({ notify: false });
+        }
+      }
+    }, 20000);
 
     const modal = document.getElementById("app-modal");
     document.getElementById("modal-close-btn")?.addEventListener("click", () => modal?.close());
