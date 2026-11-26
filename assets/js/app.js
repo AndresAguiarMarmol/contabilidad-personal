@@ -4665,6 +4665,7 @@
           p.code === existing.code
         );
 
+        const isNominal = [4, 5].includes(classNum);
         const updatedItem = {
           id: existing.id || `PLAN-${Date.now()}`,
           baseCode: baseCodeRef,
@@ -4676,8 +4677,8 @@
           classType: classTypeMap[classNum] || "asset",
           groupName: groupVal,
           nature: natureVal,
-          balance: existing.balance || 0,
-          periodMovement: existing.periodMovement || 0,
+          balance: isNominal ? 0 : (existing.balance || 0),
+          periodMovement: isNominal ? 0 : (existing.periodMovement || 0),
           isSystem: false,
           icon: existing.icon || (parentCodeVal ? "corner-down-right" : (classNum === 1 ? "box" : classNum === 2 ? "credit-card" : classNum === 3 ? "shield" : classNum === 4 ? "plus-circle" : "tag"))
         };
@@ -5816,6 +5817,16 @@
       state.budgets = Storage.getBudgets();
       state.goals = Storage.getGoals();
       state.planAccounts = Storage.getPlanAccounts ? Storage.getPlanAccounts() : [];
+      if (state.planAccounts.length > 0 && Calculations && Calculations.sanearCuentasPlanNominales) {
+        const cleaned = Calculations.sanearCuentasPlanNominales(state.planAccounts);
+        const hasDiff = JSON.stringify(cleaned) !== JSON.stringify(state.planAccounts);
+        if (hasDiff) {
+          state.planAccounts = cleaned;
+          if (Storage && Storage.savePlanAccounts) {
+            Storage.savePlanAccounts(state.planAccounts);
+          }
+        }
+      }
       state.currencies = Storage.getCurrencies ? Storage.getCurrencies() : [];
       state.deletedAccounts = Storage.getDeletedAccounts ? Storage.getDeletedAccounts() : [];
       state.deletedPlanAccounts = Storage.getDeletedPlanAccounts ? Storage.getDeletedPlanAccounts() : [];

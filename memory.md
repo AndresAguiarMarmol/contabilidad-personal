@@ -56,6 +56,12 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 2. Decisiones vigentes
 
+- **Dinamismo Estricto de Cuentas Nominales y Purgado de Saldos Residuales (Spec 046):**
+  - **Naturaleza Contable Nominal (Clases 4 y 5):** Las cuentas de Ingresos (Clase 4) y Gastos (Clase 5) son transitorias de resultados. No poseen saldos iniciales ni estáticos. Su movimiento del período (`periodMovement`) se calcula **estricta y dinámicamente** sumando las transacciones reales vivas del período.
+  - **Neutralización de Residuos:** `obtenerCatalogoPlanCuentas` y `fusionarEstadoContable` fuerzan `periodMovement = 0` y `balance = 0` para cuentas de Clases 4 y 5 antes de acumular transacciones, descartando cualquier valor congelado histórico (como los $35.000 demo en `5.3.01` y $408.000 demo en `5.1.01`).
+  - **Prioridad por Código Contable:** La asignación de movimientos prioriza `tx.categoryCode` exacto antes de realizar búsquedas por nombre difuso de categoría.
+  - **Saneamiento Automático:** Se implementa `Calculations.sanearCuentasPlanNominales()` ejecutado en `loadStateFromStorage` y sincronizado a Firestore.
+
 - **Botón y Vista Dedicada para Base de Datos en la Nube (Spec 045):**
   - **Modularización Completa de Configuración:** Siguiendo la línea de las Specs 043 y 044, se reemplazó el formulario embebido de Firebase Cloud Firestore en `#view-settings` por una tarjeta de acceso `#settings-cloud-db-section` con el botón `#btn-settings-open-cloud-db` (`data-nav-view="cloud-db"`).
   - **Vista Dedicada `#view-cloud-db`:** Centraliza en pantalla completa la gestión de credenciales (Project ID, Web API Key, Auth Domain, Storage Bucket), botones de prueba, respaldo, sincronización y descarga forzada (`force-pull`). Incluye botón de retorno "Volver a Configuración" (`data-nav-view="settings"`).
@@ -266,6 +272,20 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 ---
 
 ## 3. Historial de cambios
+
+- **2026-11-26 — Spec 046: Dinamismo Estricto de Cuentas Nominales en Plan de Cuentas y Purgado de Saldos Residuales (SDD):**
+  - Creada especificación formal `specs/046-dynamic-nominal-accounts-plan/` (`spec.md` en formato EARS).
+  - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/plan-accounts-dynamic-movements.test.js` (5 pruebas unitarias verificando neutralización a 0 de saldos residuales en cuentas de Clase 4 y 5, acumulación dinámica exclusiva de transacciones vivas, prioridad estricta de `categoryCode` sobre búsqueda difusa, función de saneamiento `sanearCuentasPlanNominales`, y persistencia limpia sin saldos congelados en `openPlanAccountModal`, elevando la suite completa a 225/225 pruebas en verde).
+  - Corregido `assets/js/financeCalculations.js`:
+    - Incorporada función pura `sanearCuentasPlanNominales` y exportada en la interfaz pública.
+    - `obtenerCatalogoPlanCuentas`: garantiza `balance = 0` y `periodMovement = 0` para cuentas de Clase 4 y 5 antes de acumular transacciones, y evalúa `tx.categoryCode` prioritariamente.
+    - `fusionarEstadoContable`: sanea automáticamente `mergedPlanAccounts` durante la sincronización multi-dispositivo.
+  - Corregido `assets/js/app.js`:
+    - `openPlanAccountModal`: evita congelar `periodMovement` en cuentas nominales.
+    - `loadStateFromStorage`: ejecuta saneamiento proactivo de `state.planAccounts` y persiste cambios limpios.
+  - Saneamiento ejecutado exitosamente en Cloud Firestore (`workspaces/KI6tXa4E2WP6o9LBOi7yvuwO9J73`), neutralizando a $0 los $35.000 de `5.3.01` y $408.000 de `5.1.01`.
+  - Actualizada la versión del Service Worker a `contapersonal-v29` en `sw.js`.
+  - Verificación global con `node --test tests/*.test.js`: 225/225 pruebas pasando al 100% sin regresiones.
 
 - **2026-11-26 — Spec 045: Botón y Vista Dedicada para Base de Datos en la Nube (Firebase Cloud Firestore) (SDD):**
   - Creada especificación formal `specs/045-cloud-db-button-view/` (`spec.md` en formato EARS).

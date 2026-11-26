@@ -1623,11 +1623,27 @@
     { id: "P-5-7-01", code: "5.7.01", name: "Gastos Financieros, Comisiones e Intereses", classNumber: 5, classType: "expense", groupName: "5.7 Financieros e Imprevistos", nature: "debit", isSystem: true, icon: "credit-card" }
   ];
 
+  function sanearCuentasPlanNominales(cuentasPlan = []) {
+    if (!Array.isArray(cuentasPlan)) return [];
+    return cuentasPlan.map(c => {
+      if (!c) return c;
+      const classNum = Number(c.classNumber);
+      if (classNum === 4 || classNum === 5) {
+        return {
+          ...c,
+          balance: 0,
+          periodMovement: 0
+        };
+      }
+      return { ...c };
+    });
+  }
+
   function obtenerCatalogoPlanCuentas(cuentasPersonalizadas = [], cuentasFinancieras = [], transacciones = []) {
     // Clonar catálogo base
     const catalogo = CATALOGO_PLAN_CUENTAS_PERSONAL_BASE.map(item => ({ ...item, balance: 0, periodMovement: 0 }));
 
-    // Integrar y sobrescribir cuentas personalizadas del usuario (Spec 019)
+    // Integrar y sobrescribir cuentas personalizadas del usuario (Spec 019 & Spec 046)
     if (Array.isArray(cuentasPersonalizadas)) {
       cuentasPersonalizadas.forEach(p => {
         if (!p) return;
@@ -1637,6 +1653,11 @@
           (p.baseCode && c.code === p.baseCode) || 
           (p.code && c.code === p.code)
         );
+
+        const classNum = Number(p.classNumber) || (targetIdx >= 0 ? catalogo[targetIdx].classNumber : 1);
+        const isNominal = classNum === 4 || classNum === 5;
+        const safeBalance = isNominal ? 0 : (Number(p.balance) || 0);
+        const safePeriodMovement = isNominal ? 0 : (Number(p.periodMovement) || 0);
 
         if (targetIdx >= 0) {
           // Sobrescribir cuenta base originaria con la personalización del usuario
@@ -1648,17 +1669,18 @@
             name: p.name || catalogo[targetIdx].name,
             groupName: p.groupName || catalogo[targetIdx].groupName,
             nature: p.nature || catalogo[targetIdx].nature,
-            classNumber: Number(p.classNumber) || catalogo[targetIdx].classNumber,
+            classNumber: classNum,
             classType: p.classType || catalogo[targetIdx].classType,
-            balance: Number(p.balance) || catalogo[targetIdx].balance || 0,
-            periodMovement: Number(p.periodMovement) || catalogo[targetIdx].periodMovement || 0,
+            balance: safeBalance,
+            periodMovement: safePeriodMovement,
             isSystem: false
           };
         } else {
           catalogo.push({
             ...p,
-            balance: Number(p.balance) || 0,
-            periodMovement: Number(p.periodMovement) || 0
+            classNumber: classNum,
+            balance: safeBalance,
+            periodMovement: safePeriodMovement
           });
         }
       });
@@ -1731,8 +1753,12 @@
         if (amount <= 0) return;
 
         if (tx.type === "income") {
+          const catCode = (tx.categoryCode || "").trim();
           const catName = tx.category || "";
-          const target = catalogo.find(c => c.classNumber === 4 && matchCategory(c.name, catName));
+          let target = catCode ? catalogo.find(c => c.classNumber === 4 && c.code === catCode) : null;
+          if (!target) {
+            target = catalogo.find(c => c.classNumber === 4 && matchCategory(c.name, catName));
+          }
           if (target) {
             target.periodMovement = (Number(target.periodMovement) || 0) + amount;
           } else {
@@ -1744,8 +1770,12 @@
             tx.splitLines.forEach(l => {
               const lineAmt = Number(l.amount) || 0;
               if (lineAmt <= 0) return;
-              const catName = l.category || "";
-              const target = catalogo.find(c => (c.classNumber === 5 || c.classNumber === 1) && matchCategory(c.name, catName));
+              const lineCode = (l.categoryCode || "").trim();
+              const lineCatName = l.category || "";
+              let target = lineCode ? catalogo.find(c => (c.classNumber === 5 || c.classNumber === 1) && c.code === lineCode) : null;
+              if (!target) {
+                target = catalogo.find(c => (c.classNumber === 5 || c.classNumber === 1) && matchCategory(c.name, lineCatName));
+              }
               if (target) {
                 target.periodMovement = (Number(target.periodMovement) || 0) + lineAmt;
               } else {
@@ -1754,8 +1784,12 @@
               }
             });
           } else {
+            const catCode = (tx.categoryCode || "").trim();
             const catName = tx.category || "";
-            const target = catalogo.find(c => c.classNumber === 5 && matchCategory(c.name, catName));
+            let target = catCode ? catalogo.find(c => c.classNumber === 5 && c.code === catCode) : null;
+            if (!target) {
+              target = catalogo.find(c => c.classNumber === 5 && matchCategory(c.name, catName));
+            }
             if (target) {
               target.periodMovement = (Number(target.periodMovement) || 0) + amount;
             } else {
@@ -2256,7 +2290,7 @@
         planMap.set(key, { ...p, ...existing });
       }
     });
-    const mergedPlanAccounts = Array.from(planMap.values());
+    const mergedPlanAccounts = sanearCuentasPlanNominales(Array.from(planMap.values()));
 
     // 6. Fusionar tabla de monedas con LWW y detección de cambios (Spec 018, Spec 036 & Spec 042)
     let hasCurrenciesUpdated = false;
@@ -3248,6 +3282,7 @@
     crearEstadoInicialLimpio,
     purgarDatosDemoLocales,
     filtrarCuentasFinancieras,
-    obtenerClaveStorage
+    obtenerClaveStorage,
+    sanearCuentasPlanNominales
   };
 });
