@@ -115,6 +115,7 @@ describe("Spec 044: Modularización de Configuración (Monedas, Proveedores y Re
     );
     assert.ok(
       appJs.includes('["currencies", "suppliers"].includes(viewName) ? "settings"') ||
+      appJs.includes('["currencies", "suppliers", "cloud-db"].includes(viewName) ? "settings"') ||
       appJs.includes('["chart-of-accounts", "currencies", "suppliers"].includes(viewName) ? "settings"'),
       "switchView debe mapear las sub-vistas a 'settings' en la barra lateral"
     );

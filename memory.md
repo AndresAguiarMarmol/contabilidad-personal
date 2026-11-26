@@ -56,6 +56,11 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 2. Decisiones vigentes
 
+- **Botón y Vista Dedicada para Base de Datos en la Nube (Spec 045):**
+  - **Modularización Completa de Configuración:** Siguiendo la línea de las Specs 043 y 044, se reemplazó el formulario embebido de Firebase Cloud Firestore en `#view-settings` por una tarjeta de acceso `#settings-cloud-db-section` con el botón `#btn-settings-open-cloud-db` (`data-nav-view="cloud-db"`).
+  - **Vista Dedicada `#view-cloud-db`:** Centraliza en pantalla completa la gestión de credenciales (Project ID, Web API Key, Auth Domain, Storage Bucket), botones de prueba, respaldo, sincronización y descarga forzada (`force-pull`). Incluye botón de retorno "Volver a Configuración" (`data-nav-view="settings"`).
+  - **Sub-vista Asociada:** `switchView` mantiene activo el menú de "Configuración" en la barra lateral mientras el usuario opera en `cloud-db`.
+
 - **Modularización de Configuración y Retiro de Supabase (Spec 044):**
   - **Retiro de Opción Supabase:** Se eliminó de la interfaz de usuario de Configuración (`#view-settings`) el formulario/bloque "Conexión a Base de Datos Real (Supabase PostgreSQL)", consolidando la nube únicamente a través de Firebase Firestore (`mi-propia-contabilidad`).
   - **Navegación Modular por Botones a Vistas Dedicadas:** Las tablas embebidas que sobrecargaban la vista de Configuración se reemplazaron por tarjetas de acceso con botones dedicados:
@@ -261,6 +266,14 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 ---
 
 ## 3. Historial de cambios
+
+- **2026-11-26 — Spec 045: Botón y Vista Dedicada para Base de Datos en la Nube (Firebase Cloud Firestore) (SDD):**
+  - Creada especificación formal `specs/045-cloud-db-button-view/` (`spec.md` en formato EARS).
+  - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/cloud-db-modular-view.test.js` (5 pruebas unitarias verificando presencia de tarjeta y botón `#btn-settings-open-cloud-db` en `#view-settings`, vista dedicada `#view-cloud-db` con botón de retorno a `settings`, preservación intacta de controles e inputs de Firestore, registro de `cloud-db` en `VIEW_METADATA` y mapeo de sub-vista a `settings` en `switchView`, elevando la suite a 220/220 pruebas en verde).
+  - Actualizado `index.html`: sustituido el bloque embebido de Firestore en `#view-settings` por la tarjeta `#settings-cloud-db-section`, e incorporada la sección `<section id="view-cloud-db">` con su cabecera de retorno y controles de nube.
+  - Actualizado `assets/js/app.js`: añadida `"cloud-db"` a `VIEW_METADATA`, incorporada en `switchView` como sub-vista de `settings`, añadida a `renderActiveView()`, y actualización sincronizada del badge `#settings-cloud-db-badge`.
+  - Actualizada la versión del Service Worker a `contapersonal-v28` en `sw.js`.
+  - Verificación global con `node --test tests/*.test.js`: 220/220 pruebas pasando al 100% sin regresiones.
 
 - **2026-11-26 — Spec 044: Modularización de Configuración (Monedas, Proveedores y Retiro de Supabase) (SDD):**
   - Creada especificación formal `specs/044-settings-buttons-remove-supabase/` (`spec.md` en formato EARS).

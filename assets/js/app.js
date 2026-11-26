@@ -392,6 +392,10 @@
     suppliers: {
       title: "Directorio de Proveedores / Beneficiarios",
       subtitle: "Archivo maestro de comercios y beneficiarios habituales para autocompletar tus movimientos"
+    },
+    "cloud-db": {
+      title: "Base de Datos en la Nube (Firebase Cloud Firestore)",
+      subtitle: "Aloja y sincroniza tus cuentas, movimientos y archivos de respaldo en Firestore"
     }
   };
 
@@ -411,7 +415,7 @@
     }
     if (subEl) subEl.textContent = VIEW_METADATA[viewName].subtitle;
 
-    const views = ["dashboard", "accounts", "chart-of-accounts", "account-detail", "transactions", "budgets", "reports", "settings", "currencies", "suppliers"];
+    const views = ["dashboard", "accounts", "chart-of-accounts", "account-detail", "transactions", "budgets", "reports", "settings", "currencies", "suppliers", "cloud-db"];
     views.forEach((v) => {
       const el = document.getElementById(`view-${v}`);
       if (el) {
@@ -423,10 +427,10 @@
       }
     });
 
-    // Actualizar estilos activos de navegación (Spec 043 & Spec 044: sub-vistas pertenecen a Configuración)
+    // Actualizar estilos activos de navegación (Spec 043, Spec 044 & Spec 045: sub-vistas pertenecen a Configuración)
     const activeNavView = viewName === "account-detail"
       ? "accounts"
-      : (viewName === "chart-of-accounts" ? "settings" : (["currencies", "suppliers"].includes(viewName) ? "settings" : viewName));
+      : (viewName === "chart-of-accounts" ? "settings" : (["currencies", "suppliers", "cloud-db"].includes(viewName) ? "settings" : viewName));
     document.querySelectorAll("[data-nav-view]").forEach((btn) => {
       const target = btn.getAttribute("data-nav-view");
       const isSidebarItem = btn.classList.contains("nav-item");
@@ -2003,6 +2007,17 @@
       } else {
         firebaseStatusBadge.textContent = "Listo para conectar";
         firebaseStatusBadge.className = "px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300";
+      }
+    }
+
+    const cloudDbBadge = document.getElementById("settings-cloud-db-badge");
+    if (cloudDbBadge) {
+      if (isFirebase) {
+        cloudDbBadge.textContent = "Firebase Activo";
+        cloudDbBadge.className = "px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300";
+      } else {
+        cloudDbBadge.textContent = "Listo para conectar";
+        cloudDbBadge.className = "px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300";
       }
     }
 
@@ -5786,6 +5801,9 @@
         break;
       case "suppliers":
         renderSuppliersTable();
+        break;
+      case "cloud-db":
+        renderSettings();
         break;
     }
     safeRenderIcons();
