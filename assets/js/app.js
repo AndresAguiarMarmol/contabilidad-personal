@@ -415,8 +415,8 @@
       }
     });
 
-    // Actualizar estilos activos de navegación
-    const activeNavView = viewName === "account-detail" ? "accounts" : viewName;
+    // Actualizar estilos activos de navegación (Spec 043: chart-of-accounts pertenece a Configuración)
+    const activeNavView = viewName === "account-detail" ? "accounts" : (viewName === "chart-of-accounts" ? "settings" : viewName);
     document.querySelectorAll("[data-nav-view]").forEach((btn) => {
       const target = btn.getAttribute("data-nav-view");
       const isSidebarItem = btn.classList.contains("nav-item");
@@ -1341,6 +1341,10 @@
 
         <!-- Botones de Acción -->
         <div class="flex items-center gap-2 self-end sm:self-auto flex-wrap">
+          <button type="button" data-nav-view="settings" class="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-700 dark:text-slate-300 shadow-sm transition-all whitespace-nowrap active:scale-95" title="Regresar a Configuración">
+            <i data-lucide="arrow-left" class="w-4 h-4"></i>
+            <span>Volver a Configuración</span>
+          </button>
           <button id="btn-chart-new-plan-account" class="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all whitespace-nowrap active:scale-95">
             <i data-lucide="plus" class="w-4 h-4"></i>
             <span>Nueva Cuenta Contable</span>

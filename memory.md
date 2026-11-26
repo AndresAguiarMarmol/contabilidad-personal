@@ -56,6 +56,13 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 2. Decisiones vigentes
 
+- **Reubicación de "Plan de Cuentas" del Menú Principal a "Configuración" (Spec 043):**
+  - **Simplificación del Menú Principal:** Se retira el botón de "Plan de Cuentas" (`chart-of-accounts`) de la navegación lateral principal (`#sidebar nav`), dejando únicamente los accesos operativos cotidianos: Dashboard, Cuentas & Billeteras, Movimientos, Presupuestos & Metas, Reportes y Configuración.
+  - **Tarjeta Dedicada en Configuración:** En la vista de Configuración (`#view-settings`), se incorpora la sección `#settings-plan-accounts-section` con icono representativo, badge "Clases 1 a 5 · CRUD", descripción y botones interactivos (`#btn-settings-open-chart` y enlace) para acceder al catálogo maestro contable.
+  - **Navegación Coherente y Botón de Retorno:** Al abrir el Plan de Cuentas desde Configuración, `switchView` marca activo el menú "Configuración" en el sidebar. En la barra de herramientas de `renderChartOfAccounts`, se añade el botón "Volver a Configuración" (`data-nav-view="settings"`) para regresar con un solo clic.
+  - Actualización de versión del Service Worker a `contapersonal-v26` en `sw.js`.
+  - Suite de pruebas unitarias TDD Red-Green en `tests/plan-accounts-in-settings.test.js` con 4/4 pruebas aprobadas (210/210 pruebas totales del proyecto).
+
 - **Sincronización LWW de Divisas, Coherencia de Patrimonio Neto y Pull Periódico Multi-Dispositivo (Spec 042):**
   - **Resolución de la Discrepancia de $46.150.000$ CLP en Patrimonio Neto:**
     - Causa identificada: Cuentas en Bitcoin (`Ledger BTC` $0.45$ BTC + `Binance BTC` $0.26$ BTC = $0.71$ BTC). Con BTC a $65.000.000$ CLP/BTC en la PC, su valor era $0.71 \times 65.000.000 = \$46.150.000$ CLP, dando un Patrimonio Neto de $\$291.234.129$ CLP. En el teléfono móvil, la divisa BTC figuraba con tasa $0$ (o demo $10^{-8}$), arrojando $\$245.084.129$ CLP ($\$291.234.129 - \$46.150.000$).
@@ -247,6 +254,14 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 ---
 
 ## 3. Historial de cambios
+
+- **2026-11-26 — Spec 043: Reubicación de "Plan de Cuentas" del Menú Principal a "Configuración" (SDD):**
+  - Creada especificación formal `specs/043-move-plan-accounts-to-settings/` (`spec.md` en formato EARS).
+  - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/plan-accounts-in-settings.test.js` (4 pruebas unitarias verificando la ausencia de `chart-of-accounts` en el sidebar nav, presencia de la tarjeta interactiva en `#view-settings`, marcación de `settings` como menú activo durante la visualización del catálogo contable, y presencia del botón de retorno "Volver a Configuración" en la toolbar, elevando la suite completa a 210/210 pruebas en verde).
+  - Actualizado `index.html`: retirado el botón de Plan de Cuentas del menú lateral e incorporada la tarjeta `#settings-plan-accounts-section` en `#view-settings`.
+  - Actualizado `assets/js/app.js`: adaptado `switchView` para asociar `chart-of-accounts` con el ítem de navegación `settings`, e incorporado el botón de retorno rápido a Configuración en `renderChartOfAccounts`.
+  - Actualizada la versión del Service Worker a `contapersonal-v26` en `sw.js`.
+  - Verificación global con `node --test tests/*.test.js`: 210/210 pruebas pasando al 100% sin regresiones.
 
 - **2026-11-26 — Spec 042: Sincronización LWW de Divisas, Coherencia de Patrimonio Neto y Pull Periódico Multi-Dispositivo (SDD):**
   - Creada especificación formal `specs/042-currency-sync-networth/` (`spec.md` en formato EARS).
