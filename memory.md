@@ -56,6 +56,13 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 2. Decisiones vigentes
 
+- **Modularización de Configuración y Retiro de Supabase (Spec 044):**
+  - **Retiro de Opción Supabase:** Se eliminó de la interfaz de usuario de Configuración (`#view-settings`) el formulario/bloque "Conexión a Base de Datos Real (Supabase PostgreSQL)", consolidando la nube únicamente a través de Firebase Firestore (`mi-propia-contabilidad`).
+  - **Navegación Modular por Botones a Vistas Dedicadas:** Las tablas embebidas que sobrecargaban la vista de Configuración se reemplazaron por tarjetas de acceso con botones dedicados:
+    1. *Monedas Soportadas y Tasas de Cambio:* Botón `#btn-settings-open-currencies` (`data-nav-view="currencies"`) que abre la vista `#view-currencies`.
+    2. *Directorio de Proveedores / Beneficiarios:* Botón `#btn-settings-open-suppliers` (`data-nav-view="suppliers"`) que abre la vista `#view-suppliers`.
+  - **Retorno Intuitivo y Mapeo de Subvistas:** Ambas vistas dedicadas cuentan con botón de "Volver a Configuración" (`data-nav-view="settings"`) y `switchView` mantiene activo y resaltado el ítem de "Configuración" en la barra lateral mientras se navega en `chart-of-accounts`, `currencies` y `suppliers`.
+
 - **Reubicación de "Plan de Cuentas" del Menú Principal a "Configuración" (Spec 043):**
   - **Simplificación del Menú Principal:** Se retira el botón de "Plan de Cuentas" (`chart-of-accounts`) de la navegación lateral principal (`#sidebar nav`), dejando únicamente los accesos operativos cotidianos: Dashboard, Cuentas & Billeteras, Movimientos, Presupuestos & Metas, Reportes y Configuración.
   - **Tarjeta Dedicada en Configuración:** En la vista de Configuración (`#view-settings`), se incorpora la sección `#settings-plan-accounts-section` con icono representativo, badge "Clases 1 a 5 · CRUD", descripción y botones interactivos (`#btn-settings-open-chart` y enlace) para acceder al catálogo maestro contable.
@@ -254,6 +261,14 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 ---
 
 ## 3. Historial de cambios
+
+- **2026-11-26 — Spec 044: Modularización de Configuración (Monedas, Proveedores y Retiro de Supabase) (SDD):**
+  - Creada especificación formal `specs/044-settings-buttons-remove-supabase/` (`spec.md` en formato EARS).
+  - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/settings-modular-sections.test.js` (5 pruebas unitarias verificando retiro de bloques Supabase, existencia de tarjetas y botones hacia `currencies` y `suppliers`, existencia de vistas dedicadas con botones de retorno a `settings`, y asociación de `currencies` y `suppliers` como sub-vistas de `settings` en `switchView` y `VIEW_METADATA`).
+  - Actualizado `index.html`: eliminada la sección "Conexión a Base de Datos Real (Supabase PostgreSQL)", reemplazadas las tablas embebidas de divisas y proveedores por tarjetas de acceso con botones (`#btn-settings-open-currencies`, `#btn-settings-open-suppliers`), e incorporadas las vistas dedicadas `#view-currencies` y `#view-suppliers` con botones "Volver a Configuración".
+  - Actualizado `assets/js/app.js`: registradas las vistas `currencies` y `suppliers` en `VIEW_METADATA`, incluidas en `switchView` (destacando el menú `settings` en el sidebar), y conectadas en `renderActiveView()`.
+  - Actualizada la versión del Service Worker a `contapersonal-v27` en `sw.js`.
+  - Verificación global con `node --test tests/*.test.js`: 215/215 pruebas pasando al 100% sin regresiones.
 
 - **2026-11-26 — Spec 043: Reubicación de "Plan de Cuentas" del Menú Principal a "Configuración" (SDD):**
   - Creada especificación formal `specs/043-move-plan-accounts-to-settings/` (`spec.md` en formato EARS).

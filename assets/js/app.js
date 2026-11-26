@@ -384,6 +384,14 @@
     settings: {
       title: "Configuración",
       subtitle: "Bases de datos, proveedores, monedas, biometría y respaldos"
+    },
+    currencies: {
+      title: "Monedas y Tasas de Cambio",
+      subtitle: "Administra las divisas y sus tipos de cambio de referencia respecto al Peso Chileno (CLP)"
+    },
+    suppliers: {
+      title: "Directorio de Proveedores / Beneficiarios",
+      subtitle: "Archivo maestro de comercios y beneficiarios habituales para autocompletar tus movimientos"
     }
   };
 
@@ -403,7 +411,7 @@
     }
     if (subEl) subEl.textContent = VIEW_METADATA[viewName].subtitle;
 
-    const views = ["dashboard", "accounts", "chart-of-accounts", "account-detail", "transactions", "budgets", "reports", "settings"];
+    const views = ["dashboard", "accounts", "chart-of-accounts", "account-detail", "transactions", "budgets", "reports", "settings", "currencies", "suppliers"];
     views.forEach((v) => {
       const el = document.getElementById(`view-${v}`);
       if (el) {
@@ -415,8 +423,10 @@
       }
     });
 
-    // Actualizar estilos activos de navegación (Spec 043: chart-of-accounts pertenece a Configuración)
-    const activeNavView = viewName === "account-detail" ? "accounts" : (viewName === "chart-of-accounts" ? "settings" : viewName);
+    // Actualizar estilos activos de navegación (Spec 043 & Spec 044: sub-vistas pertenecen a Configuración)
+    const activeNavView = viewName === "account-detail"
+      ? "accounts"
+      : (viewName === "chart-of-accounts" ? "settings" : (["currencies", "suppliers"].includes(viewName) ? "settings" : viewName));
     document.querySelectorAll("[data-nav-view]").forEach((btn) => {
       const target = btn.getAttribute("data-nav-view");
       const isSidebarItem = btn.classList.contains("nav-item");
@@ -5770,6 +5780,12 @@
         break;
       case "settings":
         renderSettings();
+        break;
+      case "currencies":
+        renderCurrenciesTable();
+        break;
+      case "suppliers":
+        renderSuppliersTable();
         break;
     }
     safeRenderIcons();
