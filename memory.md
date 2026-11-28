@@ -56,6 +56,14 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 2. Decisiones vigentes
 
+- **Blindaje contra Stop-Words y Coherencia de Clase en Asignación de Movimientos al Plan de Cuentas (Spec 050):**
+  - **Exclusión de Palabras Genéricas (Stop-Words):** La función `matchCategory` en `obtenerCatalogoPlanCuentas` filtra palabras vacías (`"otros"`, `"otras"`, `"para"`, `"como"`, `"todo"`, `"este"`, etc.), impidiendo que categorías genéricas como *"Otros Ingresos"* contaminen erróneamente subcuentas específicas como *"Productos para la Piel, Cremas, Perfumes y otros"* (`5.6.02.03`).
+  - **Coherencia Estricta de Clase:** Un movimiento de tipo `expense` (Gasto) con `categoryCode` de Clase 4 (Ingresos) no intenta compararse por similitud en subcuentas de Clase 5; en caso de falta de código válido, se deriva a Gastos Imprevistos/Varios (`5.7.01`).
+  - **Saneamiento Realizado en Firestore y Local:**
+    - `TX-1795644643983` ($10.930, "Muni Mercado", Tottus S.A.): Reclasificada a `5.2.01.01 Supermercado`.
+    - `TX-1795824079087` ($5.997, "Adornos Navideños"): Reclasificada a `5.1.01.04 Reparaciones Casa`.
+    - Cuentas `5.1.01` ("Luz") y `5.6.02.03` ("Productos para la Piel...") reflejan saldo exacto de **$0** al no poseer movimientos vivos asociados.
+
 - **Menú Contextual con CRUD y Duplicación de Movimientos en Cuentas y Billeteras (Spec 049):**
   - **Interacción Multi-Dispositivo (Decisión 1.a):** Permite invocar el menú contextual flotante `#tx-context-menu` mediante clic derecho (`contextmenu`) en PC, pulsación prolongada (*long press* $\ge 500\text{ms}$) en móviles/tablets y botón de acciones dedicado (`...` con clase `.btn-tx-actions-menu`) en la nueva columna de acciones.
   - **Alcance Homogéneo (Decisión 2.a):** Se habilita tanto en la vista de **Detalle de Cuenta & Movimientos** (`#view-account-detail`) dentro de "Cuentas y Billeteras" como en el libro global de **Movimientos** (`#view-transactions`).
@@ -297,6 +305,20 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 ---
 
 ## 3. Historial de cambios
+
+- **2026-11-28 — Spec 050: Blindaje de Asignación Contable contra Stop-Words y Coherencia de Clase (SDD):**
+  - Creada especificación formal `specs/050-fix-nominal-accounts-matching/spec.md` (formato EARS).
+  - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/nominal-accounts-matching.test.js` (3 pruebas unitarias verificando que stop-words como "otros" no activen subcuentas indebidas, que gastos con código de ingreso no infecten cuentas específicas de clase 5, y que tras reclasificación `5.1.01` y `5.6.02.03` permanezcan en $0, elevando la suite completa a 243/243 pruebas en verde).
+  - Corregido `assets/js/financeCalculations.js`:
+    - Incorporado conjunto `STOP_WORDS_CAT` en `obtenerCatalogoPlanCuentas` para depurar tokens genéricos antes de comparar.
+    - Implementada verificación de coherencia de clase en transacciones de gasto e ingreso evitando desbordamientos cruzados entre Clases 4 y 5.
+  - Actualizado `assets/js/app.js`: añadida autorreparación preventiva en `loadStateFromStorage` para transacciones cacheadas.
+  - Saneamiento ejecutado exitosamente en Cloud Firestore (`workspaces/KI6tXa4E2WP6o9LBOi7yvuwO9J73`):
+    - `TX-1795644643983` ($10.930, "Muni Mercado", Tottus S.A.) asignada a `5.2.01.01 Supermercado`.
+    - `TX-1795824079087` ($5.997, "Adornos Navideños") asignada a `5.1.01.04 Reparaciones Casa`.
+    - Cuentas `5.1.01` ("Luz") y `5.6.02.03` ("Productos para la Piel...") verificadas con saldo $0 exacto.
+  - Actualizada la versión del Service Worker a `contapersonal-v33` en `sw.js`.
+  - Verificación global con `node --test tests/*.test.js`: 243/243 pruebas pasando al 100% sin regresiones.
 
 - **2026-11-27 — Spec 049: Menú Contextual con CRUD y Duplicación de Movimientos en Cuentas y Billeteras (SDD):**
   - Creada especificación formal `specs/049-account-transactions-context-menu/spec.md` (formato EARS).

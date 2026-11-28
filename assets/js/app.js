@@ -6029,6 +6029,26 @@
     if (Storage) {
       state.accounts = Storage.getAccounts();
       state.transactions = Storage.getTransactions();
+      if (state.transactions && state.transactions.length > 0) {
+        let txMutated = false;
+        state.transactions.forEach(t => {
+          if (t.id === "TX-1795644643983" && t.categoryCode === "4.3.01") {
+            t.category = "Supermercado";
+            t.categoryCode = "5.2.01.01";
+            t.updatedAt = new Date().toISOString();
+            txMutated = true;
+          }
+          if (t.id === "TX-1795824079087" && t.categoryCode === "5.1.01") {
+            t.category = "Reparaciones Casa";
+            t.categoryCode = "5.1.01.04";
+            t.updatedAt = new Date().toISOString();
+            txMutated = true;
+          }
+        });
+        if (txMutated && Storage && Storage.saveTransactions) {
+          Storage.saveTransactions(state.transactions);
+        }
+      }
       state.budgets = Storage.getBudgets();
       state.goals = Storage.getGoals();
       state.planAccounts = Storage.getPlanAccounts ? Storage.getPlanAccounts() : [];

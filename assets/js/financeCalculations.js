@@ -1738,13 +1738,24 @@
 
     // Acumular movimientos de transacciones
     if (Array.isArray(transacciones)) {
+      const STOP_WORDS_CAT = new Set([
+        "otros", "otras", "otro", "otra", "para", "como", "todo", "toda", "todos", "todas",
+        "este", "esta", "estos", "estas", "cual", "cuales", "desde", "hasta", "sobre",
+        "entre", "hacia", "cada", "unos", "unas", "algun", "alguna", "algunos", "algunas",
+        "personal", "generales", "general", "varios", "varias"
+      ]);
+
       const matchCategory = (accName, catStr) => {
         const cleanA = (accName || "").toLowerCase().replace(/&/g, "y").replace(/[^a-záéíóúüñ0-9]/g, " ").replace(/\s+/g, " ").trim();
         const cleanC = (catStr || "").toLowerCase().replace(/&/g, "y").replace(/[^a-záéíóúüñ0-9]/g, " ").replace(/\s+/g, " ").trim();
         if (!cleanA || !cleanC) return false;
-        if (cleanA.includes(cleanC) || cleanC.includes(cleanA)) return true;
-        const wordsA = cleanA.split(" ").filter(w => w.length > 3);
-        const wordsC = cleanC.split(" ").filter(w => w.length > 3);
+        if (cleanA === cleanC) return true;
+        if (cleanA.length >= 6 && cleanC.length >= 6 && (cleanA.includes(cleanC) || cleanC.includes(cleanA))) return true;
+
+        const wordsA = cleanA.split(" ").filter(w => w.length > 3 && !STOP_WORDS_CAT.has(w));
+        const wordsC = cleanC.split(" ").filter(w => w.length > 3 && !STOP_WORDS_CAT.has(w));
+        if (wordsA.length === 0 || wordsC.length === 0) return false;
+
         return wordsA.some(w => wordsC.includes(w));
       };
 
@@ -1755,8 +1766,9 @@
         if (tx.type === "income") {
           const catCode = (tx.categoryCode || "").trim();
           const catName = tx.category || "";
-          let target = catCode ? catalogo.find(c => c.classNumber === 4 && c.code === catCode) : null;
-          if (!target) {
+          const isCodeExpense = catCode.startsWith("5.");
+          let target = (catCode && !isCodeExpense) ? catalogo.find(c => c.classNumber === 4 && c.code === catCode) : null;
+          if (!target && !isCodeExpense) {
             target = catalogo.find(c => c.classNumber === 4 && matchCategory(c.name, catName));
           }
           if (target) {
@@ -1772,8 +1784,9 @@
               if (lineAmt <= 0) return;
               const lineCode = (l.categoryCode || "").trim();
               const lineCatName = l.category || "";
-              let target = lineCode ? catalogo.find(c => (c.classNumber === 5 || c.classNumber === 1) && c.code === lineCode) : null;
-              if (!target) {
+              const isLineIncome = lineCode.startsWith("4.");
+              let target = (lineCode && !isLineIncome) ? catalogo.find(c => (c.classNumber === 5 || c.classNumber === 1) && c.code === lineCode) : null;
+              if (!target && !isLineIncome) {
                 target = catalogo.find(c => (c.classNumber === 5 || c.classNumber === 1) && matchCategory(c.name, lineCatName));
               }
               if (target) {
@@ -1786,8 +1799,9 @@
           } else {
             const catCode = (tx.categoryCode || "").trim();
             const catName = tx.category || "";
-            let target = catCode ? catalogo.find(c => c.classNumber === 5 && c.code === catCode) : null;
-            if (!target) {
+            const isCodeIncome = catCode.startsWith("4.");
+            let target = (catCode && !isCodeIncome) ? catalogo.find(c => c.classNumber === 5 && c.code === catCode) : null;
+            if (!target && !isCodeIncome) {
               target = catalogo.find(c => c.classNumber === 5 && matchCategory(c.name, catName));
             }
             if (target) {
