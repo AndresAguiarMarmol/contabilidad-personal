@@ -1,5 +1,5 @@
 // sw.js — Service Worker con estrategia Network-First para soporte offline PWA
-const CACHE_NAME = "contapersonal-v35";
+const CACHE_NAME = "contapersonal-v36";
 const ASSETS_TO_CACHE = [
   "./",
   "./index.html",
@@ -7,6 +7,7 @@ const ASSETS_TO_CACHE = [
   "./assets/js/app.js",
   "./assets/js/mockData.js",
   "./assets/js/storage.js",
+  "./assets/js/license.js",
   "./assets/js/financeCalculations.js",
   "./assets/js/dbAdapter.js",
   "./manifest.json"

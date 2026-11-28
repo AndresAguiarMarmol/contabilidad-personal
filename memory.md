@@ -36,6 +36,14 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
   - Valores: `"dark"` | `"light"`. Gestiona el modo de color persistido en `<html>`.
 - **Clave:** `finance_auth_session` (Spec 021)
   - Objeto de sesión de Firebase Authentication: `uid`, `email`, `idToken`, `refreshToken`, `expiresAt` (timestamp ms), `emailVerified` (booleano, Spec 040).
+- **Clave:** `finance_device_id` (Spec 053)
+  - Identificador persistente y único de hardware/navegador (`dev_<uuid_o_random>`) para el licenciamiento personal.
+- **Clave:** `finance_trial_start_date` (Spec 053)
+  - Marca de tiempo numérica (`ms`) registrada en el primer inicio de la app para el cómputo de los 7 días de prueba gratuita.
+- **Clave:** `finance_license_token` (Spec 053)
+  - Token Base64 de activación offline generado y emitido por "Halterofilia Pro - Administrador de Licencias".
+- **Clave:** `finance_license_payload` (Spec 053)
+  - Objeto con metadatos validados de la licencia activa: `deviceId`, `email`, `exp`, `timestamp`.
 - **Clave:** `finance_biometric_credential` (Spec 040)
   - Credencial local para Reconocimiento Facial y autenticación biométrica (`enabled`, `userEmail`, `userUid`, `credentialId`, `registeredAt`). Permite inicio de sesión rápido mediante Face ID (WebAuthn / sensor de plataforma) o escáner facial con cámara frontal.
 - **Clave:** `finance_remote_db_config`
@@ -55,6 +63,16 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 ---
 
 ## 2. Decisiones vigentes
+
+- **Sistema de Licenciamiento Personal Offline, Trial de 7 Días e Integración Halterofilia (Spec 053):**
+  - **Filosofía Offline y Zero-Knowledge:** La validación de licencias y el cómputo del período de prueba se ejecutan 100% de manera local y en el navegador del usuario, sin llamadas a endpoints remotos ni servidores de licencias de terceros.
+  - **Identificador de Dispositivo (`finance_device_id`):** Generado de forma persistente (`dev_<uuid_o_random>`) en el primer inicio y almacenado en `Storage`. Cada solicitud de licencia queda matemáticamente amarrada al identificador del dispositivo.
+  - **Evaluación Gratuita de 7 Días:** Al abrir la aplicación por primera vez se estampa `finance_trial_start_date` (`Date.now()`). Durante 7 días continuos (`604.800.000 ms`), el usuario goza del 100% de las funcionalidades sin restricciones.
+  - **Modal de Bloqueo Infranqueable (`#modal-trial-lock`):** Si transcurren los 7 días sin haber registrado un token legítimo, la aplicación despliega un `<dialog>` bloqueante no descartable (`modal.oncancel = (e) => e.preventDefault()`), impidiendo operar hasta ingresar el token de activación.
+  - **Cadena Canónica y Canal WhatsApp:** Tanto en el modal de bloqueo como en Configuración se expone la cadena `REQ|<DeviceID>|<correo>` con botón de copia en un clic y enlace directo preformateado a WhatsApp (`+56933395447`).
+  - **Validación Criptográfica Local (SHA-256):** El token emitido por la app externa *"Halterofilia Pro - Administrador de Licencias"* es validado mediante Web Crypto API (`crypto.subtle`) o `node:crypto` con la sal secreta maestra `"Halterofilia-SuperSecret-Salt-2026"`. Soporta licencias perpetuas (`exp: -1` o $\ge 9999$ días) y temporales.
+  - **Indicadores Visuales en la UI:** Badge reactivo en la cabecera móvil y desktop (`#header-license-badge-container`), y sección de gestión y activación en Configuración (`#settings-license-section`).
+  - Suite de pruebas unitarias TDD Red-Green en `tests/licensing-trial-halterofilia.test.js` con 7/7 pruebas aprobadas (259/259 pruebas totales del proyecto).
 
 - **Totalización Jerárquica de Cuentas Padre en el Plan de Cuentas (Rollup) (Spec 052):**
   - **Consolidación Jerárquica Bottom-Up:** En `Calculations.obtenerCatalogoPlanCuentas`, toda cuenta que posea subcuentas (enlazadas por `parentCode` o prefijo de código `parent.code + "."`) totaliza automáticamente la sumatoria de los montos de sus cuentas hijas:
@@ -323,6 +341,17 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 ---
 
 ## 3. Historial de cambios
+
+- **2026-11-28 — Spec 053: Licenciamiento Personal Offline, Trial de 7 Días e Integración Halterofilia (SDD):**
+  - Creada especificación formal `specs/053-licensing-trial-halterofilia/spec.md` (formato EARS).
+  - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/licensing-trial-halterofilia.test.js` (7 pruebas unitarias verificando cómputo de días restantes, detección de vencimiento, formato canónico de solicitud REQ, enlace de WhatsApp, generación y validación de tokens legítimos, rechazo de firmas alteradas o falsificadas, rechazo de tokens vencidos y rechazo de tokens de otros dispositivos, alcanzando 259/259 pruebas totales en verde).
+  - Creado módulo de criptografía y validación de licencias `assets/js/license.js` con soporte universal para `crypto.subtle` y `node:crypto`, utilizando la sal maestra secreta `"Halterofilia-SuperSecret-Salt-2026"`.
+  - Actualizado `assets/js/storage.js` incorporando las claves y métodos de persistencia para `DEVICE_ID`, `TRIAL_START_DATE`, `LICENSE_TOKEN` y `LICENSE_PAYLOAD`.
+  - Actualizado `index.html` con contenedor de badge en cabecera `#header-license-badge-container`, sección de licencia en Configuración `#settings-license-section`, modal de bloqueo de prueba `#modal-trial-lock` y carga secuencial de `assets/js/license.js`.
+  - Integrado en `assets/js/app.js`:
+    - Métodos reactivos `initLicensing()`, `renderLicenseBadge()`, `renderLicenseSettings()`, `evaluarBloqueoTrial()` y listeners de eventos para activación y copia de código.
+    - Llamada a `renderLicenseSettings()` en `renderSettings()`, evaluación de bloqueo en `switchView()` y arranque en `startApp()`.
+  - Actualizada la versión del Service Worker a `contapersonal-v36` en `sw.js` incorporando `assets/js/license.js` en los activos cacheados offline.
 
 - **2026-11-28 — Spec 052: Totalización Jerárquica de Cuentas Padre en el Plan de Cuentas (Rollup) (SDD):**
   - Creada especificación formal `specs/052-plan-accounts-hierarchical-rollup/spec.md` (formato EARS).

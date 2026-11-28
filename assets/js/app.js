@@ -561,6 +561,8 @@
 
     closeMobileSidebar();
     renderActiveView();
+    // Spec 053: Evaluar bloqueo de trial al cambiar de vista
+    evaluarBloqueoTrial();
   }
 
   function openMobileSidebar() {
@@ -2212,6 +2214,9 @@
 
     // Spec 040: Renderizar estado de reconocimiento facial / biometría
     renderFaceAuthSettings();
+
+    // Spec 053: Renderizar estado de licenciamiento y código REQ
+    renderLicenseSettings();
   }
 
   // ========================================================
@@ -7119,6 +7124,272 @@
     setGateMode("login");
   }
 
+  // ========================================================
+  // SISTEMA DE LICENCIAMIENTO PERSONAL Y TRIAL (SPEC 053)
+  // ========================================================
+
+  let licenseStatus = {
+    licenciado: false,
+    diasRestantes: 7,
+    expirado: false,
+    mensaje: "Evaluando...",
+    payload: null
+  };
+
+  function getActiveUserEmail() {
+    if (Storage && Storage.getAuthSession) {
+      const session = Storage.getAuthSession();
+      if (session && session.email) return session.email;
+    }
+    return "usuario@contapersonal.cl";
+  }
+
+  function getOrInitDeviceId() {
+    let deviceId = Storage && Storage.getDeviceId ? Storage.getDeviceId() : null;
+    if (!deviceId) {
+      deviceId = typeof LicenseManager !== "undefined" && LicenseManager.generarDeviceId
+        ? LicenseManager.generarDeviceId()
+        : "dev_" + Math.random().toString(36).substring(2, 10);
+      if (Storage && Storage.saveDeviceId) Storage.saveDeviceId(deviceId);
+    }
+    return deviceId;
+  }
+
+  function getOrInitTrialStartDate() {
+    let startDate = Storage && Storage.getTrialStartDate ? Storage.getTrialStartDate() : null;
+    if (!startDate) {
+      startDate = Date.now();
+      if (Storage && Storage.saveTrialStartDate) Storage.saveTrialStartDate(startDate);
+    }
+    return startDate;
+  }
+
+  async function initLicensing() {
+    if (typeof LicenseManager === "undefined") return;
+
+    const deviceId = getOrInitDeviceId();
+    const trialStartDate = getOrInitTrialStartDate();
+    const token = Storage && Storage.getLicenseToken ? Storage.getLicenseToken() : null;
+
+    licenseStatus = await LicenseManager.obtenerEstadoLicencia({
+      trialStartDate,
+      token,
+      deviceId
+    });
+
+    renderLicenseBadge();
+    renderLicenseSettings();
+    evaluarBloqueoTrial();
+  }
+
+  function renderLicenseBadge() {
+    const container = document.getElementById("header-license-badge-container");
+    if (!container) return;
+
+    if (licenseStatus.licenciado) {
+      container.innerHTML = `
+        <div class="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 shadow-sm cursor-pointer hover:opacity-90 transition-opacity" data-nav-view="settings" title="Licencia Personal Activa">
+          <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400"></i>
+          <span>Licencia Activa</span>
+        </div>
+      `;
+    } else if (licenseStatus.expirado) {
+      container.innerHTML = `
+        <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300 border border-rose-200 dark:border-rose-800 shadow-sm animate-pulse cursor-pointer" data-nav-view="settings" title="Período de prueba vencido">
+          <i data-lucide="shield-alert" class="w-3.5 h-3.5 text-rose-600 dark:text-rose-400"></i>
+          <span>Trial Vencido</span>
+        </div>
+      `;
+    } else {
+      const dias = licenseStatus.diasRestantes !== undefined ? licenseStatus.diasRestantes : 7;
+      container.innerHTML = `
+        <div class="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80 shadow-sm cursor-pointer hover:opacity-90 transition-opacity" data-nav-view="settings" title="Período de prueba gratuito">
+          <i data-lucide="clock" class="w-3.5 h-3.5 text-indigo-500"></i>
+          <span>Trial: ${dias}d restantes</span>
+        </div>
+      `;
+    }
+
+    const badgeEl = container.firstElementChild;
+    if (badgeEl) {
+      badgeEl.addEventListener("click", () => switchView("settings"));
+    }
+
+    safeRenderIcons();
+  }
+
+  function renderLicenseSettings() {
+    const badge = document.getElementById("settings-license-badge");
+    const reqEl = document.getElementById("settings-license-req");
+    const waBtn = document.getElementById("btn-settings-license-whatsapp");
+
+    const deviceId = getOrInitDeviceId();
+    const email = getActiveUserEmail();
+    const reqString = typeof LicenseManager !== "undefined"
+      ? LicenseManager.generarCadenaSolicitud(deviceId, email)
+      : `REQ|${deviceId}|${email}`;
+
+    if (reqEl) reqEl.textContent = reqString;
+    if (waBtn && typeof LicenseManager !== "undefined") {
+      waBtn.href = LicenseManager.generarEnlaceWhatsApp(deviceId, email);
+    }
+
+    if (badge) {
+      if (licenseStatus.licenciado) {
+        badge.textContent = "Licencia Activa";
+        badge.className = "px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300";
+      } else if (licenseStatus.expirado) {
+        badge.textContent = "Trial Expirado";
+        badge.className = "px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300";
+      } else {
+        const dias = licenseStatus.diasRestantes !== undefined ? licenseStatus.diasRestantes : 7;
+        badge.textContent = `Trial: ${dias}d restantes`;
+        badge.className = "px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 dark:bg-indigo-950/80 dark:text-indigo-300";
+      }
+    }
+  }
+
+  function evaluarBloqueoTrial() {
+    const modal = document.getElementById("modal-trial-lock");
+    if (!modal) return;
+
+    if (licenseStatus.expirado && !licenseStatus.licenciado) {
+      const deviceId = getOrInitDeviceId();
+      const email = getActiveUserEmail();
+      const reqString = typeof LicenseManager !== "undefined"
+        ? LicenseManager.generarCadenaSolicitud(deviceId, email)
+        : `REQ|${deviceId}|${email}`;
+
+      const reqDisplay = document.getElementById("trial-lock-req-string");
+      if (reqDisplay) reqDisplay.textContent = reqString;
+
+      const waBtn = document.getElementById("btn-trial-lock-whatsapp");
+      if (waBtn && typeof LicenseManager !== "undefined") {
+        waBtn.href = LicenseManager.generarEnlaceWhatsApp(deviceId, email);
+      }
+
+      modal.oncancel = (e) => e.preventDefault();
+      if (!modal.open && typeof modal.showModal === "function") {
+        modal.showModal();
+      }
+    } else {
+      if (modal.open && typeof modal.close === "function") {
+        modal.close();
+      }
+    }
+  }
+
+  function initLicenseEventListeners() {
+    const btnSettingsCopy = document.getElementById("btn-settings-copy-req");
+    if (btnSettingsCopy) {
+      btnSettingsCopy.addEventListener("click", () => {
+        const reqEl = document.getElementById("settings-license-req");
+        if (reqEl && reqEl.textContent) {
+          navigator.clipboard.writeText(reqEl.textContent).then(() => {
+            showToast("Código de solicitud copiado al portapapeles", "success");
+          }).catch(() => {
+            showToast("Selecciona y copia el código manualmente", "warning");
+          });
+        }
+      });
+    }
+
+    const btnTrialLockCopy = document.getElementById("btn-trial-lock-copy-req");
+    if (btnTrialLockCopy) {
+      btnTrialLockCopy.addEventListener("click", () => {
+        const reqEl = document.getElementById("trial-lock-req-string");
+        if (reqEl && reqEl.textContent) {
+          navigator.clipboard.writeText(reqEl.textContent).then(() => {
+            showToast("Código de solicitud copiado al portapapeles", "success");
+          }).catch(() => {
+            showToast("Selecciona y copia el código manualmente", "warning");
+          });
+        }
+      });
+    }
+
+    const formSettingsActivate = document.getElementById("form-settings-activate-license");
+    if (formSettingsActivate) {
+      formSettingsActivate.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const input = document.getElementById("settings-token-input");
+        const token = input ? input.value.trim() : "";
+        if (!token) {
+          showToast("Ingresa un token de activación", "warning");
+          return;
+        }
+
+        const deviceId = getOrInitDeviceId();
+        const res = await LicenseManager.validarTokenLicencia(token, deviceId);
+        if (!res.valido) {
+          showToast(res.razon || "Token de activación inválido", "danger");
+          return;
+        }
+
+        if (Storage && Storage.saveLicenseToken) Storage.saveLicenseToken(token);
+        if (Storage && Storage.saveLicensePayload) Storage.saveLicensePayload(res.payload);
+        licenseStatus = {
+          licenciado: true,
+          diasRestantes: null,
+          expirado: false,
+          mensaje: "Licencia personal activa",
+          payload: res.payload
+        };
+
+        if (input) input.value = "";
+        renderLicenseBadge();
+        renderLicenseSettings();
+        evaluarBloqueoTrial();
+        showToast("¡Licencia activada con éxito!", "success");
+      });
+    }
+
+    const formTrialLockActivate = document.getElementById("form-trial-lock-activate");
+    if (formTrialLockActivate) {
+      formTrialLockActivate.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const input = document.getElementById("trial-lock-token-input");
+        const errorMsg = document.getElementById("trial-lock-error-msg");
+        const token = input ? input.value.trim() : "";
+
+        if (!token) {
+          if (errorMsg) {
+            errorMsg.textContent = "Ingresa el token de activación";
+            errorMsg.classList.remove("hidden");
+          }
+          return;
+        }
+
+        const deviceId = getOrInitDeviceId();
+        const res = await LicenseManager.validarTokenLicencia(token, deviceId);
+        if (!res.valido) {
+          if (errorMsg) {
+            errorMsg.textContent = res.razon || "Token inválido o no corresponde a este dispositivo";
+            errorMsg.classList.remove("hidden");
+          }
+          return;
+        }
+
+        if (errorMsg) errorMsg.classList.add("hidden");
+        if (Storage && Storage.saveLicenseToken) Storage.saveLicenseToken(token);
+        if (Storage && Storage.saveLicensePayload) Storage.saveLicensePayload(res.payload);
+        licenseStatus = {
+          licenciado: true,
+          diasRestantes: null,
+          expirado: false,
+          mensaje: "Licencia personal activa",
+          payload: res.payload
+        };
+
+        if (input) input.value = "";
+        renderLicenseBadge();
+        renderLicenseSettings();
+        evaluarBloqueoTrial();
+        showToast("¡ContaPersonal activado con éxito! Gracias por tu preferencia.", "success");
+      });
+    }
+  }
+
   // Arranque inmediato y defensivo
   function startApp() {
     initTheme();
@@ -7132,6 +7403,8 @@
     loadStateFromStorage();
     initFiltersAndEvents();
     initAuthGateEvents();
+    initLicenseEventListeners();
+    initLicensing();
     const autorizado = evaluarAccesoAuth();
     // Auto-sincronización multi-dispositivo en segundo plano si está autorizado
     if (autorizado && typeof DbAdapter !== "undefined" && DbAdapter && DbAdapter.getProvider() === "firebase") {

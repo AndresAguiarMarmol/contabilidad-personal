@@ -318,9 +318,12 @@
           </div>
         </div>
 
-        <!-- Lado Derecho Línea 1: Widget de Sesión de Usuario (Firebase Auth Spec 021) -->
-        <div id="auth-user-widget" class="flex items-center flex-shrink-0">
-          <!-- Render dinámico: botón Iniciar Sesión o perfil con email/avatar y Cerrar Sesión -->
+        <!-- Lado Derecho Línea 1: Widget de Sesión de Usuario y Badge de Licencia (Spec 021 & Spec 053) -->
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <div id="header-license-badge-container"></div>
+          <div id="auth-user-widget" class="flex items-center flex-shrink-0">
+            <!-- Render dinámico: botón Iniciar Sesión o perfil con email/avatar y Cerrar Sesión -->
+          </div>
         </div>
       </div>
 
@@ -675,6 +678,56 @@
       <!-- ==================================================== -->
       <section id="view-settings" class="hidden space-y-6">
         
+        <!-- Licencia y Activación Personal (Spec 053) -->
+        <div id="settings-license-section" class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                <i data-lucide="shield-check" class="w-5 h-5"></i>
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h2 class="text-sm font-bold text-slate-900 dark:text-white">Licencia y Activación Personal</h2>
+                  <span id="settings-license-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 dark:bg-indigo-950/80 dark:text-indigo-300">
+                    Cargando...
+                  </span>
+                </div>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Modelo 100% offline vinculado al identificador de tu dispositivo</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <a id="btn-settings-license-whatsapp" href="https://wa.me/56933395447" target="_blank" rel="noopener noreferrer" class="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-sm transition-all flex items-center gap-2 active:scale-95">
+                <i data-lucide="message-circle" class="w-4 h-4"></i>
+                <span>Contacto WhatsApp</span>
+              </a>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            <div class="space-y-2 bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/60">
+              <span class="font-bold text-slate-700 dark:text-slate-300 block">Tu Código de Solicitud de Dispositivo:</span>
+              <div class="flex items-center gap-2 bg-white dark:bg-slate-900 p-2 rounded-lg border border-slate-200 dark:border-slate-700">
+                <span id="settings-license-req" class="font-mono text-emerald-600 dark:text-emerald-400 select-all font-semibold truncate flex-1">REQ|dev_...|correo</span>
+                <button type="button" id="btn-settings-copy-req" class="p-1 rounded text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" title="Copiar código">
+                  <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                </button>
+              </div>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400">Envía este código por WhatsApp (+56 9 3339 5447) para recibir tu token de activación personal.</p>
+            </div>
+
+            <div class="space-y-2 bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/60">
+              <span class="font-bold text-slate-700 dark:text-slate-300 block">Activar / Renovar Licencia:</span>
+              <form id="form-settings-activate-license" class="space-y-2">
+                <input type="text" id="settings-token-input" placeholder="Pega aquí el Token de Activación..." class="w-full px-3 py-1.5 text-xs font-mono rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                <button type="submit" id="btn-settings-submit-token" class="w-full py-1.5 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5 active:scale-95">
+                  <i data-lucide="key" class="w-3.5 h-3.5"></i>
+                  <span>Validar y Activar Token</span>
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+
         <!-- Base de Datos en la Nube (Spec 045) -->
         <div id="settings-cloud-db-section" class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm space-y-4">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
@@ -1334,6 +1387,55 @@
   </dialog>
 
   <!-- ======================================================== -->
+  <!-- MODAL DE BLOQUEO DE TRIAL EXPIRADO - SPEC 053           -->
+  <!-- ======================================================== -->
+  <dialog id="modal-trial-lock" class="p-0 rounded-3xl bg-slate-900 text-white border border-slate-700/80 backdrop:bg-slate-950/90 shadow-2xl max-w-md w-[92vw] overflow-hidden m-auto">
+    <div class="p-6 sm:p-7 flex flex-col items-center text-center space-y-4">
+      <div class="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shadow-lg shadow-amber-500/10">
+        <i data-lucide="shield-alert" class="w-8 h-8"></i>
+      </div>
+
+      <div class="space-y-1.5">
+        <h3 class="text-lg font-bold text-white tracking-tight">Período de Prueba Finalizado</h3>
+        <p class="text-xs text-slate-300">
+          Tu evaluación gratuita de 7 días ha concluido. Para continuar disfrutando de ContaPersonal, solicita tu código de activación.
+        </p>
+      </div>
+
+      <!-- Cadena de Solicitud REQ -->
+      <div class="w-full bg-slate-800/80 rounded-2xl p-3.5 border border-slate-700 text-left space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-[10px] font-bold text-amber-400 uppercase tracking-wider">Código de Activación Requerido</span>
+          <span class="text-[10px] text-slate-400">1 por dispositivo</span>
+        </div>
+        <div class="flex items-center gap-2 bg-slate-900/90 p-2.5 rounded-xl border border-slate-700/80">
+          <span id="trial-lock-req-string" class="font-mono text-xs text-emerald-400 truncate flex-1 select-all font-bold">REQ|dev_...|correo</span>
+          <button type="button" id="btn-trial-lock-copy-req" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors flex-shrink-0" title="Copiar código al portapapeles">
+            <i data-lucide="copy" class="w-4 h-4"></i>
+          </button>
+        </div>
+        <a id="btn-trial-lock-whatsapp" href="https://wa.me/56933395447" target="_blank" rel="noopener noreferrer" class="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2 active:scale-95">
+          <i data-lucide="message-circle" class="w-4 h-4"></i>
+          <span>Solicitar Token por WhatsApp (+56 9 3339 5447)</span>
+        </a>
+      </div>
+
+      <!-- Formulario para ingresar Token -->
+      <form id="form-trial-lock-activate" class="w-full space-y-3 pt-1 text-left">
+        <div class="space-y-1">
+          <label for="trial-lock-token-input" class="text-xs font-semibold text-slate-300">Ingresar Token de Activación:</label>
+          <textarea id="trial-lock-token-input" rows="3" required placeholder="Pega aquí el Token Base64 recibido por WhatsApp..." class="w-full px-3 py-2 text-xs font-mono rounded-xl bg-slate-950 border border-slate-700 text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"></textarea>
+        </div>
+        <p id="trial-lock-error-msg" class="text-xs text-rose-400 hidden font-semibold"></p>
+        <button type="submit" id="btn-trial-lock-activate" class="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2 active:scale-95">
+          <i data-lucide="key" class="w-4 h-4"></i>
+          <span>Activar ContaPersonal Ahora</span>
+        </button>
+      </form>
+    </div>
+  </dialog>
+
+  <!-- ======================================================== -->
   <!-- TOAST CONTAINER                                          -->
   <!-- ======================================================== -->
   <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
@@ -1342,6 +1444,7 @@
   <script src="assets/js/financeCalculations.js"></script>
   <script src="assets/js/mockData.js"></script>
   <script src="assets/js/storage.js"></script>
+  <script src="assets/js/license.js"></script>
   <script src="assets/js/dbAdapter.js"></script>
   <script src="assets/js/app.js"></script>
 

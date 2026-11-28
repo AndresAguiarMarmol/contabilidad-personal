@@ -32,7 +32,11 @@
     THEME: "finance_theme",
     DB_CONFIG: "finance_remote_db_config",
     AUTH_SESSION: "finance_auth_session",
-    BIOMETRIC_CREDENTIAL: "finance_biometric_credential"
+    BIOMETRIC_CREDENTIAL: "finance_biometric_credential",
+    DEVICE_ID: "finance_device_id",
+    TRIAL_START_DATE: "finance_trial_start_date",
+    LICENSE_TOKEN: "finance_license_token",
+    LICENSE_PAYLOAD: "finance_license_payload"
   };
 
   const getLocalStorage = () => {
@@ -528,6 +532,104 @@
       if (ls) {
         try {
           ls.removeItem(STORAGE_KEYS.BIOMETRIC_CREDENTIAL);
+        } catch (e) {}
+      }
+    },
+
+    // --- LICENCIAMIENTO & TRIAL OFFLINE (SPEC 053) ---
+    getDeviceId() {
+      const ls = getLocalStorage();
+      try {
+        let id = ls ? ls.getItem(STORAGE_KEYS.DEVICE_ID) : null;
+        if (!id) {
+          if (typeof LicenseManager !== "undefined" && LicenseManager.generarDeviceId) {
+            id = LicenseManager.generarDeviceId();
+          } else {
+            id = `dev_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 10)}`;
+          }
+          this.saveDeviceId(id);
+        }
+        return id;
+      } catch (e) {
+        return "dev_fallback";
+      }
+    },
+
+    saveDeviceId(id) {
+      const ls = getLocalStorage();
+      if (ls && id) {
+        try {
+          ls.setItem(STORAGE_KEYS.DEVICE_ID, String(id).trim());
+        } catch (e) {}
+      }
+    },
+
+    getTrialStartDate() {
+      const ls = getLocalStorage();
+      try {
+        const raw = ls ? ls.getItem(STORAGE_KEYS.TRIAL_START_DATE) : null;
+        if (raw) {
+          const num = parseInt(raw, 10);
+          if (!isNaN(num) && num > 0) return num;
+        }
+        const now = Date.now();
+        this.saveTrialStartDate(now);
+        return now;
+      } catch (e) {
+        return Date.now();
+      }
+    },
+
+    saveTrialStartDate(timestamp) {
+      const ls = getLocalStorage();
+      if (ls && timestamp) {
+        try {
+          ls.setItem(STORAGE_KEYS.TRIAL_START_DATE, String(timestamp));
+        } catch (e) {}
+      }
+    },
+
+    getLicenseToken() {
+      const ls = getLocalStorage();
+      try {
+        return ls ? ls.getItem(STORAGE_KEYS.LICENSE_TOKEN) : null;
+      } catch (e) {
+        return null;
+      }
+    },
+
+    saveLicenseToken(token) {
+      const ls = getLocalStorage();
+      if (ls) {
+        try {
+          if (token) {
+            ls.setItem(STORAGE_KEYS.LICENSE_TOKEN, String(token).trim());
+          } else {
+            ls.removeItem(STORAGE_KEYS.LICENSE_TOKEN);
+          }
+        } catch (e) {}
+      }
+    },
+
+    getLicensePayload() {
+      const ls = getLocalStorage();
+      try {
+        const raw = ls ? ls.getItem(STORAGE_KEYS.LICENSE_PAYLOAD) : null;
+        return raw ? JSON.parse(raw) : null;
+      } catch (e) {
+        return null;
+      }
+    },
+
+    saveLicensePayload(payload) {
+      const ls = getLocalStorage();
+      if (ls) {
+        try {
+          if (payload) {
+            ls.setItem(STORAGE_KEYS.LICENSE_PAYLOAD, JSON.stringify(payload));
+          } else {
+            ls.removeItem(STORAGE_KEYS.LICENSE_PAYLOAD);
+          }
         } catch (e) {}
       }
     },
