@@ -1155,6 +1155,51 @@
   </dialog>
 
   <!-- ======================================================== -->
+  <!-- MODAL VISOR DE COMPROBANTES PDF (SPEC 047 - iOS READY)  -->
+  <!-- ======================================================== -->
+  <dialog id="modal-pdf-viewer" class="rounded-2xl p-0 bg-slate-900 text-white shadow-2xl border border-slate-700 max-w-4xl w-[96vw] h-[92vh] mx-auto flex flex-col overflow-hidden backdrop:bg-slate-950/80">
+    <!-- Cabecera Superior Fija con Botón de Retorno para Móvil e iPhone -->
+    <header class="bg-slate-800/95 border-b border-slate-700/80 px-4 py-3 flex items-center justify-between gap-3 flex-shrink-0 z-10 min-h-[52px]">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <button type="button" id="btn-close-pdf-modal" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 active:scale-95 text-white font-semibold text-xs transition-all shadow-sm flex-shrink-0 min-h-[40px] touch-manipulation" title="Volver a la App">
+          <i data-lucide="arrow-left" class="w-4 h-4"></i>
+          <span>Volver</span>
+        </button>
+        <div class="flex items-center gap-2 min-w-0">
+          <i data-lucide="file-text" class="w-4 h-4 text-emerald-400 flex-shrink-0"></i>
+          <span id="pdf-modal-filename" class="font-bold text-xs truncate max-w-[160px] sm:max-w-xs md:max-w-md text-slate-100" title="comprobante.pdf">
+            comprobante.pdf
+          </span>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <button type="button" id="btn-share-pdf-modal" class="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 active:scale-95 text-slate-200 hover:text-white font-semibold text-xs transition-all min-h-[40px] touch-manipulation" title="Compartir documento">
+          <i data-lucide="share-2" class="w-3.5 h-3.5"></i>
+          <span>Compartir</span>
+        </button>
+        <a id="btn-download-pdf-modal" href="#" download="comprobante.pdf" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-semibold text-xs transition-all shadow-sm min-h-[40px] touch-manipulation" title="Descargar archivo PDF">
+          <i data-lucide="download" class="w-3.5 h-3.5"></i>
+          <span class="hidden xs:inline">Descargar</span>
+        </a>
+      </div>
+    </header>
+
+    <!-- Contenedor del Visor PDF -->
+    <div id="pdf-modal-viewer-body" class="flex-1 w-full bg-slate-950 relative overflow-hidden flex flex-col">
+      <iframe id="pdf-viewer-frame" class="w-full h-full border-0 bg-slate-900" style="-webkit-overflow-scrolling: touch;" title="Visor de PDF"></iframe>
+      
+      <!-- Aviso inferior amigable para dispositivos táctiles -->
+      <div id="pdf-modal-mobile-notice" class="bg-slate-900/90 border-t border-slate-800 text-[11px] text-slate-400 px-4 py-2 flex items-center justify-between gap-2 flex-shrink-0">
+        <span class="truncate">💡 Pulsa "Volver" para regresar a la lista de movimientos en cualquier momento.</span>
+        <button type="button" id="btn-quick-back-pdf-bottom" class="text-emerald-400 hover:underline font-semibold flex-shrink-0">
+          Cerrar Visor
+        </button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- ======================================================== -->
   <!-- MODAL DE AUTENTICACIÓN FIREBASE AUTH (SPEC 021)          -->
   <!-- ======================================================== -->
   <dialog id="auth-modal" class="rounded-2xl p-0 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-2xl border border-slate-200 dark:border-slate-800 max-w-md w-full mx-auto">

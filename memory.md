@@ -56,6 +56,12 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 2. Decisiones vigentes
 
+- **Visor Integrado de Comprobantes PDF (In-App PDF Viewer Modal) con Retorno Garantizado en iOS / iPhone (Spec 047):**
+  - **Problema en iOS PWA:** En iPhones y iPads ejecutando la PWA en modo pantalla completa / Standalone (agregada a la pantalla de inicio), no existen barras de navegación, pestañas ni botón "Atrás" del navegador Safari. La implementación previa con `window.open` o navegación directa a `data:application/pdf` abría el PDF nativo ocupando toda la pantalla y atrapaba al usuario sin posibilidad de regresar a la aplicación, obligándolo a cerrar y reiniciar la app.
+  - **Solución Arquitectural In-App:** Se reemplaza la apertura en ventana externa por un modal nativo en el DOM (`<dialog id="modal-pdf-viewer">`) con cabecera fija (*sticky*), botón de retorno prominente `#btn-close-pdf-modal` con tamaño táctil $\ge 44\text{px}$, nombre del archivo (`#pdf-modal-filename`), botón de descarga directa (`#btn-download-pdf-modal`), botón para compartir mediante Web Share API (`#btn-share-pdf-modal`), barra de salida flotante inferior (`#btn-quick-back-pdf-bottom`) y renderizado mediante `<iframe>` (`#pdf-viewer-frame`).
+  - **Gestión de Memoria y Rendimiento:** La apertura convierte el `dataUrl` base64 a un objeto `Blob` y genera un `blob:` URL local mediante `URL.createObjectURL()`, evitando la sobrecarga de strings base64 pesados en WebKit. Al cerrar el modal con `cerrarVisorPdfModal()`, se revoca inmediatamente el Blob URL con `URL.revokeObjectURL()` y se limpia el `src` del iframe a `about:blank`, evitando fugas de memoria.
+  - **Soporte Universal en Vistas:** Se asegura la vinculación tanto en la tabla principal de Movimientos (`renderTransactions`) como en la tabla de Detalle de Cuenta (`renderAccountDetailView`).
+
 - **Dinamismo Estricto de Cuentas Nominales y Purgado de Saldos Residuales (Spec 046):**
   - **Naturaleza Contable Nominal (Clases 4 y 5):** Las cuentas de Ingresos (Clase 4) y Gastos (Clase 5) son transitorias de resultados. No poseen saldos iniciales ni estáticos. Su movimiento del período (`periodMovement`) se calcula **estricta y dinámicamente** sumando las transacciones reales vivas del período.
   - **Neutralización de Residuos:** `obtenerCatalogoPlanCuentas` y `fusionarEstadoContable` fuerzan `periodMovement = 0` y `balance = 0` para cuentas de Clases 4 y 5 antes de acumular transacciones, descartando cualquier valor congelado histórico (como los $35.000 demo en `5.3.01` y $408.000 demo en `5.1.01`).
@@ -272,6 +278,17 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 ---
 
 ## 3. Historial de cambios
+
+- **2026-11-27 — Spec 047: Visor Integrado de Comprobantes PDF con Retorno Garantizado en iOS / iPhone (SDD):**
+  - Creada especificación formal `specs/047-in-app-pdf-viewer/` (`spec.md` en formato EARS).
+  - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/pdf-viewer-modal.test.js` (5 pruebas unitarias verificando `<dialog id="modal-pdf-viewer">` con controles requeridos en `index.html`, botón de retorno con etiqueta visible y touch target $\ge 44\text{px}$, `abrirComprobantePdf` modal in-app en `assets/js/app.js`, listeners de cierre y liberación de memoria, y vinculación de `.btn-view-invoice` en `renderAccountDetailView`, elevando la suite completa a 230/230 pruebas en verde).
+  - Actualizado `index.html`: incorporado el diálogo `<dialog id="modal-pdf-viewer">` con su cabecera sticky, botón de retorno `#btn-close-pdf-modal`, visor `#pdf-viewer-frame`, descarga, compartir y barra flotante de regreso rápido para pantallas móviles.
+  - Actualizado `assets/js/app.js`:
+    - Reemplazada la implementación legacy de `abrirComprobantePdf` por la apertura reactiva in-app mediante Blob URL local (`URL.createObjectURL`), vinculación a Web Share API y función `cerrarVisorPdfModal()` con revocación de memoria (`URL.revokeObjectURL`).
+    - Enlazados los eventos de cierre táctil en `setupGlobalEvents`.
+    - Vinculados los botones `.btn-view-invoice` en `renderAccountDetailView` para permitir visualización homogénea en detalles de cuenta.
+  - Actualizada la versión del Service Worker a `contapersonal-v30` en `sw.js`.
+  - Verificación global con `node --test tests/*.test.js`: 230/230 pruebas pasando al 100% sin regresiones.
 
 - **2026-11-26 — Spec 046: Dinamismo Estricto de Cuentas Nominales en Plan de Cuentas y Purgado de Saldos Residuales (SDD):**
   - Creada especificación formal `specs/046-dynamic-nominal-accounts-plan/` (`spec.md` en formato EARS).

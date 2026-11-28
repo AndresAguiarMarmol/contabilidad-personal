@@ -125,48 +125,91 @@
     }
   }
 
-  // Visor y descarga de comprobantes PDF (Spec 033)
+  // Visor y descarga de comprobantes PDF integrado (Spec 033 & Spec 047)
+  let activePdfBlobUrl = null;
+
   function abrirComprobantePdf(dataUrl, fileName = "comprobante.pdf") {
     if (!dataUrl) return;
-    try {
-      const win = window.open("", "_blank");
-      if (win) {
-        win.document.write(`
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <title>${escapeHtml(fileName)}</title>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <style>
-              body, html { margin: 0; padding: 0; height: 100%; background: #0f172a; display: flex; flex-direction: column; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-              header { background: #1e293b; color: white; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; }
-              .title { font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px; }
-              .btn-dl { color: #ffffff; background: #059669; font-weight: 600; font-size: 12px; text-decoration: none; padding: 6px 14px; border-radius: 8px; transition: background 0.2s; }
-              .btn-dl:hover { background: #10b981; }
-              iframe { flex: 1; border: none; width: 100%; height: 100%; }
-            </style>
-          </head>
-          <body>
-            <header>
-              <div class="title">📄 <span>${escapeHtml(fileName)}</span></div>
-              <a href="${dataUrl}" download="${escapeHtml(fileName)}" class="btn-dl">Descargar PDF</a>
-            </header>
-            <iframe src="${dataUrl}"></iframe>
-          </body>
-          </html>
-        `);
-        win.document.close();
-      } else {
-        const a = document.createElement("a");
-        a.href = dataUrl;
-        a.download = fileName;
-        a.target = "_blank";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+
+    const modal = document.getElementById("modal-pdf-viewer");
+    const frame = document.getElementById("pdf-viewer-frame");
+    const titleEl = document.getElementById("pdf-modal-filename");
+    const downloadBtn = document.getElementById("btn-download-pdf-modal");
+    const shareBtn = document.getElementById("btn-share-pdf-modal");
+
+    if (modal && frame) {
+      if (titleEl) titleEl.textContent = fileName;
+
+      // Revocar URL anterior si existía para prevenir fugas de memoria en WebKit/Safari
+      if (activePdfBlobUrl) {
+        URL.revokeObjectURL(activePdfBlobUrl);
+        activePdfBlobUrl = null;
       }
-    } catch (e) {
+
+      let viewerUrl = dataUrl;
+      let pdfBlob = null;
+      try {
+        if (dataUrl.startsWith("data:")) {
+          const parts = dataUrl.split(",");
+          const mime = (parts[0].match(/:(.*?);/) || [])[1] || "application/pdf";
+          const bstr = atob(parts[1]);
+          let n = bstr.length;
+          const u8arr = new Uint8Array(n);
+          while (n--) {
+            u8arr[n] = bstr.charCodeAt(n);
+          }
+          pdfBlob = new Blob([u8arr], { type: mime });
+          activePdfBlobUrl = URL.createObjectURL(pdfBlob);
+          viewerUrl = activePdfBlobUrl;
+        }
+      } catch (e) {
+        viewerUrl = dataUrl;
+      }
+
+      frame.src = viewerUrl;
+
+      if (downloadBtn) {
+        downloadBtn.href = viewerUrl;
+        downloadBtn.download = fileName;
+      }
+
+      if (shareBtn) {
+        if (typeof navigator !== "undefined" && navigator.share && pdfBlob) {
+          shareBtn.classList.remove("hidden");
+          shareBtn.onclick = async () => {
+            try {
+              const file = new File([pdfBlob], fileName, { type: "application/pdf" });
+              if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                await navigator.share({ title: fileName, files: [file] });
+              } else {
+                await navigator.share({ title: fileName, url: window.location.href });
+              }
+            } catch (err) {
+              // Share cancelado por usuario o no soportado
+            }
+          };
+        } else {
+          shareBtn.classList.add("hidden");
+        }
+      }
+
+      safeRenderIcons();
+      modal.showModal();
+    } else {
       window.open(dataUrl, "_blank");
+    }
+  }
+
+  function cerrarVisorPdfModal() {
+    const modal = document.getElementById("modal-pdf-viewer");
+    const frame = document.getElementById("pdf-viewer-frame");
+    if (frame) frame.src = "about:blank";
+    if (activePdfBlobUrl) {
+      URL.revokeObjectURL(activePdfBlobUrl);
+      activePdfBlobUrl = null;
+    }
+    if (modal && modal.open) {
+      modal.close();
     }
   }
 
@@ -1120,6 +1163,18 @@
     };
     setupNewTxBtn("btn-account-screen-new-tx");
     setupNewTxBtn("btn-screen-empty-tx");
+
+    // Vincular botones para ver PDF de factura/boleta (Spec 047)
+    const containerEl = document.getElementById("view-account-detail");
+    containerEl?.querySelectorAll(".btn-view-invoice").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-tx-id");
+        const tx = (state.transactions || []).find(t => t.id === id);
+        if (tx && tx.invoicePdf) {
+          abrirComprobantePdf(tx.invoicePdf, tx.invoiceName || "factura_boleta.pdf");
+        }
+      });
+    });
 
     safeRenderIcons();
   }
@@ -6370,6 +6425,13 @@
 
     const modal = document.getElementById("app-modal");
     document.getElementById("modal-close-btn")?.addEventListener("click", () => modal?.close());
+
+    // Visor Integrado de PDF (Spec 047)
+    document.getElementById("btn-close-pdf-modal")?.addEventListener("click", cerrarVisorPdfModal);
+    document.getElementById("btn-quick-back-pdf-bottom")?.addEventListener("click", cerrarVisorPdfModal);
+    document.getElementById("modal-pdf-viewer")?.addEventListener("cancel", () => {
+      cerrarVisorPdfModal();
+    });
 
     // BOTONES QUE ABREN LA PLANILLA DE NUEVO MOVIMIENTO
     document.getElementById("btn-quick-new-tx")?.addEventListener("click", () => {
