@@ -48,12 +48,18 @@
 
   /**
    * Genera el enlace directo a WhatsApp con el mensaje de solicitud precargado
-   * @param {string} cadenaSolicitud 
+   * Soporta tanto cadenaSolicitud ("REQ|...") como (deviceId, email)
+   * @param {string} cadenaSolicitudOrDeviceId 
+   * @param {string} [email] 
    * @returns {string} URL https://wa.me/...
    */
-  function generarEnlaceWhatsApp(cadenaSolicitud) {
+  function generarEnlaceWhatsApp(cadenaSolicitudOrDeviceId, email) {
+    let reqString = cadenaSolicitudOrDeviceId;
+    if (email !== undefined || (typeof reqString === "string" && !reqString.startsWith("REQ|"))) {
+      reqString = generarCadenaSolicitud(cadenaSolicitudOrDeviceId, email);
+    }
     const cleanPhone = CONTACT_PHONE.replace(/[^0-9]/g, '');
-    const mensaje = `Hola Andres, solicito la activacion de mi licencia de ContaPersonal:\n\n${cadenaSolicitud}\n\nMuchas gracias!`;
+    const mensaje = `Hola Andres, solicito la activacion de mi licencia de ContaPersonal:\n\n${reqString}\n\nMuchas gracias!`;
     return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(mensaje)}`;
   }
 
@@ -302,6 +308,46 @@
     };
   }
 
+  /**
+   * Genera el HTML responsivo para el indicador de licencia en el header.
+   * Totalmente visible en iPhone y dispositivos móviles en modo vertical (sin hidden sm:flex),
+   * adaptando el texto con clases responsivas compactas para evitar desbordes.
+   * @param {Object} status - Objeto de estado { licenciado, expirado, diasRestantes }
+   * @returns {string} Fragmento HTML
+   */
+  function generarHtmlBadgeLicencia(status) {
+    if (!status) return '';
+
+    if (status.licenciado) {
+      return `
+        <div class="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[11px] sm:text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 shadow-sm cursor-pointer hover:opacity-90 transition-opacity flex-shrink-0" data-nav-view="settings" title="Licencia Personal Activa">
+          <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 flex-shrink-0"></i>
+          <span class="hidden sm:inline">Licencia Activa</span>
+          <span class="sm:hidden">Activa</span>
+        </div>
+      `.trim();
+    }
+
+    if (status.expirado) {
+      return `
+        <div class="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[11px] sm:text-xs font-bold bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300 border border-rose-200 dark:border-rose-800 shadow-sm animate-pulse cursor-pointer flex-shrink-0" data-nav-view="settings" title="Período de prueba vencido">
+          <i data-lucide="shield-alert" class="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 flex-shrink-0"></i>
+          <span class="hidden sm:inline">Trial Vencido</span>
+          <span class="sm:hidden">Expirado</span>
+        </div>
+      `.trim();
+    }
+
+    const dias = status.diasRestantes !== undefined ? status.diasRestantes : 7;
+    return `
+      <div class="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[11px] sm:text-xs font-semibold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80 shadow-sm cursor-pointer hover:opacity-90 transition-opacity flex-shrink-0" data-nav-view="settings" title="Período de prueba gratuito">
+        <i data-lucide="clock" class="w-3.5 h-3.5 text-indigo-500 flex-shrink-0"></i>
+        <span class="hidden sm:inline">Trial: ${dias}d restantes</span>
+        <span class="sm:hidden">Trial: ${dias}d</span>
+      </div>
+    `.trim();
+  }
+
   return {
     TRIAL_DAYS,
     TRIAL_DURATION_MS,
@@ -314,6 +360,7 @@
     computarFirmaLicencia,
     generarTokenLicencia,
     validarTokenLicencia,
-    obtenerEstadoLicencia
+    obtenerEstadoLicencia,
+    generarHtmlBadgeLicencia
   };
 }));

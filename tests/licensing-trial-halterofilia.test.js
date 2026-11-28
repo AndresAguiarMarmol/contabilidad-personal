@@ -88,3 +88,24 @@ test('Spec 053 - R4: validarTokenLicencia rechaza token con firma alterada', asy
   assert.equal(res.valido, false);
   assert.ok(res.error.includes("Firma criptográfica inválida") || res.error.includes("alterado"));
 });
+
+test('Spec 053 - Visibilidad móvil iPhone: generarHtmlBadgeLicencia no oculta en vertical (sin hidden sm:flex) y tiene etiquetas responsivas', () => {
+  // 1. Estado en Trial
+  const htmlTrial = License.generarHtmlBadgeLicencia({ licenciado: false, expirado: false, diasRestantes: 7 });
+  assert.ok(!htmlTrial.includes("hidden sm:flex"), "No debe ocultar el contenedor en móvil vertical con hidden sm:flex");
+  assert.ok(htmlTrial.includes("flex items-center"), "Debe mostrarse siempre con flex");
+  assert.ok(htmlTrial.includes("Trial: 7d"), "Debe incluir texto compacto para pantalla móvil vertical");
+  assert.ok(htmlTrial.includes("Trial: 7d restantes"), "Debe incluir texto extendido para pantallas desktop/landscape");
+
+  // 2. Estado Licenciado
+  const htmlLic = License.generarHtmlBadgeLicencia({ licenciado: true, expirado: false });
+  assert.ok(!htmlLic.includes("hidden sm:flex"), "No debe ocultar el badge licenciado en móvil");
+  assert.ok(htmlLic.includes("Licencia Activa"));
+  assert.ok(htmlLic.includes("Activa"));
+
+  // 3. Estado Expirado
+  const htmlExp = License.generarHtmlBadgeLicencia({ licenciado: false, expirado: true, diasRestantes: 0 });
+  assert.ok(!htmlExp.includes("hidden sm:flex"), "No debe ocultar el badge expirado en móvil");
+  assert.ok(htmlExp.includes("Trial Vencido"));
+  assert.ok(htmlExp.includes("Expirado"));
+});

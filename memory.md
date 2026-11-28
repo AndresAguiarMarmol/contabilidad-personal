@@ -71,8 +71,8 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
   - **Modal de Bloqueo Infranqueable (`#modal-trial-lock`):** Si transcurren los 7 días sin haber registrado un token legítimo, la aplicación despliega un `<dialog>` bloqueante no descartable (`modal.oncancel = (e) => e.preventDefault()`), impidiendo operar hasta ingresar el token de activación.
   - **Cadena Canónica y Canal WhatsApp:** Tanto en el modal de bloqueo como en Configuración se expone la cadena `REQ|<DeviceID>|<correo>` con botón de copia en un clic y enlace directo preformateado a WhatsApp (`+56933395447`).
   - **Validación Criptográfica Local (SHA-256):** El token emitido por la app externa *"Halterofilia Pro - Administrador de Licencias"* es validado mediante Web Crypto API (`crypto.subtle`) o `node:crypto` con la sal secreta maestra `"Halterofilia-SuperSecret-Salt-2026"`. Soporta licencias perpetuas (`exp: -1` o $\ge 9999$ días) y temporales.
-  - **Indicadores Visuales en la UI:** Badge reactivo en la cabecera móvil y desktop (`#header-license-badge-container`), y sección de gestión y activación en Configuración (`#settings-license-section`).
-  - Suite de pruebas unitarias TDD Red-Green en `tests/licensing-trial-halterofilia.test.js` con 7/7 pruebas aprobadas (259/259 pruebas totales del proyecto).
+  - **Indicadores Visuales en la UI:** Badge reactivo en la cabecera móvil y desktop (`#header-license-badge-container`), y sección de gestión y activación en Configuración (`#settings-license-section`). Visible permanentemente tanto en pantallas móviles verticales (iPhone portrait sin `hidden sm:flex`) con texto compacto (`Trial: Xd` / `Activa`), como en pantallas de escritorio y modo apaisado / horizontal (`Trial: Xd restantes` / `Licencia Activa`).
+  - Suite de pruebas unitarias TDD Red-Green en `tests/licensing-trial-halterofilia.test.js` con 8/8 pruebas aprobadas (260/260 pruebas totales del proyecto).
 
 - **Totalización Jerárquica de Cuentas Padre en el Plan de Cuentas (Rollup) (Spec 052):**
   - **Consolidación Jerárquica Bottom-Up:** En `Calculations.obtenerCatalogoPlanCuentas`, toda cuenta que posea subcuentas (enlazadas por `parentCode` o prefijo de código `parent.code + "."`) totaliza automáticamente la sumatoria de los montos de sus cuentas hijas:
@@ -341,6 +341,16 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 ---
 
 ## 3. Historial de cambios
+
+- **2026-11-28 — Spec 053 (Fix): Visibilidad Móvil del Indicador de Licencia en iPhone Modo Vertical (SDD):**
+  - Identificada la causa de la desaparición del indicador en iPhone vertical: la presencia de la clase `hidden sm:flex` que ocultaba el badge en resoluciones `< 640px` (móviles verticales) y sólo lo desplegaba al girar a horizontal (`>= 640px`).
+  - Creada función pura `LicenseManager.generarHtmlBadgeLicencia(status)` en `assets/js/license.js` con clases `flex items-center` universales (sin `hidden sm:flex`) y etiquetas responsivas:
+    - Móvil vertical (`sm:hidden`): `Trial: Xd` / `Activa` / `Expirado`.
+    - Horizontal y PC (`hidden sm:inline`): `Trial: Xd restantes` / `Licencia Activa` / `Trial Vencido`.
+  - Enriquecido `generarEnlaceWhatsApp` para admitir polimorfismo de argumentos (`cadenaSolicitud` o `deviceId, email`).
+  - Ajustado `renderAuthWidget` en `assets/js/app.js` (`max-w-[70px] sm:max-w-[120px] md:max-w-[150px]`) para asegurar que el badge y el perfil de usuario convivan armoniosamente sin saltos de línea ni desbordes en pantallas compactas ($\le 375\text{px}$).
+  - Creada prueba TDD en `tests/licensing-trial-halterofilia.test.js` verificando ausencia de `hidden sm:flex` y presencia de textos responsivos (8/8 pruebas en verde, 260/260 totales del proyecto).
+  - Actualizada la versión del Service Worker a `contapersonal-v37` en `sw.js`.
 
 - **2026-11-28 — Spec 053: Licenciamiento Personal Offline, Trial de 7 Días e Integración Halterofilia (SDD):**
   - Creada especificación formal `specs/053-licensing-trial-halterofilia/spec.md` (formato EARS).

@@ -6140,7 +6140,7 @@
           <div class="w-5 h-5 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-[10px] flex-shrink-0">
             ${escapeHtml(initial)}
           </div>
-          <span class="max-w-[100px] md:max-w-[150px] truncate text-slate-800 dark:text-slate-200 font-medium text-[11px]" title="${escapeHtml(email)}">
+          <span class="max-w-[70px] sm:max-w-[120px] md:max-w-[150px] truncate text-slate-800 dark:text-slate-200 font-medium text-[11px]" title="${escapeHtml(email)}">
             ${escapeHtml(email)}
           </span>
           <button type="button" id="btn-logout" title="Cerrar Sesión" class="p-0.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded transition-colors ml-0.5">
@@ -7186,26 +7186,15 @@
     const container = document.getElementById("header-license-badge-container");
     if (!container) return;
 
-    if (licenseStatus.licenciado) {
-      container.innerHTML = `
-        <div class="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 shadow-sm cursor-pointer hover:opacity-90 transition-opacity" data-nav-view="settings" title="Licencia Personal Activa">
-          <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400"></i>
-          <span>Licencia Activa</span>
-        </div>
-      `;
-    } else if (licenseStatus.expirado) {
-      container.innerHTML = `
-        <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300 border border-rose-200 dark:border-rose-800 shadow-sm animate-pulse cursor-pointer" data-nav-view="settings" title="Período de prueba vencido">
-          <i data-lucide="shield-alert" class="w-3.5 h-3.5 text-rose-600 dark:text-rose-400"></i>
-          <span>Trial Vencido</span>
-        </div>
-      `;
+    if (typeof LicenseManager !== "undefined" && LicenseManager.generarHtmlBadgeLicencia) {
+      container.innerHTML = LicenseManager.generarHtmlBadgeLicencia(licenseStatus);
     } else {
       const dias = licenseStatus.diasRestantes !== undefined ? licenseStatus.diasRestantes : 7;
       container.innerHTML = `
-        <div class="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80 shadow-sm cursor-pointer hover:opacity-90 transition-opacity" data-nav-view="settings" title="Período de prueba gratuito">
-          <i data-lucide="clock" class="w-3.5 h-3.5 text-indigo-500"></i>
-          <span>Trial: ${dias}d restantes</span>
+        <div class="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[11px] sm:text-xs font-semibold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80 shadow-sm cursor-pointer hover:opacity-90 transition-opacity flex-shrink-0" data-nav-view="settings" title="Período de prueba gratuito">
+          <i data-lucide="clock" class="w-3.5 h-3.5 text-indigo-500 flex-shrink-0"></i>
+          <span class="hidden sm:inline">Trial: ${dias}d restantes</span>
+          <span class="sm:hidden">Trial: ${dias}d</span>
         </div>
       `;
     }
