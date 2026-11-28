@@ -56,6 +56,16 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 2. Decisiones vigentes
 
+- **Totalización Jerárquica de Cuentas Padre en el Plan de Cuentas (Rollup) (Spec 052):**
+  - **Consolidación Jerárquica Bottom-Up:** En `Calculations.obtenerCatalogoPlanCuentas`, toda cuenta que posea subcuentas (enlazadas por `parentCode` o prefijo de código `parent.code + "."`) totaliza automáticamente la sumatoria de los montos de sus cuentas hijas:
+    - Cuentas nominales (Clases 4 y 5): `parent.periodMovement = parent_directo.periodMovement + sum(hijos.periodMovement)`.
+    - Cuentas de balance (Clases 1, 2 y 3): `parent.balance = parent_directo.balance + sum(hijos.balance)`.
+    - Ejemplo: si una cuenta padre tiene 3 hijos con valores 1, 2 y 3, la cuenta padre refleja exactamente 6 (más movimientos directos si existieran).
+  - **Consolidación Multinivel:** El cálculo se procesa en orden de profundidad decreciente, consolidando sub-subcuentas en sus padres inmediatos y sucesivamente hacia las cuentas raíz.
+  - **Blindaje contra Doble Contabilización en Resúmenes:** En `Calculations.calcularResumenPlanCuentas`, los totales de cada clase suman únicamente las cuentas raíz principales (que ya totalizan a sus hijas), impidiendo que el total general de la clase duplique el monto.
+  - **Blindaje en Balance General:** En `Calculations.generarBalanceGeneral`, se ignoran cuentas padre consolidadas para evitar duplicaciones con las cuentas financieras y subcuentas imputables.
+  - Suite de pruebas unitarias TDD Red-Green en `tests/plan-accounts-hierarchical-rollup.test.js` con 5/5 pruebas aprobadas (252/252 pruebas totales del proyecto).
+
 - **Sincronización Bidireccional Determinista del Plan de Cuentas (LWW con Timestamp `updatedAt`) (Spec 051):**
   - **Resolución Last-Write-Wins (LWW) en Plan de Cuentas:** Incorporación del campo `updatedAt` (ISO 8601) en cada cuenta y subcuenta del plan (`AccountPlanItem`) al crearse o editarse en `openPlanAccountModal`.
   - **Fusión Bidireccional Inteligente (`fusionarEstadoContable`):** En lugar de la sobreescritura local incondicional previa, se comparan las marcas temporales `local.updatedAt` vs `remote.updatedAt`. Si la versión remota es posterior o posee timestamp frente a una local sin él, se adoptan los atributos remotos actualizados y se activa la bandera `hasPlanAccountsUpdated = true`.
@@ -313,6 +323,15 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 ---
 
 ## 3. Historial de cambios
+
+- **2026-11-28 — Spec 052: Totalización Jerárquica de Cuentas Padre en el Plan de Cuentas (Rollup) (SDD):**
+  - Creada especificación formal `specs/052-plan-accounts-hierarchical-rollup/spec.md` (formato EARS).
+  - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/plan-accounts-hierarchical-rollup.test.js` (5 pruebas unitarias verificando que cuenta padre con 3 hijos de 1, 2 y 3 contiene 6, acumulación con directos previos, balance en activos de Clase 1, soporte multinivel y no duplicación en `calcularResumenPlanCuentas`, alcanzando 252/252 pruebas en verde).
+  - Corregido `assets/js/financeCalculations.js`:
+    - Incorporado algoritmo bottom-up en `obtenerCatalogoPlanCuentas` que propaga recursivamente `periodMovement` y `balance` desde cuentas hijas a sus cuentas padre inmediatas.
+    - Actualizado `calcularResumenPlanCuentas` para sumar únicamente cuentas de nivel superior (raíz), evitando duplicaciones en las tarjetas de totales por clase.
+    - Ajustado `generarBalanceGeneral` para excluir cuentas padre consolidadas de la lista detallada y prevenir doble conteo en reportes contables.
+  - Actualizada la versión del Service Worker a `contapersonal-v35` en `sw.js`.
 
 - **2026-11-28 — Spec 051: Sincronización Bidireccional Determinista del Plan de Cuentas (LWW) y Unificación de Cuenta 5.1.01 (SDD):**
   - Creada especificación formal `specs/051-plan-accounts-sync-lww/spec.md` (formato EARS).

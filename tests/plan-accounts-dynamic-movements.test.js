@@ -120,8 +120,8 @@ describe("Spec 046: Dinamismo Estricto de Cuentas Nominales en Plan de Cuentas y
     const cuentaPadre = catalogo.find(c => c.code === "5.3.01");
     assert.equal(
       cuentaPadre.periodMovement,
-      0,
-      "La cuenta padre 5.3.01 no debe sumar los 35000 residuales ni duplicar si la transacción fue a la subcuenta"
+      5000,
+      "La cuenta padre 5.3.01 totaliza la sumatoria de su subcuenta (5000) descartando los 35000 residuales (Spec 052)"
     );
   });
 

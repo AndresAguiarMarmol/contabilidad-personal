@@ -1815,8 +1815,37 @@
       });
     }
 
-    // Ordenar jerárquicamente por código contable
-    catalogo.sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+    // Consolidación jerárquica de cuentas padre (Spec 052)
+    // Toda cuenta padre totaliza la sumatoria de los montos de sus cuentas hijas
+    const obtenerPadreInmediato = (cuenta, lista) => {
+      if (cuenta.parentCode) {
+        const p = lista.find(c => c.code === cuenta.parentCode);
+        if (p) return p;
+      }
+      const code = String(cuenta.code || "");
+      const parts = code.split(".");
+      for (let i = parts.length - 1; i >= 1; i--) {
+        const cand = parts.slice(0, i).join(".");
+        const p = lista.find(c => c.code === cand);
+        if (p) return p;
+      }
+      return null;
+    };
+
+    // Ordenar de mayor profundidad a menor para consolidación bottom-up
+    const cuentasOrdenadasPorProfundidad = [...catalogo].sort((a, b) => {
+      const depthA = String(a.code || "").split(".").length;
+      const depthB = String(b.code || "").split(".").length;
+      return depthB - depthA;
+    });
+
+    cuentasOrdenadasPorProfundidad.forEach(cuenta => {
+      const padre = obtenerPadreInmediato(cuenta, catalogo);
+      if (padre && padre !== cuenta) {
+        padre.periodMovement = (Number(padre.periodMovement) || 0) + (Number(cuenta.periodMovement) || 0);
+        padre.balance = (Number(padre.balance) || 0) + (Number(cuenta.balance) || 0);
+      }
+    });
 
     // Ordenar jerárquicamente por código contable
     catalogo.sort((a, b) => String(a.code || "").localeCompare(String(b.code || ""), undefined, { numeric: true, sensitivity: 'base' }));
@@ -1834,7 +1863,17 @@
     let totalIncome = 0;
     let totalExpenses = 0;
 
+    const esCuentaHija = (acc) => {
+      return catalogo.some(p => p !== acc && (
+        (acc.parentCode && p.code === acc.parentCode) ||
+        (acc.code && p.code && acc.code.startsWith(p.code + "."))
+      ));
+    };
+
     catalogo.forEach((c) => {
+      // Omitir cuentas hijas en la sumatoria global porque su valor ya está consolidado en su cuenta padre (Spec 052)
+      if (esCuentaHija(c)) return;
+
       const bal = Number(c.balance) || 0;
       const mov = Number(c.periodMovement) || 0;
       if (c.classNumber === 1) totalAssets += bal;
@@ -2607,9 +2646,18 @@
     const cuentasPatrimonio = [];
     let totalCapitalDeclarado = 0;
 
+    const tieneHijos = (acc) => catalog.some(other => other !== acc && (
+      (other.parentCode && other.parentCode === acc.code) ||
+      (other.code && acc.code && other.code.startsWith(acc.code + "."))
+    ));
+
     catalog.forEach(item => {
       // Ignorar si está enlazada a una cuenta financiera ya computada en cuentasActivoCirculante o cuentasPasivoCirculante
       if (item.financialAccountId && accList.some(a => a.id === item.financialAccountId)) {
+        return;
+      }
+      // Ignorar cuentas padre que totalizan a cuentas hijas para evitar doble contabilización en el Balance General (Spec 052)
+      if (tieneHijos(item)) {
         return;
       }
 

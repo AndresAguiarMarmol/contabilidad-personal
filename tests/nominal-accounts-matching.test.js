@@ -135,7 +135,7 @@ describe("Spec 050: Blindaje de Asignación Contable contra Stop-Words y Coheren
 
     const luzAcc = catalog.find(c => c.code === "5.1.01");
     assert.ok(luzAcc);
-    assert.equal(luzAcc.periodMovement, 0, "5.1.01 (Luz) debe tener periodMovement = 0");
+    assert.equal(luzAcc.periodMovement, 5997, "5.1.01 totaliza a su subcuenta hija 5.1.01.04 (5997) según Spec 052");
 
     const skinAcc = catalog.find(c => c.code === "5.6.02.03");
     assert.ok(skinAcc);
