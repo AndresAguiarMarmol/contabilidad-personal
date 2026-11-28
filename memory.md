@@ -56,6 +56,14 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 2. Decisiones vigentes
 
+- **Opción de Duplicar Movimiento en Modal de Edición (Spec 048):**
+  - **Desvinculación Segura de ID:** Al visualizar o editar cualquier transacción (gasto, ingreso, transferencia o split) en el modal `openTransactionModal`, el botón `#btn-duplicate-tx` desvincula la referencia al movimiento original (`txToEdit = null`), asegurando que al enviar el formulario se genere una entidad con nuevo ID (`TX-...`) insertada mediante `unshift` sin alterar ni sobrescribir el registro original.
+  - **Fecha del Día por Defecto (Decisión 1.a):** El campo de fecha se inicializa con la fecha actual del día (`YYYY-MM-DD`), manteniéndose 100% editable por el usuario.
+  - **Limpieza de Comprobante Adjunto (Decisión 2.b):** Se limpian `invoicePdf` e `invoiceName` (`null`) y se oculta el contenedor de preview para evitar arrastrar facturas ajenas y permitir adjuntar un nuevo comprobante si aplica.
+  - **Preservación de Concepto (Decisión 3.a):** Se mantiene exactamente la descripción original para agilidad en gastos frecuentes.
+  - **Función Pura de Clonación:** Se implementa `Calculations.clonarMovimiento(txOriginal, opciones)` con soporte completo para clonación de partidas en movimientos divididos (`splitLines`).
+  - **Recálculo Contable Integral:** Al guardar la nueva transacción duplicada, se ejecutan `recalcularBalancesCuentas` y `sincronizarPresupuestosConTransacciones`, persistiendo en `Storage` y sincronizando a Firestore.
+
 - **Visor Integrado de Comprobantes PDF (In-App PDF Viewer Modal) con Retorno Garantizado en iOS / iPhone (Spec 047):**
   - **Problema en iOS PWA:** En iPhones y iPads ejecutando la PWA en modo pantalla completa / Standalone (agregada a la pantalla de inicio), no existen barras de navegación, pestañas ni botón "Atrás" del navegador Safari. La implementación previa con `window.open` o navegación directa a `data:application/pdf` abría el PDF nativo ocupando toda la pantalla y atrapaba al usuario sin posibilidad de regresar a la aplicación, obligándolo a cerrar y reiniciar la app.
   - **Solución Arquitectural In-App:** Se reemplaza la apertura en ventana externa por un modal nativo en el DOM (`<dialog id="modal-pdf-viewer">`) con cabecera fija (*sticky*), botón de retorno prominente `#btn-close-pdf-modal` con tamaño táctil $\ge 44\text{px}$, nombre del archivo (`#pdf-modal-filename`), botón de descarga directa (`#btn-download-pdf-modal`), botón para compartir mediante Web Share API (`#btn-share-pdf-modal`), barra de salida flotante inferior (`#btn-quick-back-pdf-bottom`) y renderizado mediante `<iframe>` (`#pdf-viewer-frame`).
@@ -278,6 +286,17 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 ---
 
 ## 3. Historial de cambios
+
+- **2026-11-27 — Spec 048: Opción de Duplicar Movimiento en Modal de Edición (SDD):**
+  - Creada especificación formal `specs/048-duplicate-transaction/spec.md` (formato EARS).
+  - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/duplicate-transaction.test.js` (5 pruebas unitarias verificando función pura `clonarMovimiento`, inicialización con fecha de hoy por defecto, limpieza de comprobante adjunto, soporte en movimientos split, renderizado condicional de `#btn-duplicate-tx` y transición reactiva del formulario a nuevo registro sin alterar el original, elevando la suite completa a 235/235 pruebas en verde).
+  - Implementada en `assets/js/financeCalculations.js` la función pura `clonarMovimiento` exportada para su consumo en la app y tests.
+  - Actualizado `assets/js/app.js`:
+    - Incorporado el botón `#btn-duplicate-tx` ("Duplicar" con icono `copy`) en el pie del modal de edición de transacciones.
+    - Vinculado evento de clic que desvincula `txToEdit = null`, actualiza el título del modal a `"Registrar Nuevo Movimiento (Copia)"`, cambia el botón a `"Guardar Movimiento"`, oculta el botón duplicar, inicializa la fecha con el día actual, limpia el comprobante anterior y emite notificación informativa.
+    - El formulario se mantiene 100% editable hasta que el usuario decida guardar el nuevo registro.
+  - Actualizada la versión del Service Worker a `contapersonal-v31` en `sw.js`.
+  - Verificación global con `node --test tests/*.test.js`: 235/235 pruebas pasando al 100% sin regresiones.
 
 - **2026-11-27 — Spec 047: Visor Integrado de Comprobantes PDF con Retorno Garantizado en iOS / iPhone (SDD):**
   - Creada especificación formal `specs/047-in-app-pdf-viewer/` (`spec.md` en formato EARS).

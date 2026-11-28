@@ -3140,6 +3140,12 @@
         </div>
 
         <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+          ${txToEdit ? `
+            <button type="button" id="btn-duplicate-tx" class="mr-auto px-3.5 py-2 rounded-lg text-xs font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 dark:hover:bg-amber-900/60 border border-amber-200 dark:border-amber-800 transition-colors flex items-center gap-1.5 active:scale-95" title="Duplicar este movimiento para crear uno nuevo">
+              <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+              <span>Duplicar</span>
+            </button>
+          ` : ''}
           <button type="button" id="tx-form-cancel" class="px-4 py-2 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 transition-colors">
             Cancelar
           </button>
@@ -3546,6 +3552,34 @@
 
     btnCamera?.addEventListener("click", () => inputCamera?.click());
     btnUpload?.addEventListener("click", () => inputFile?.click());
+
+    // Duplicar movimiento en formulario modal (Spec 048)
+    document.getElementById("btn-duplicate-tx")?.addEventListener("click", () => {
+      txToEdit = null;
+      if (modalTitle) modalTitle.textContent = "Registrar Nuevo Movimiento (Copia)";
+      const submitBtn = document.getElementById("tx-form-submit");
+      if (submitBtn) {
+        submitBtn.innerHTML = `
+          <i data-lucide="check" class="w-3.5 h-3.5"></i>
+          <span>Guardar Movimiento</span>
+        `;
+      }
+      const btnDup = document.getElementById("btn-duplicate-tx");
+      if (btnDup) btnDup.classList.add("hidden");
+
+      // Fecha de hoy por defecto (Decisión 1.a)
+      const dateEl = document.getElementById("tx-input-date");
+      if (dateEl) dateEl.value = new Date().toISOString().slice(0, 10);
+
+      // Limpiar comprobante previo (Decisión 2.b)
+      currentInvoicePdf = null;
+      currentInvoiceName = null;
+      const previewContainer = document.getElementById("tx-invoice-preview-container");
+      if (previewContainer) previewContainer.classList.add("hidden");
+
+      safeRenderIcons();
+      showToast("Movimiento duplicado. Puedes modificar los datos antes de guardar.", "info");
+    });
 
     // Autocompletado inteligente de Categoría y Medio de Pago al tipear / seleccionar Proveedor (Spec 039)
     const supplierInputEl = document.getElementById("tx-input-supplier");

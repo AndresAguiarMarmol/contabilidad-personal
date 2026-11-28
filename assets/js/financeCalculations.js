@@ -3217,6 +3217,41 @@
     });
   }
 
+  /**
+   * Clona un movimiento existente desvinculando su ID previo para crear una nueva transacción (Spec 048)
+   * Aplica fecha de hoy por defecto (Decisión 1.a), limpia comprobante adjunto (Decisión 2.b)
+   * y preserva la descripción exacta (Decisión 3.a) y demás atributos contables.
+   * @param {Object} txOriginal Transacción origen
+   * @param {Object} opciones Opciones de sobreescritura (date, keepInvoice, etc.)
+   * @returns {Object} Nueva transacción clonada lista para editar o guardar
+   */
+  function clonarMovimiento(txOriginal, opciones = {}) {
+    if (!txOriginal || typeof txOriginal !== "object") return null;
+
+    const todayIso = new Date().toISOString();
+    const clonedDate = opciones.date || todayIso;
+    const newId = opciones.id || `TX-${Date.now()}`;
+
+    let clonedSplitLines = undefined;
+    if (txOriginal.isSplit && Array.isArray(txOriginal.splitLines)) {
+      clonedSplitLines = txOriginal.splitLines.map((line, idx) => ({
+        ...line,
+        id: `SPL-${Date.now()}-${idx + 1}`
+      }));
+    }
+
+    return {
+      ...txOriginal,
+      id: newId,
+      date: clonedDate,
+      invoicePdf: opciones.keepInvoice ? txOriginal.invoicePdf : null,
+      invoiceName: opciones.keepInvoice ? txOriginal.invoiceName : null,
+      isSplit: Boolean(txOriginal.isSplit),
+      splitLines: clonedSplitLines,
+      updatedAt: todayIso
+    };
+  }
+
   return {
     recalcularBalancesCuentas,
     calcularPatrimonioNeto,
@@ -3283,6 +3318,7 @@
     purgarDatosDemoLocales,
     filtrarCuentasFinancieras,
     obtenerClaveStorage,
-    sanearCuentasPlanNominales
+    sanearCuentasPlanNominales,
+    clonarMovimiento
   };
 });
