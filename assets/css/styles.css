@@ -1,4 +1,20 @@
-/* styles.css — Personalizaciones y utilidades para InsumosPro */
+/* styles.css — Personalizaciones y utilidades para Contabilidad Personal */
+
+/* Escala visual móvil compacta para iPhone y smartphones (Spec 054) */
+@media screen and (max-width: 640px) {
+  html {
+    font-size: 14px;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  /* Evitar auto-zoom excesivo de iOS Safari al enfocar campos de formulario */
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
 
 /* Soporte de altura de viewport dinámico para iOS Safari (Spec 031) */
 html,

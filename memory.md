@@ -64,6 +64,14 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 2. Decisiones vigentes
 
+- **Footer Fijo Inferior y Optimización de Escala Visual en iPhone (Spec 054):**
+  - **Fijación Inferior Permanente (`#app-footer`):** El pie de página se reubica fuera del contenedor scrolleable `<main>`, situándose como hermano posterior directo en la columna principal de la ventana. De este modo, la cabecera permanece fija arriba, las vistas scrollean en el centro y el footer permanece siempre visible y anclado al fondo de la pantalla sin moverse ni esconderse con el scroll del contenido.
+  - **Zona Segura y Ergonomía Compacta:** Se mantiene la clase `.footer-safe` para respetar `env(safe-area-inset-bottom)` de iOS y se optimiza su padding a `py-2 sm:py-2.5 px-3 sm:px-4` con efecto backdrop blur sutil (`bg-white/95 dark:bg-slate-900/95`), impidiendo que reste espacio útil a las vistas.
+  - **Escala Visual Móvil Optimizada en iPhone:** Para resolver la sobredimensión visual en iPhone, se establece en `styles.css` una escala base para viewports $\le 640\text{px}$ mediante `html { font-size: 14px; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }`. Esto compacta de forma natural fuentes, paddings, gaps y tarjetas en un 12.5% en móvil, brindando de inmediato la nitidez y proporción que el usuario lograba al reducir el zoom manualmente.
+  - **Blindaje contra Auto-Zoom en Formularios iOS:** Se normaliza `font-size: 16px !important` en inputs, selects y textareas para pantallas $\le 640\text{px}$, impidiendo que iOS Safari fuerce auto-zoom al enfocar cualquier campo de texto.
+  - **Adaptación en Inicio (`#auth-gate-screen`):** Se adapta el isotipo de bienvenida a `w-12 h-12 sm:w-14 sm:h-14` para una apertura armónica en smartphones.
+  - Suite de pruebas unitarias TDD Red-Green en `tests/fixed-footer-mobile-scale.test.js` con 5/5 pruebas aprobadas (265/265 pruebas totales del proyecto).
+
 - **Sistema de Licenciamiento Personal Offline, Trial de 7 Días e Integración Halterofilia (Spec 053):**
   - **Filosofía Offline y Zero-Knowledge:** La validación de licencias y el cómputo del período de prueba se ejecutan 100% de manera local y en el navegador del usuario, sin llamadas a endpoints remotos ni servidores de licencias de terceros.
   - **Identificador de Dispositivo (`finance_device_id`):** Generado de forma persistente (`dev_<uuid_o_random>`) en el primer inicio y almacenado en `Storage`. Cada solicitud de licencia queda matemáticamente amarrada al identificador del dispositivo.
@@ -341,6 +349,17 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 ---
 
 ## 3. Historial de cambios
+
+- **2026-11-28 — Spec 054: Footer Fijo Inferior y Optimización de Escala Visual en iPhone (SDD):**
+  - Creada especificación formal `specs/054-fixed-footer-iphone-scale/spec.md` (formato EARS).
+  - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/fixed-footer-mobile-scale.test.js` (5 pruebas unitarias verificando que `#app-footer` se ubica tras `</main>`, mantiene `flex-shrink-0` y `footer-safe`, declara escala móvil de 14px y `text-size-adjust: 100%` en `styles.css`, normaliza tamaño de inputs a 16px para evitar auto-zoom de Safari, y redimensiona responsivamente el isotipo de inicio en `index.html`, alcanzando 265/265 pruebas totales en verde).
+  - Actualizado `index.html`:
+    - Reubicado `#app-footer` fuera del contenedor `<main>`, fijándolo de forma permanente al pie de la aplicación con padding compacto (`py-2 sm:py-2.5 px-3 sm:px-4`).
+    - Ajustado el isotipo y contenedor de `#auth-gate-screen` a `w-12 h-12 sm:w-14 sm:h-14` para evitar sobredimensión en la pantalla de bienvenida.
+  - Actualizado `assets/css/styles.css`:
+    - Incorporada media query `@media screen and (max-width: 640px)` con `html { font-size: 14px; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }`.
+    - Blindado el auto-zoom de iOS Safari fijando `font-size: 16px !important` en inputs, selects y textareas para dispositivos móviles.
+  - Actualizada la versión del Service Worker a `contapersonal-v38` en `sw.js`.
 
 - **2026-11-28 — Spec 053 (Fix): Visibilidad Móvil del Indicador de Licencia en iPhone Modo Vertical (SDD):**
   - Identificada la causa de la desaparición del indicador en iPhone vertical: la presencia de la clase `hidden sm:flex` que ocultaba el badge en resoluciones `< 640px` (móviles verticales) y sólo lo desplegaba al girar a horizontal (`>= 640px`).
