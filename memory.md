@@ -56,6 +56,17 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 
 ## 2. Decisiones vigentes
 
+- **Menú Contextual con CRUD y Duplicación de Movimientos en Cuentas y Billeteras (Spec 049):**
+  - **Interacción Multi-Dispositivo (Decisión 1.a):** Permite invocar el menú contextual flotante `#tx-context-menu` mediante clic derecho (`contextmenu`) en PC, pulsación prolongada (*long press* $\ge 500\text{ms}$) en móviles/tablets y botón de acciones dedicado (`...` con clase `.btn-tx-actions-menu`) en la nueva columna de acciones.
+  - **Alcance Homogéneo (Decisión 2.a):** Se habilita tanto en la vista de **Detalle de Cuenta & Movimientos** (`#view-account-detail`) dentro de "Cuentas y Billeteras" como en el libro global de **Movimientos** (`#view-transactions`).
+  - **Operaciones CRUD Integrales y Duplicación (Decisión 3.Si):** El menú incorpora acciones directas:
+    - ✏️ **Editar Movimiento:** Abre `openTransactionModal(tx.type, tx)` cargando el registro.
+    - 📑 **Duplicar Registro:** Abre la planilla en modo duplicado (fecha de hoy, comprobante limpio y listo para editar/guardar sin alterar original).
+    - 📄 **Ver Factura / Boleta (PDF):** Abre el visor in-app (Spec 047) si la transacción posee comprobante.
+    - ➕ **Nuevo Movimiento:** Abre la planilla con la cuenta activa preseleccionada.
+    - 🗑️ **Eliminar Movimiento:** Ejecuta `solicitarEliminarTransaccion(tx.id)` con confirmación y recálculo contable.
+  - **Posicionamiento Adaptativo y Cierre:** Ajusta automáticamente sus coordenadas al tamaño del viewport para nunca desbordar la pantalla, cerrándose al hacer clic fuera, scroll o presionar `Escape`.
+
 - **Opción de Duplicar Movimiento en Modal de Edición (Spec 048):**
   - **Desvinculación Segura de ID:** Al visualizar o editar cualquier transacción (gasto, ingreso, transferencia o split) en el modal `openTransactionModal`, el botón `#btn-duplicate-tx` desvincula la referencia al movimiento original (`txToEdit = null`), asegurando que al enviar el formulario se genere una entidad con nuevo ID (`TX-...`) insertada mediante `unshift` sin alterar ni sobrescribir el registro original.
   - **Fecha del Día por Defecto (Decisión 1.a):** El campo de fecha se inicializa con la fecha actual del día (`YYYY-MM-DD`), manteniéndose 100% editable por el usuario.
@@ -286,6 +297,18 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 ---
 
 ## 3. Historial de cambios
+
+- **2026-11-27 — Spec 049: Menú Contextual con CRUD y Duplicación de Movimientos en Cuentas y Billeteras (SDD):**
+  - Creada especificación formal `specs/049-account-transactions-context-menu/spec.md` (formato EARS).
+  - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/account-transactions-context-menu.test.js` (5 pruebas unitarias verificando componente `#tx-context-menu` en `index.html`, funciones adaptativas `abrirMenuContextualMovimiento` y `cerrarMenuContextualMovimiento`, listeners de `contextmenu` y botón `...` en `renderAccountDetailView`, soporte en `renderTransactions`, despacho de acciones CRUD/duplicación y cierre con Escape/click/scroll, elevando la suite completa a 240/240 pruebas en verde).
+  - Actualizado `index.html`: incorporado el menú flotante `#tx-context-menu` con opciones de edición, duplicación, PDF, nuevo movimiento y eliminación.
+  - Actualizado `assets/js/app.js`:
+    - Implementadas `abrirMenuContextualMovimiento` (con ajuste dinámico a límites del viewport) y `cerrarMenuContextualMovimiento`.
+    - Actualizado `renderAccountDetailView`: añadida columna de Acciones en cabecera y filas, clase `account-tx-row`, botón `.btn-tx-actions-menu`, y vinculados listeners de clic derecho, long-press táctil y botón de opciones.
+    - Actualizado `renderTransactions`: vinculados listeners de clic derecho en filas del libro de movimientos.
+    - Enlazadas las acciones en `setupGlobalEvents` con apertura directa de modales y recálculo contable.
+  - Actualizada la versión del Service Worker a `contapersonal-v32` en `sw.js`.
+  - Verificación global con `node --test tests/*.test.js`: 240/240 pruebas pasando al 100% sin regresiones.
 
 - **2026-11-27 — Spec 048: Opción de Duplicar Movimiento en Modal de Edición (SDD):**
   - Creada especificación formal `specs/048-duplicate-transaction/spec.md` (formato EARS).

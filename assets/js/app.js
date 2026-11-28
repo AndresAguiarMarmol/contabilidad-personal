@@ -213,6 +213,76 @@
     }
   }
 
+  // ========================================================
+  // MENÚ CONTEXTUAL DE MOVIMIENTOS (SPEC 049 - CRUD & DUPLICAR)
+  // ========================================================
+  let activeContextTxId = null;
+  let activeContextAccountId = null;
+
+  function abrirMenuContextualMovimiento(x, y, txId, accountId = null) {
+    const menu = document.getElementById("tx-context-menu");
+    if (!menu) return;
+
+    activeContextTxId = txId;
+    activeContextAccountId = accountId;
+
+    const tx = (state.transactions || []).find(t => t.id === txId);
+    if (!tx) return;
+
+    // Habilitar o deshabilitar opción Ver PDF según si tiene comprobante
+    const btnPdf = document.getElementById("ctx-tx-view-pdf");
+    if (btnPdf) {
+      if (tx.invoicePdf) {
+        btnPdf.classList.remove("opacity-40", "pointer-events-none");
+        btnPdf.removeAttribute("disabled");
+      } else {
+        btnPdf.classList.add("opacity-40", "pointer-events-none");
+        btnPdf.setAttribute("disabled", "true");
+      }
+    }
+
+    // Configurar texto de nuevo movimiento según contexto
+    const btnNew = document.getElementById("ctx-tx-new");
+    if (btnNew) {
+      const acc = accountId ? (state.accounts || []).find(a => a.id === accountId) : null;
+      const labelEl = btnNew.querySelector("span");
+      if (labelEl) {
+        labelEl.textContent = acc ? `Nuevo Movimiento (${acc.name})` : "Nuevo Movimiento";
+      }
+    }
+
+    // Posicionamiento adaptativo con detección de límites del viewport
+    menu.classList.remove("hidden");
+    safeRenderIcons();
+
+    const menuWidth = menu.offsetWidth || 210;
+    const menuHeight = menu.offsetHeight || 190;
+    const windowWidth = window.innerWidth;
+    const windowHeight = window.innerHeight;
+
+    let posX = x;
+    let posY = y;
+
+    if (posX + menuWidth > windowWidth - 10) {
+      posX = Math.max(10, windowWidth - menuWidth - 10);
+    }
+    if (posY + menuHeight > windowHeight - 10) {
+      posY = Math.max(10, windowHeight - menuHeight - 10);
+    }
+
+    menu.style.left = `${posX}px`;
+    menu.style.top = `${posY}px`;
+  }
+
+  function cerrarMenuContextualMovimiento() {
+    const menu = document.getElementById("tx-context-menu");
+    if (menu && !menu.classList.contains("hidden")) {
+      menu.classList.add("hidden");
+      activeContextTxId = null;
+      activeContextAccountId = null;
+    }
+  }
+
   // Conversión optimizada de fotos/imágenes a PDF (Spec 033)
   function convertirImagenAPdf(file, callback) {
     if (!file) return;
@@ -911,6 +981,7 @@
                   <th class="py-3 px-4 whitespace-nowrap">Proveedor / Beneficiario</th>
                   <th class="py-3 px-4 whitespace-nowrap">Categoría</th>
                   <th class="py-3 px-4 text-right whitespace-nowrap">Monto</th>
+                  <th class="py-3 px-4 text-center whitespace-nowrap">Acciones</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
@@ -965,7 +1036,7 @@
                   ` : "";
 
                   return `
-                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                    <tr class="account-tx-row hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors cursor-context-menu" data-tx-id="${escapeHtml(tx.id)}">
                       <td class="py-3 px-4 text-slate-500 whitespace-nowrap">${formatDate(tx.date)}</td>
                       <td class="py-3 px-4 whitespace-nowrap">
                         <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${typeBadgeClass}">
@@ -994,6 +1065,11 @@
                       <td class="py-3 px-4 text-slate-500 whitespace-nowrap">${tx.category}</td>
                       <td class="py-3 px-4 text-right font-bold tabular-nums ${isAbono ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'} whitespace-nowrap text-sm">
                         ${isAbono ? '+' : '-'}${formatMoney(displayAmount)}
+                      </td>
+                      <td class="py-3 px-4 text-center whitespace-nowrap">
+                        <button type="button" class="btn-tx-actions-menu p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="Opciones del movimiento" data-tx-id="${escapeHtml(tx.id)}">
+                          <i data-lucide="more-vertical" class="w-4 h-4"></i>
+                        </button>
                       </td>
                     </tr>
                   `;
@@ -1173,6 +1249,45 @@
         if (tx && tx.invoicePdf) {
           abrirComprobantePdf(tx.invoicePdf, tx.invoiceName || "factura_boleta.pdf");
         }
+      });
+    });
+
+    // Vincular menú contextual (clic derecho y long-press) y botón de opciones en filas (Spec 049)
+    containerEl?.querySelectorAll(".account-tx-row").forEach(row => {
+      const txId = row.getAttribute("data-tx-id");
+      if (!txId) return;
+
+      // Clic derecho (Desktop)
+      row.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        abrirMenuContextualMovimiento(e.clientX, e.clientY, txId, account.id);
+      });
+
+      // Long-press táctil (Mobile/iPhone/Android)
+      let touchTimer = null;
+      row.addEventListener("touchstart", (e) => {
+        if (e.touches && e.touches.length === 1) {
+          const touch = e.touches[0];
+          touchTimer = setTimeout(() => {
+            abrirMenuContextualMovimiento(touch.clientX, touch.clientY, txId, account.id);
+          }, 500);
+        }
+      }, { passive: true });
+      row.addEventListener("touchend", () => {
+        if (touchTimer) clearTimeout(touchTimer);
+      }, { passive: true });
+      row.addEventListener("touchmove", () => {
+        if (touchTimer) clearTimeout(touchTimer);
+      }, { passive: true });
+    });
+
+    // Botón de opciones '...' en la columna de acciones (Spec 049)
+    containerEl?.querySelectorAll(".btn-tx-actions-menu").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const txId = btn.getAttribute("data-tx-id");
+        const rect = btn.getBoundingClientRect();
+        abrirMenuContextualMovimiento(rect.left - 180, rect.bottom + 4, txId, account.id);
       });
     });
 
@@ -1707,7 +1822,7 @@
       }
 
       return `
-        <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+        <tr class="tx-table-row hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-context-menu" data-tx-id="${escapeHtml(tx.id)}">
           <td class="py-3 px-4 text-slate-500 whitespace-nowrap">${formatDate(tx.date)}</td>
           <td class="py-3 px-4">
             <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${typeBadge}">
@@ -1773,6 +1888,17 @@
         if (tx && tx.invoicePdf) {
           abrirComprobantePdf(tx.invoicePdf, tx.invoiceName || "factura_boleta.pdf");
         }
+      });
+    });
+
+    // Menú contextual con clic derecho en filas del libro de movimientos (Spec 049 / Alcance 2.a)
+    tbody.querySelectorAll(".tx-table-row").forEach(row => {
+      const txId = row.getAttribute("data-tx-id");
+      if (!txId) return;
+
+      row.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        abrirMenuContextualMovimiento(e.clientX, e.clientY, txId, null);
       });
     });
 
@@ -6466,6 +6592,74 @@
     document.getElementById("modal-pdf-viewer")?.addEventListener("cancel", () => {
       cerrarVisorPdfModal();
     });
+
+    // Acciones del Menú Contextual de Movimientos (Spec 049)
+    document.getElementById("ctx-tx-edit")?.addEventListener("click", () => {
+      const id = activeContextTxId;
+      cerrarMenuContextualMovimiento();
+      if (!id) return;
+      const tx = (state.transactions || []).find(t => t.id === id);
+      if (tx) openTransactionModal(tx.type || "expense", tx);
+    });
+
+    document.getElementById("ctx-tx-duplicate")?.addEventListener("click", () => {
+      const id = activeContextTxId;
+      cerrarMenuContextualMovimiento();
+      if (!id) return;
+      const tx = (state.transactions || []).find(t => t.id === id);
+      if (tx) {
+        openTransactionModal(tx.type || "expense", tx);
+        setTimeout(() => {
+          document.getElementById("btn-duplicate-tx")?.click();
+        }, 50);
+      }
+    });
+
+    document.getElementById("ctx-tx-view-pdf")?.addEventListener("click", () => {
+      const id = activeContextTxId;
+      cerrarMenuContextualMovimiento();
+      if (!id) return;
+      const tx = (state.transactions || []).find(t => t.id === id);
+      if (tx && tx.invoicePdf) {
+        abrirComprobantePdf(tx.invoicePdf, tx.invoiceName || "factura_boleta.pdf");
+      }
+    });
+
+    document.getElementById("ctx-tx-new")?.addEventListener("click", () => {
+      const accId = activeContextAccountId;
+      cerrarMenuContextualMovimiento();
+      openTransactionModal("expense");
+      if (accId) {
+        setTimeout(() => {
+          const sel = document.getElementById("tx-input-account");
+          if (sel) sel.value = accId;
+        }, 50);
+      }
+    });
+
+    document.getElementById("ctx-tx-delete")?.addEventListener("click", () => {
+      const id = activeContextTxId;
+      cerrarMenuContextualMovimiento();
+      if (id) solicitarEliminarTransaccion(id);
+    });
+
+    // Cierre del menú contextual al hacer clic fuera, scroll o presionar Escape (Spec 049)
+    document.addEventListener("click", (e) => {
+      const menu = document.getElementById("tx-context-menu");
+      if (menu && !menu.contains(e.target) && !e.target.closest(".btn-tx-actions-menu")) {
+        cerrarMenuContextualMovimiento();
+      }
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        cerrarMenuContextualMovimiento();
+      }
+    });
+
+    window.addEventListener("scroll", () => {
+      cerrarMenuContextualMovimiento();
+    }, { passive: true });
 
     // BOTONES QUE ABREN LA PLANILLA DE NUEVO MOVIMIENTO
     document.getElementById("btn-quick-new-tx")?.addEventListener("click", () => {

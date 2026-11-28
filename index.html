@@ -1200,6 +1200,38 @@
   </dialog>
 
   <!-- ======================================================== -->
+  <!-- MENÚ CONTEXTUAL DE MOVIMIENTOS (SPEC 049 - CRUD & DUPLICAR) -->
+  <!-- ======================================================== -->
+  <div id="tx-context-menu" class="fixed z-50 hidden min-w-[210px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl py-1 text-xs text-slate-700 dark:text-slate-200 divide-y divide-slate-100 dark:divide-slate-800/80 backdrop-blur-md">
+    <div class="py-1">
+      <button type="button" id="ctx-tx-edit" class="w-full text-left px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/70 flex items-center gap-2.5 transition-colors font-medium">
+        <i data-lucide="pencil" class="w-4 h-4 text-emerald-500"></i>
+        <span>Editar Movimiento</span>
+      </button>
+      <button type="button" id="ctx-tx-duplicate" class="w-full text-left px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/70 flex items-center gap-2.5 transition-colors font-medium">
+        <i data-lucide="copy" class="w-4 h-4 text-amber-500"></i>
+        <span>Duplicar Registro</span>
+      </button>
+      <button type="button" id="ctx-tx-view-pdf" class="w-full text-left px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/70 flex items-center gap-2.5 transition-colors font-medium">
+        <i data-lucide="file-text" class="w-4 h-4 text-rose-500"></i>
+        <span>Ver Factura / Boleta (PDF)</span>
+      </button>
+    </div>
+    <div class="py-1">
+      <button type="button" id="ctx-tx-new" class="w-full text-left px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/70 flex items-center gap-2.5 transition-colors font-medium">
+        <i data-lucide="plus-circle" class="w-4 h-4 text-indigo-500"></i>
+        <span>Nuevo Movimiento</span>
+      </button>
+    </div>
+    <div class="py-1">
+      <button type="button" id="ctx-tx-delete" class="w-full text-left px-3.5 py-2 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center gap-2.5 transition-colors font-medium">
+        <i data-lucide="trash-2" class="w-4 h-4"></i>
+        <span>Eliminar Movimiento</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
   <!-- MODAL DE AUTENTICACIÓN FIREBASE AUTH (SPEC 021)          -->
   <!-- ======================================================== -->
   <dialog id="auth-modal" class="rounded-2xl p-0 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-2xl border border-slate-200 dark:border-slate-800 max-w-md w-full mx-auto">
