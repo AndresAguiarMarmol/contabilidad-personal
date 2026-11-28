@@ -1680,7 +1680,9 @@
 
         renderActiveView();
         showToast(`Cuenta "${target.name}" eliminada del catálogo.`, "success");
-        if (typeof DbAdapter !== "undefined" && DbAdapter && DbAdapter.getProvider() === "firebase") {
+        if (typeof triggerAutoSync === "function") {
+          triggerAutoSync({ notify: false });
+        } else if (typeof DbAdapter !== "undefined" && DbAdapter && DbAdapter.getProvider() === "firebase") {
           DbAdapter.syncBidirectional().catch(() => {});
         }
       });
@@ -4895,7 +4897,8 @@
           balance: isNominal ? 0 : (existing.balance || 0),
           periodMovement: isNominal ? 0 : (existing.periodMovement || 0),
           isSystem: false,
-          icon: existing.icon || (parentCodeVal ? "corner-down-right" : (classNum === 1 ? "box" : classNum === 2 ? "credit-card" : classNum === 3 ? "shield" : classNum === 4 ? "plus-circle" : "tag"))
+          icon: existing.icon || (parentCodeVal ? "corner-down-right" : (classNum === 1 ? "box" : classNum === 2 ? "credit-card" : classNum === 3 ? "shield" : classNum === 4 ? "plus-circle" : "tag")),
+          updatedAt: new Date().toISOString()
         };
 
         if (targetIdx >= 0) {
@@ -4932,7 +4935,8 @@
           balance: 0,
           periodMovement: 0,
           isSystem: false,
-          icon: parentCodeVal ? "corner-down-right" : (classNum === 1 ? "box" : classNum === 2 ? "credit-card" : classNum === 3 ? "shield" : classNum === 4 ? "plus-circle" : "tag")
+          icon: parentCodeVal ? "corner-down-right" : (classNum === 1 ? "box" : classNum === 2 ? "credit-card" : classNum === 3 ? "shield" : classNum === 4 ? "plus-circle" : "tag"),
+          updatedAt: new Date().toISOString()
         });
       }
 
@@ -4954,7 +4958,9 @@
         ? `Subcuenta "${nameVal}" (${codeVal}) creada exitosamente bajo ${parentCodeVal}.`
         : `Cuenta contable "${nameVal}" guardada con éxito.`;
       showToast(successMsg, "success");
-      if (typeof DbAdapter !== "undefined" && DbAdapter && DbAdapter.getProvider() === "firebase") {
+      if (typeof triggerAutoSync === "function") {
+        triggerAutoSync({ notify: false });
+      } else if (typeof DbAdapter !== "undefined" && DbAdapter && DbAdapter.getProvider() === "firebase") {
         DbAdapter.syncBidirectional().catch(() => {});
       }
     });
@@ -6060,6 +6066,34 @@
           if (Storage && Storage.savePlanAccounts) {
             Storage.savePlanAccounts(state.planAccounts);
           }
+        }
+      }
+
+      // Spec 051: Unificar cuenta 5.1.01 a "Alquileres, Gastos Comunes, Jardinería, Reparaciones"
+      const target5101 = (state.planAccounts || []).find(p => p.code === "5.1.01" || p.id === "P-5-1-01");
+      if (target5101) {
+        if (target5101.name !== "Alquileres, Gastos Comunes, Jardinería, Reparaciones") {
+          target5101.name = "Alquileres, Gastos Comunes, Jardinería, Reparaciones";
+          target5101.updatedAt = new Date().toISOString();
+          if (Storage && Storage.savePlanAccounts) {
+            Storage.savePlanAccounts(state.planAccounts);
+          }
+        }
+      } else {
+        state.planAccounts.push({
+          id: "P-5-1-01",
+          code: "5.1.01",
+          name: "Alquileres, Gastos Comunes, Jardinería, Reparaciones",
+          classNumber: 5,
+          classType: "expense",
+          groupName: "5.1 Vivienda y Hogar",
+          nature: "debit",
+          isSystem: true,
+          icon: "home",
+          updatedAt: new Date().toISOString()
+        });
+        if (Storage && Storage.savePlanAccounts) {
+          Storage.savePlanAccounts(state.planAccounts);
         }
       }
       state.currencies = Storage.getCurrencies ? Storage.getCurrencies() : [];

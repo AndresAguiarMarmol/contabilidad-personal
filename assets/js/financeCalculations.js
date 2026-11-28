@@ -2283,7 +2283,8 @@
     });
     const mergedGoals = Array.from(goalMap.values());
 
-    // 5. Fusionar plan de cuentas personalizado (Local-First: subcuentas locales tienen prioridad, excluyendo eliminados)
+    // 5. Fusionar plan de cuentas personalizado con resolución LWW y detección de cambios (Spec 051)
+    let hasPlanAccountsUpdated = false;
     const planMap = new Map();
     localPlan.forEach(p => {
       if (p && (p.id || p.code)) {
@@ -2301,7 +2302,14 @@
         planMap.set(key, { ...p });
       } else {
         const existing = planMap.get(key);
-        planMap.set(key, { ...p, ...existing });
+        const localTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+        const remoteTime = p.updatedAt ? new Date(p.updatedAt).getTime() : 0;
+        if (remoteTime > localTime) {
+          planMap.set(key, { ...existing, ...p });
+          hasPlanAccountsUpdated = true;
+        } else {
+          planMap.set(key, { ...p, ...existing });
+        }
       }
     });
     const mergedPlanAccounts = sanearCuentasPlanNominales(Array.from(planMap.values()));
@@ -2440,6 +2448,7 @@
       hasNewGoals ||
       hasGoalsUpdated ||
       hasNewPlan ||
+      hasPlanAccountsUpdated ||
       hasCurrenciesUpdated ||
       hasNewSuppliers ||
       hasSuppliersUpdated
@@ -2462,7 +2471,8 @@
         deletedSuppliers: Array.from(deletedSuppliersSet)
       },
       hasChangesFromRemote,
-      newTransactionsFromRemote: newTxsFromRemote
+      newTransactionsFromRemote: newTxsFromRemote,
+      hasPlanAccountsUpdated
     };
   }
 

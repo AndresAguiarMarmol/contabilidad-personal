@@ -19,7 +19,7 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 - **Clave:** `finance_goals_data`
   - Array de objetos `SavingsGoal`: `id`, `title`, `targetAmount`, `currentAmount`, `deadlineDate`, `color`.
 - **Clave:** `finance_plan_accounts_data`
-  - Array de objetos `AccountPlanItem` personalizados: `id`, `code`, `name`, `parentCode` (código de la cuenta base padre para subcuentas), `isSubaccount` (booleano), `classNumber` (1..5), `classType`, `groupName`, `nature` ("debit" | "credit"), `balance`, `periodMovement`, `isSystem`.
+  - Array de objetos `AccountPlanItem` personalizados: `id`, `code`, `name`, `parentCode` (código de la cuenta base padre para subcuentas), `isSubaccount` (booleano), `classNumber` (1..5), `classType`, `groupName`, `nature` ("debit" | "credit"), `balance`, `periodMovement`, `isSystem`, `updatedAt` (timestamp ISO de última modificación, Spec 051). Sincronización bidireccional determinista mediante Last-Write-Wins (LWW) en `fusionarEstadoContable` garantizando correspondencia y coherencia exacta de nombres y atributos entre PC y teléfonos móviles.
 - **Claves de Lápidas (Tombstones - Spec 016, Spec 017 & Spec 025):**
   - `finance_deleted_accounts_data`: Array de IDs de cuentas financieras eliminadas (`deletedAccounts`).
   - `finance_deleted_plan_accounts_data`: Array de códigos e IDs de subcuentas eliminadas.
@@ -55,6 +55,14 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 ---
 
 ## 2. Decisiones vigentes
+
+- **Sincronización Bidireccional Determinista del Plan de Cuentas (LWW con Timestamp `updatedAt`) (Spec 051):**
+  - **Resolución Last-Write-Wins (LWW) en Plan de Cuentas:** Incorporación del campo `updatedAt` (ISO 8601) en cada cuenta y subcuenta del plan (`AccountPlanItem`) al crearse o editarse en `openPlanAccountModal`.
+  - **Fusión Bidireccional Inteligente (`fusionarEstadoContable`):** En lugar de la sobreescritura local incondicional previa, se comparan las marcas temporales `local.updatedAt` vs `remote.updatedAt`. Si la versión remota es posterior o posee timestamp frente a una local sin él, se adoptan los atributos remotos actualizados y se activa la bandera `hasPlanAccountsUpdated = true`.
+  - **Detección Activa de Cambios Remotos:** `hasChangesFromRemote` incluye `hasPlanAccountsUpdated`, disparando el refresco del catálogo en pantalla y la persistencia en `localStorage`.
+  - **Disparador Seguro de Sincronización:** Tanto la creación/edición como la eliminación de cuentas del plan ahora invocan `triggerAutoSync({ notify: false })`, beneficiándose de la cola desatendida y control de concurrencia.
+  - **Unificación de Cuenta `5.1.01`:** La cuenta `5.1.01` adopta el nombre canónico `"Alquileres, Gastos Comunes, Jardinería, Reparaciones"` con timestamp actualizado tanto en el PC como en la nube y el teléfono.
+  - Suite de pruebas unitarias TDD Red-Green en `tests/plan-accounts-sync-lww.test.js` con 4/4 pruebas aprobadas (247/247 pruebas totales del proyecto).
 
 - **Blindaje contra Stop-Words y Coherencia de Clase en Asignación de Movimientos al Plan de Cuentas (Spec 050):**
   - **Exclusión de Palabras Genéricas (Stop-Words):** La función `matchCategory` en `obtenerCatalogoPlanCuentas` filtra palabras vacías (`"otros"`, `"otras"`, `"para"`, `"como"`, `"todo"`, `"este"`, etc.), impidiendo que categorías genéricas como *"Otros Ingresos"* contaminen erróneamente subcuentas específicas como *"Productos para la Piel, Cremas, Perfumes y otros"* (`5.6.02.03`).
@@ -305,6 +313,18 @@ Registro de todo lo que debe preservarse entre sesiones de trabajo: arquitectura
 ---
 
 ## 3. Historial de cambios
+
+- **2026-11-28 — Spec 051: Sincronización Bidireccional Determinista del Plan de Cuentas (LWW) y Unificación de Cuenta 5.1.01 (SDD):**
+  - Creada especificación formal `specs/051-plan-accounts-sync-lww/spec.md` (formato EARS).
+  - Diseñada e implementada la suite de pruebas unitarias TDD Red-Green en `tests/plan-accounts-sync-lww.test.js` (4 pruebas unitarias verificando resolución LWW ante timestamps remotos más recientes, precedencia local ante timestamps más antiguos o iguales, migración heredada sin timestamp local, e inmunidad ante lápidas de eliminación, alcanzando 247/247 pruebas totales en verde).
+  - Corregido `assets/js/financeCalculations.js`:
+    - Implementada comparación LWW (`localTime` vs `remoteTime`) en `fusionarEstadoContable` para cuentas del catálogo.
+    - Activada la bandera `hasPlanAccountsUpdated` e integrada en `hasChangesFromRemote` para reactividad en la interfaz y persistencia local.
+  - Actualizado `assets/js/app.js`:
+    - Incorporado timestamp `updatedAt` al crear o actualizar cuentas en `openPlanAccountModal`.
+    - Sustituidas llamadas desatendidas a `DbAdapter.syncBidirectional()` por `triggerAutoSync({ notify: false })` en creación, edición y eliminación de cuentas del plan.
+    - Saneada y unificada la cuenta `5.1.01` en `loadStateFromStorage` con el nombre canónico `"Alquileres, Gastos Comunes, Jardinería, Reparaciones"` y timestamp fresco.
+  - Actualizada la versión del Service Worker a `contapersonal-v34` en `sw.js`.
 
 - **2026-11-28 — Spec 050: Blindaje de Asignación Contable contra Stop-Words y Coherencia de Clase (SDD):**
   - Creada especificación formal `specs/050-fix-nominal-accounts-matching/spec.md` (formato EARS).
